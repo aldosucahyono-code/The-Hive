@@ -7,11 +7,16 @@ export function hasExcessiveRepetition(value: string): boolean {
 }
 
 export function hasLowVariety(value: string): boolean {
-  // Menangkap input seperti "abababab" yang lolos dari cek repetisi berurutan
+  // Menangkap input seperti "wkwkwkwk" atau "abababab" yang lolos dari cek
+  // repetisi berurutan. Sengaja HANYA diterapkan ke teks pendek (6-24 karakter):
+  // kalimat asli yang lebih panjang wajar punya rasio huruf unik lebih rendah
+  // (bahasa Indonesia banyak mengulang huruf umum seperti a, n, t, r, s, u),
+  // jadi menerapkan ambang batas ini ke teks panjang akan menolak jawaban
+  // yang sah — persis bug yang pernah terjadi di lapangan.
   const trimmed = value.trim().replace(/\s/g, "");
-  if (trimmed.length < 6) return false;
+  if (trimmed.length < 6 || trimmed.length > 24) return false;
   const uniqueChars = new Set(trimmed.toLowerCase()).size;
-  return uniqueChars / trimmed.length < 0.35;
+  return uniqueChars / trimmed.length < 0.3;
 }
 
 export function isSpammy(value: string): boolean {
