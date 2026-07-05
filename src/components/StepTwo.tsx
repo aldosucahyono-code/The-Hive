@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { WizardData } from "./ChatWizard";
 import { isValidLocation, isValidOmset, isValidPastDate, isValidFreeText, getTodayString } from "../utils/validation";
 
@@ -25,6 +25,43 @@ const textareaErr = inputErr + " resize-none";
 
 function StepTwo({ data, updateField, next, back }: StepTwoProps) {
   const isBaru = data.jenisAnalisis === "baru";
+  const omsetInputRef = useRef<HTMLInputElement>(null);
+
+  // Bug yang diperbaiki: field ini mem-format ulang SELURUH teks jadi
+  // "Rp1.000.000,-" setiap kali diketik. Kalau kursor tidak dijaga secara
+  // manual, browser otomatis melempar kursor ke paling akhir setelah teks
+  // diganti — jadi backspace di tengah angka terasa tidak berfungsi, dan
+  // pengguna terpaksa hapus semua lalu ketik ulang. Solusinya: hitung ada
+  // berapa digit SEBELUM posisi kursor sebelum diformat ulang, lalu setelah
+  // teks baru terpasang, taruh kursor persis setelah digit ke-N yang sama.
+  function handleOmsetChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const rawValue = e.target.value;
+    const cursorPos = e.target.selectionStart ?? rawValue.length;
+    const digitsBeforeCursor = rawValue.slice(0, cursorPos).replace(/[^0-9]/g, "").length;
+
+    updateField("omsetBulanan", formatOmset(rawValue));
+
+    requestAnimationFrame(() => {
+      const el = omsetInputRef.current;
+      if (!el) return;
+      let seen = 0;
+      let newPos = el.value.length;
+      if (digitsBeforeCursor === 0) {
+        newPos = 0;
+      } else {
+        for (let i = 0; i < el.value.length; i++) {
+          if (/[0-9]/.test(el.value[i])) {
+            seen++;
+            if (seen === digitsBeforeCursor) {
+              newPos = i + 1;
+              break;
+            }
+          }
+        }
+      }
+      el.setSelectionRange(newPos, newPos);
+    });
+  }
 
   const [touched, setTouched] = useState({
     lokasi: false,
@@ -130,11 +167,12 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
           )}
         </label>
         <input
+          ref={omsetInputRef}
           type="text"
           inputMode="numeric"
           placeholder={isBaru ? "Contoh : Rp10.000.000,-" : "Contoh : Rp15.000.000,-"}
           value={data.omsetBulanan}
-          onChange={(e) => updateField("omsetBulanan", formatOmset(e.target.value))}
+          onChange={handleOmsetChange}
           onBlur={() => markTouched("omsetBulanan")}
           className={touched.omsetBulanan && !omsetValid ? inputErr : inputOk}
         />
