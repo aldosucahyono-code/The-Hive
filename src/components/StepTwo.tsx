@@ -11,12 +11,6 @@ type StepTwoProps = {
 
 const todayString = getTodayString();
 
-function formatOmset(raw: string) {
-  const digits = raw.replace(/[^0-9]/g, "");
-  if (!digits) return "";
-  return "Rp" + Number(digits).toLocaleString("id-ID") + ",-";
-}
-
 const inputBase = "w-full rounded-lg border bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary";
 const inputOk = inputBase + " border-white/10";
 const inputErr = inputBase + " border-red-500";
@@ -34,19 +28,44 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
   // pengguna terpaksa hapus semua lalu ketik ulang. Solusinya: hitung ada
   // berapa digit SEBELUM posisi kursor sebelum diformat ulang, lalu setelah
   // teks baru terpasang, taruh kursor persis setelah digit ke-N yang sama.
+  // Perbaikan tambahan: kalau backspace kebetulan "memakan" karakter format
+  // (titik/koma/strip, bukan angka), pemformatan ulang akan langsung
+  // menambahkan karakter itu lagi karena formatnya selalu tetap — hasilnya backspace
+  // terasa tidak berfungsi sama sekali, terutama saat kursor di ujung akhir
+  // teks. Solusinya: deteksi kasus ini, lalu hapus ANGKA terdekat sebelum
+  // tanda baca itu, bukan tanda bacanya sendiri.
   function handleOmsetChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const oldValue = data.omsetBulanan;
     const rawValue = e.target.value;
-    const cursorPos = e.target.selectionStart ?? rawValue.length;
-    const digitsBeforeCursor = rawValue.slice(0, cursorPos).replace(/[^0-9]/g, "").length;
+    const newCursorPos = e.target.selectionStart ?? rawValue.length;
+    const isSingleBackspace = rawValue.length === oldValue.length - 1;
 
-    updateField("omsetBulanan", formatOmset(rawValue));
+    let workingDigits: string;
+    let digitsBeforeCursor: number;
+
+    const deletedChar = isSingleBackspace ? oldValue[newCursorPos] : undefined;
+
+    if (isSingleBackspace && deletedChar && !/[0-9]/.test(deletedChar)) {
+      // Backspace mengenai tanda format, bukan angka — geser ke angka terdekat.
+      const digitsBeforeOldCursor = oldValue.slice(0, newCursorPos).replace(/[^0-9]/g, "").length;
+      const allDigits = oldValue.replace(/[^0-9]/g, "");
+      workingDigits =
+        allDigits.slice(0, digitsBeforeOldCursor - 1) + allDigits.slice(digitsBeforeOldCursor);
+      digitsBeforeCursor = digitsBeforeOldCursor - 1;
+    } else {
+      workingDigits = rawValue.replace(/[^0-9]/g, "");
+      digitsBeforeCursor = rawValue.slice(0, newCursorPos).replace(/[^0-9]/g, "").length;
+    }
+
+    const formatted = workingDigits ? "Rp" + Number(workingDigits).toLocaleString("id-ID") + ",-" : "";
+    updateField("omsetBulanan", formatted);
 
     requestAnimationFrame(() => {
       const el = omsetInputRef.current;
       if (!el) return;
       let seen = 0;
       let newPos = el.value.length;
-      if (digitsBeforeCursor === 0) {
+      if (digitsBeforeCursor <= 0) {
         newPos = 0;
       } else {
         for (let i = 0; i < el.value.length; i++) {
