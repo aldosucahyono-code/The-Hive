@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { hardNavigate } from "../utils/navigate";
 
+declare global {
+  interface Window {
+    snap: any;
+  }
+}
+
 export type PlanId = "pro" | "platinum";
 
 export type PendingOrder = {
@@ -9,7 +15,15 @@ export type PendingOrder = {
   email: string;
 };
 
-const PLAN_INFO: Record<PlanId, { label: string; price: string; accent: string; accentText: string; accentBg: string }> = {
+type PlanInfo = {
+  label: string;
+  price: string;
+  accent: string;
+  accentText: string;
+  accentBg: string;
+};
+
+const PLAN_INFO: Record<PlanId, PlanInfo> = {
   pro: {
     label: "PRO",
     price: "Rp99.000",
@@ -46,6 +60,56 @@ function PaymentPage({ plan }: { plan: PlanId }) {
   const info = PLAN_INFO[plan];
   const order = usePendingOrder();
 
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  async function handleBayar() {
+    if (!order) return;
+    setIsProcessing(true);
+    setPaymentError(null);
+
+    try {
+      const response = await fetch("/api/create-transaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tier: plan,
+          customerName: order.nama,
+          customerEmail: order.email,
+          businessName: order.namaBisnis,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setPaymentError(data.error || "Gagal memulai pembayaran");
+        setIsProcessing(false);
+        return;
+      }
+
+      window.snap.pay(data.token, {
+        onSuccess: function () {
+          hardNavigate(`#pembayaran-sukses?order_id=${data.order_id}`);
+        },
+        onPending: function () {
+          hardNavigate(`#pembayaran-pending?order_id=${data.order_id}`);
+        },
+        onError: function () {
+          setPaymentError("Pembayaran gagal. Silakan coba lagi.");
+          setIsProcessing(false);
+        },
+        onClose: function () {
+          setIsProcessing(false);
+        },
+      });
+    } catch (err) {
+      console.error("handleBayar error:", err);
+      setPaymentError("Terjadi kesalahan. Silakan coba lagi.");
+      setIsProcessing(false);
+    }
+  }
+
   return (
     <section className="mx-auto max-w-lg px-6 py-20">
       <button
@@ -56,7 +120,9 @@ function PaymentPage({ plan }: { plan: PlanId }) {
       </button>
 
       <div className={`rounded-2xl border ${info.accent} bg-surface p-8`}>
-        <span className={`inline-block rounded-full ${info.accentBg} px-3 py-1 text-xs font-bold text-white`}>
+        <span
+          className={`inline-block rounded-full ${info.accentBg} px-3 py-1 text-xs font-bold text-white`}
+        >
           {info.label}
         </span>
         <h1 className="mt-4 text-2xl font-extrabold">Unlock Laporan {info.label}</h1>
@@ -85,24 +151,26 @@ function PaymentPage({ plan }: { plan: PlanId }) {
         </div>
 
         {!order && (
-          <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+          <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
             Data bisnis tidak ditemukan. Sebaiknya mulai dari analisis gratis dulu supaya laporan
             yang kami kirim sesuai dengan bisnis Anda.
           </p>
         )}
 
-        {/* TODO(backend): ganti tombol ini dengan integrasi Midtrans Snap.
-            Setelah pembayaran sukses, backend memicu report-engine dengan
-            tier={plan} dan mengirim PDF hasilnya ke `order.email`. */}
         <button
-          disabled
-          className={`mt-6 w-full cursor-not-allowed rounded-xl ${info.accentBg} py-4 text-base font-bold text-white opacity-60`}
+          onClick={handleBayar}
+          disabled={isProcessing || !order}
+          className={`mt-6 w-full rounded-xl ${info.accentBg} py-4 text-base font-bold text-white transition ${
+            isProcessing || !order ? "cursor-not-allowed opacity-60" : "hover:opacity-90"
+          }`}
         >
-          🔒 Pembayaran Segera Aktif
+          {isProcessing ? "Memproses..." : `Bayar ${info.price}`}
         </button>
+        {paymentError && (
+          <p className="mt-3 text-center text-xs text-red-400">{paymentError}</p>
+        )}
         <p className="mt-3 text-center text-xs text-neutral-500">
-          Integrasi pembayaran sedang kami siapkan. Laporan Anda akan otomatis dikirim ke email
-          begitu pembayaran aktif.
+          Laporan lengkap akan otomatis dikirim ke email Anda setelah pembayaran berhasil.
         </p>
       </div>
     </section>
