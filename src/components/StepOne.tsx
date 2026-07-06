@@ -102,7 +102,7 @@ function StepOne({ data, updateField, next }: StepOneProps) {
           onBlur={() => markTouched("email")}
           className={touched.email && !emailValid ? inputErr : inputOk}
         />
-        <p className="mt-1.5 text-xs text-neutral-500">Laporan dan bukti pembayaran Anda akan dikirim ke email ini.</p>
+        <p className="mt-1.5 text-xs text-neutral-500">Bukti pembayaran Anda akan dikirim ke email ini.</p>
       </div>
 
       <div className="mb-5">

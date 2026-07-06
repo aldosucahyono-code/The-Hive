@@ -127,7 +127,8 @@ function PaymentPage({ plan }: { plan: PlanId }) {
         </span>
         <h1 className="mt-4 text-2xl font-extrabold">Unlock Laporan {info.label}</h1>
         <p className="mt-2 text-sm text-neutral-400">
-          Laporan lengkap akan dikirim dalam format PDF ke email Anda setelah pembayaran berhasil.
+          Setelah pembayaran berhasil, laporan lengkap Anda akan langsung tersedia dalam format PDF.
+
         </p>
 
         <div className="mt-6 space-y-3 rounded-xl border border-white/10 bg-black/20 p-5">
@@ -170,7 +171,8 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           <p className="mt-3 text-center text-xs text-red-400">{paymentError}</p>
         )}
         <p className="mt-3 text-center text-xs text-neutral-500">
-          Laporan lengkap akan otomatis dikirim ke email Anda setelah pembayaran berhasil.
+          Setelah pembayaran berhasil, laporan lengkap Anda akan langsung tersedia dalam format PDF.
+
         </p>
       </div>
     </section>
