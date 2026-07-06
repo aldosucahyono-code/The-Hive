@@ -29,10 +29,12 @@ type WizardPayload = {
   profesi?: string;
   lokasi: string;
   sejakKapan?: string;
+  rencanaLaunching?: string;
   omsetBulanan?: string; // dipakai juga untuk "Estimasi Modal Awal" pada bisnis baru
   targetPelanggan?: string;
   tantangan: string;
   target: string;
+  ceritaVisi?: string;
 };
 
 // Skema dikirim sebagai teks ke Claude supaya tahu persis nama field & tipe
@@ -90,10 +92,12 @@ function buildUserPrompt(data: WizardPayload, tier: Tier): string {
 - Jenis bisnis: ${data.jenisBisnis}
 - Lokasi: ${data.lokasi}
 ${data.sejakKapan ? `- Sejak: ${data.sejakKapan}` : ""}
+${data.rencanaLaunching ? `- Rencana tanggal launching: ${data.rencanaLaunching}` : ""}
 ${data.omsetBulanan ? `- ${isBaru ? "Estimasi modal awal" : "Rata-rata omset bulanan"} (disebutkan pengguna sendiri): ${data.omsetBulanan}` : ""}
 ${data.targetPelanggan ? `- Target pelanggan: ${data.targetPelanggan}` : ""}
 - Tantangan terbesar: ${data.tantangan}
 - Target 6-12 bulan ke depan: ${data.target}
+${data.ceritaVisi ? `\nCerita & visi dalam kata-kata pengguna sendiri (sumber PALING PENTING untuk memahami cara pandang, ambisi, dan gaya bicara mereka — pakai untuk mengkalibrasi nada seluruh laporan, terutama executive summary/ringkasan):\n"${data.ceritaVisi}"` : ""}
 
 ${SCHEMA_DESCRIPTION}
 
@@ -110,7 +114,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "ANTHROPIC_API_KEY belum diset di Vercel." });
   }
 
-  const { wizardData, tier } = req.body as { wizardData: WizardPayload; tier: Tier };
+  const { wizardData, tier, lang } = req.body as {
+    wizardData: WizardPayload;
+    tier: Tier;
+    lang?: "id" | "en";
+  };
+  const activeLang: "id" | "en" = lang === "en" ? "en" : "id";
   if (!wizardData?.namaBisnis || !tier || (tier !== "pro" && tier !== "platinum")) {
     return res.status(400).json({ error: "Data tidak lengkap atau tier tidak valid." });
   }
@@ -121,7 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const message = await client.messages.create({
       model: "claude-sonnet-5",
       max_tokens: tier === "platinum" ? 8000 : 4000,
-      system: buildSystemPrompt(tier),
+      system: buildSystemPrompt(tier, wizardData.jenisAnalisis, activeLang),
       messages: [{ role: "user", content: buildUserPrompt(wizardData, tier) }],
     });
 

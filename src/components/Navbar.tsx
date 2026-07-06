@@ -1,5 +1,6 @@
 import logo from "../assets/logo/hive-logo.png";
 import { hardNavigate } from "../utils/navigate";
+import { useLanguage } from "../i18n/LanguageContext";
 
 function navigateTo(hash: string) {
   return (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -19,6 +20,7 @@ function Navbar() {
   // Sama seperti App.tsx: karena navigasi selalu hard-reload, hash saat ini
   // cukup dibaca sekali langsung dari URL — tidak perlu state/listener.
   const currentHash = window.location.hash.replace("#", "");
+  const { lang, toggleLang } = useLanguage();
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-black/90 backdrop-blur-md">
@@ -53,10 +55,21 @@ function Navbar() {
           })}
         </nav>
 
-        <button className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-neutral-200">
-          <span>⚡</span>
-          <span>Powered by <strong className="text-primary">Beemo AI</strong></span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={toggleLang}
+            title={lang === "id" ? "Switch to English" : "Ganti ke Bahasa Indonesia"}
+            className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold text-neutral-200 hover:border-primary/40 hover:text-white"
+          >
+            <span>🌐</span>
+            <span>{lang === "id" ? "EN" : "ID"}</span>
+          </button>
+
+          <button className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-neutral-200">
+            <span>⚡</span>
+            <span>Powered by <strong className="text-primary">Beemo AI</strong></span>
+          </button>
+        </div>
 
       </div>
     </header>

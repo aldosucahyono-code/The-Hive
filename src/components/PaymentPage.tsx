@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { hardNavigate } from "../utils/navigate";
+import { useLanguage } from "../i18n/LanguageContext";
 
 declare global {
   interface Window {
@@ -57,6 +58,7 @@ function usePendingOrder(): PendingOrder | null {
 }
 
 function PaymentPage({ plan }: { plan: PlanId }) {
+  const { t } = useLanguage();
   const info = PLAN_INFO[plan];
   const order = usePendingOrder();
 
@@ -96,7 +98,7 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           hardNavigate(`#pembayaran-pending?order_id=${data.order_id}`);
         },
         onError: function () {
-          setPaymentError("Pembayaran gagal. Silakan coba lagi.");
+          setPaymentError(t.paymentPage.paymentErrorGeneric);
           setIsProcessing(false);
         },
         onClose: function () {
@@ -105,7 +107,7 @@ function PaymentPage({ plan }: { plan: PlanId }) {
       });
     } catch (err) {
       console.error("handleBayar error:", err);
-      setPaymentError("Terjadi kesalahan. Silakan coba lagi.");
+      setPaymentError(t.paymentPage.paymentErrorNetwork);
       setIsProcessing(false);
     }
   }
@@ -116,7 +118,7 @@ function PaymentPage({ plan }: { plan: PlanId }) {
         onClick={() => hardNavigate("")}
         className="mb-8 text-sm text-neutral-400 hover:text-white"
       >
-        ← Kembali ke Beranda
+        {t.paymentPage.backButton}
       </button>
 
       <div className={`rounded-2xl border ${info.accent} bg-surface p-8`}>
@@ -125,36 +127,34 @@ function PaymentPage({ plan }: { plan: PlanId }) {
         >
           {info.label}
         </span>
-        <h1 className="mt-4 text-2xl font-extrabold">Unlock Laporan {info.label}</h1>
+        <h1 className="mt-4 text-2xl font-extrabold">{t.paymentPage.unlockTitle} {info.label}</h1>
         <p className="mt-2 text-sm text-neutral-400">
-          Setelah pembayaran berhasil, laporan lengkap Anda akan langsung tersedia dalam format PDF.
-
+          {t.paymentPage.description}
         </p>
 
         <div className="mt-6 space-y-3 rounded-xl border border-white/10 bg-black/20 p-5">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-neutral-400">Bisnis</span>
+            <span className="text-neutral-400">{t.paymentPage.bisnisLabel}</span>
             <span className="font-semibold">{order?.namaBisnis || "—"}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-neutral-400">Nama</span>
+            <span className="text-neutral-400">{t.paymentPage.namaLabel}</span>
             <span className="font-semibold">{order?.nama || "—"}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-neutral-400">Email tujuan laporan</span>
+            <span className="text-neutral-400">{t.paymentPage.emailLabel}</span>
             <span className="font-semibold">{order?.email || "—"}</span>
           </div>
           <div className="my-2 border-t border-white/10" />
           <div className="flex items-center justify-between">
-            <span className="text-neutral-300">Total</span>
+            <span className="text-neutral-300">{t.paymentPage.totalLabel}</span>
             <span className={`text-2xl font-black ${info.accentText}`}>{info.price}</span>
           </div>
         </div>
 
         {!order && (
           <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-            Data bisnis tidak ditemukan. Sebaiknya mulai dari analisis gratis dulu supaya laporan
-            yang kami kirim sesuai dengan bisnis Anda.
+            {t.paymentPage.missingDataWarning}
           </p>
         )}
 
@@ -165,14 +165,13 @@ function PaymentPage({ plan }: { plan: PlanId }) {
             isProcessing || !order ? "cursor-not-allowed opacity-60" : "hover:opacity-90"
           }`}
         >
-          {isProcessing ? "Memproses..." : `Bayar ${info.price}`}
+          {isProcessing ? t.paymentPage.payButtonLoading : `${t.paymentPage.payButton} ${info.price}`}
         </button>
         {paymentError && (
           <p className="mt-3 text-center text-xs text-red-400">{paymentError}</p>
         )}
         <p className="mt-3 text-center text-xs text-neutral-500">
-          Setelah pembayaran berhasil, laporan lengkap Anda akan langsung tersedia dalam format PDF.
-
+          {t.paymentPage.footerNote}
         </p>
       </div>
     </section>

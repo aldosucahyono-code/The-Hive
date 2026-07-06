@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { WizardData } from "./ChatWizard";
 import { isValidFreeText } from "../utils/validation";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type StepThreeProps = {
   data: WizardData;
@@ -19,6 +20,7 @@ const textareaOk = textareaBase + " border-white/10";
 const textareaErr = textareaBase + " border-red-500";
 
 function StepThree({ data, updateField, next, back }: StepThreeProps) {
+  const { t } = useLanguage();
   const [touched, setTouched] = useState<TouchedState>({
     tantangan: false,
     target: false,
@@ -46,21 +48,13 @@ function StepThree({ data, updateField, next, back }: StepThreeProps) {
 
   const isBaru = data.jenisAnalisis === "baru";
 
-  const tantanganLabel = isBaru
-    ? "Tantangan Terbesar dalam Merintis Bisnis Ini"
-    : "Tantangan Terbesar Bisnis Anda";
-
-  const tantanganPlaceholder = isBaru
-    ? "Contoh : Modal terbatas untuk sewa tempat strategis dan belum punya jaringan supplier terpercaya..."
-    : "Contoh : Penjualan menurun karena kualitas produk tidak konsisten sejak bulan kedua buka...";
-
-  const targetPlaceholder = isBaru
-    ? "Contoh : Ingin buka dan langsung ramai pelanggan dalam 3 bulan pertama, balik modal dalam setahun..."
-    : "Contoh : Ingin omset naik 2x lipat dalam 6 bulan dengan menjangkau pelanggan mahasiswa...";
+  const tantanganLabel = isBaru ? t.stepThree.tantanganLabelNew : t.stepThree.tantanganLabelRunning;
+  const tantanganPlaceholder = isBaru ? t.stepThree.tantanganPlaceholderNew : t.stepThree.tantanganPlaceholderRunning;
+  const targetPlaceholder = isBaru ? t.stepThree.targetPlaceholderNew : t.stepThree.targetPlaceholderRunning;
 
   return (
     <>
-      <div className="mb-6 text-xs font-bold uppercase tracking-widest text-primary">STEP 3 OF 4</div>
+      <div className="mb-6 text-xs font-bold uppercase tracking-widest text-primary">{t.stepThree.stepLabel}</div>
 
       <div className="mb-5">
         <label className="mb-2 block text-sm">
@@ -77,12 +71,12 @@ function StepThree({ data, updateField, next, back }: StepThreeProps) {
           onBlur={() => markTouched("tantangan")}
           className={touched.tantangan && !tantanganValid ? textareaErr : textareaOk}
         />
-        <p className="mt-1.5 text-xs text-neutral-500">Ceritakan sedetail mungkin (minimal 2 kata), jangan asal ketik.</p>
+        <p className="mt-1.5 text-xs text-neutral-500">{t.stepThree.helper}</p>
       </div>
 
       <div className="mb-6">
         <label className="mb-2 block text-sm">
-          Target / Harapan Bisnis Anda <span className="text-primary">*</span>
+          {t.stepThree.targetLabel} <span className="text-primary">*</span>
           {touched.target && !targetValid && (
             <span className="ml-2 text-amber-400" title="Minimal 7 karakter, 2 kata, tidak boleh asal/berulang">⚠</span>
           )}
@@ -95,19 +89,19 @@ function StepThree({ data, updateField, next, back }: StepThreeProps) {
           onBlur={() => markTouched("target")}
           className={touched.target && !targetValid ? textareaErr : textareaOk}
         />
-        <p className="mt-1.5 text-xs text-neutral-500">Ceritakan sedetail mungkin (minimal 2 kata), jangan asal ketik.</p>
+        <p className="mt-1.5 text-xs text-neutral-500">{t.stepThree.helper}</p>
       </div>
 
       {error && (
-        <p className="mb-4 text-sm text-red-400">Periksa kembali kolom yang ditandai ⚠ sebelum lanjut.</p>
+        <p className="mb-4 text-sm text-red-400">{t.stepThree.formError}</p>
       )}
 
       <div className="flex justify-between">
         <button onClick={back} className="rounded-xl border border-white/15 px-6 py-3 text-sm font-bold text-neutral-200">
-          ← Kembali
+          {t.common.back}
         </button>
         <button onClick={handleNext} className="rounded-xl bg-primary px-6 py-3 text-sm font-bold text-black">
-          Lanjut →
+          {t.common.next}
         </button>
       </div>
     </>

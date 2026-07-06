@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { WizardData } from "./ChatWizard";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type StepReviewProps = {
   data: WizardData;
@@ -12,8 +13,10 @@ type StepReviewProps = {
 const MIN_FILL_TIME_MS = 5000;
 
 function StepReview({ data, onEdit, back, startTime, onSuccess }: StepReviewProps) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [botError, setBotError] = useState(false);
+  const isBaru = data.jenisAnalisis === "baru";
 
   function handleProses() {
     const elapsed = Date.now() - startTime;
@@ -31,58 +34,71 @@ function StepReview({ data, onEdit, back, startTime, onSuccess }: StepReviewProp
 
   return (
     <>
-      <div className="mb-6 text-xs font-bold uppercase tracking-widest text-primary">STEP 4 OF 4 — KONFIRMASI DATA</div>
+      <div className="mb-6 text-xs font-bold uppercase tracking-widest text-primary">{t.stepReview.stepLabel}</div>
 
-      <p className="mb-6 text-sm text-neutral-300">
-        Cek dulu data di bawah sebelum diproses. Pastikan semuanya sudah
-        benar, karena hasil analisis akan mengikuti data yang Anda isi.
-      </p>
+      <p className="mb-6 text-sm text-neutral-300">{t.stepReview.intro}</p>
 
       <div className="mb-4 rounded-xl border border-white/10 bg-black/20 p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-xs font-bold uppercase tracking-wide text-primary">Identitas</h4>
-          <button onClick={() => onEdit(1)} className="rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300">Edit</button>
+          <h4 className="text-xs font-bold uppercase tracking-wide text-primary">{t.stepReview.identitasTitle}</h4>
+          <button onClick={() => onEdit(1)} className="rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300">{t.common.edit}</button>
         </div>
-        <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">Nama</span><strong>{data.nama}</strong></div>
-        <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">Profesi</span><strong>{data.profesi}</strong></div>
-        <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">Nama Bisnis/Brand</span><strong>{data.namaBisnis}</strong></div>
-        <div className="flex justify-between py-1.5 text-sm"><span className="text-neutral-400">Jenis Bisnis</span><strong>{data.jenisBisnis}</strong></div>
+        <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">{t.stepReview.namaLabel}</span><strong>{data.nama}</strong></div>
+        <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">{t.stepReview.profesiLabel}</span><strong>{data.profesi}</strong></div>
+        <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">{t.stepReview.namaBisnisLabel}</span><strong>{data.namaBisnis}</strong></div>
+        <div className="flex justify-between py-1.5 text-sm"><span className="text-neutral-400">{t.stepReview.jenisBisnisLabel}</span><strong>{data.jenisBisnis}</strong></div>
       </div>
 
       <div className="mb-4 rounded-xl border border-white/10 bg-black/20 p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-xs font-bold uppercase tracking-wide text-primary">Lokasi & Kondisi Bisnis</h4>
-          <button onClick={() => onEdit(2)} className="rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300">Edit</button>
+          <h4 className="text-xs font-bold uppercase tracking-wide text-primary">{t.stepReview.lokasiKondisiTitle}</h4>
+          <button onClick={() => onEdit(2)} className="rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300">{t.common.edit}</button>
         </div>
-        <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">Lokasi</span><strong>{data.lokasi}</strong></div>
-        <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">Sejak Kapan Berjalan</span><strong>{data.sejakKapan}</strong></div>
-        <div className="flex justify-between py-1.5 text-sm"><span className="text-neutral-400">Omset Bulanan Saat Ini</span><strong>{data.omsetBulanan}</strong></div>
+        <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">{t.stepReview.lokasiLabel}</span><strong>{data.lokasi}</strong></div>
+        {isBaru ? (
+          <>
+            <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">{t.stepReview.targetPelangganLabel}</span><strong>{data.targetPelanggan}</strong></div>
+            <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">{t.stepReview.rencanaLaunchingLabel}</span><strong>{data.rencanaLaunching}</strong></div>
+          </>
+        ) : (
+          <div className="flex justify-between border-b border-white/5 py-1.5 text-sm"><span className="text-neutral-400">{t.stepReview.sejakKapanLabel}</span><strong>{data.sejakKapan}</strong></div>
+        )}
+        <div className="flex justify-between py-1.5 text-sm">
+          <span className="text-neutral-400">{isBaru ? t.stepReview.modalAwalLabel : t.stepReview.omsetLabel}</span>
+          <strong>{data.omsetBulanan}</strong>
+        </div>
       </div>
 
       <div className="mb-6 rounded-xl border border-white/10 bg-black/20 p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-xs font-bold uppercase tracking-wide text-primary">Tantangan & Target</h4>
-          <button onClick={() => onEdit(3)} className="rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300">Edit</button>
+          <h4 className="text-xs font-bold uppercase tracking-wide text-primary">{t.stepReview.tantanganTargetTitle}</h4>
+          <button onClick={() => onEdit(3)} className="rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300">{t.common.edit}</button>
         </div>
         <div className="border-b border-white/5 py-2 text-sm">
-          <span className="block text-neutral-400">Tantangan Terbesar</span>
+          <span className="block text-neutral-400">{t.stepReview.tantanganLabel}</span>
           <strong>{data.tantangan}</strong>
         </div>
         <div className="py-2 text-sm">
-          <span className="block text-neutral-400">Target/Harapan</span>
+          <span className="block text-neutral-400">{t.stepReview.targetLabel}</span>
           <strong>{data.target}</strong>
         </div>
       </div>
 
+      <div className="mb-6 rounded-xl border border-white/10 bg-black/20 p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="text-xs font-bold uppercase tracking-wide text-primary">{t.stepReview.ceritaVisiTitle}</h4>
+          <button onClick={() => onEdit(4)} className="rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300">{t.common.edit}</button>
+        </div>
+        <p className="py-2 text-sm text-neutral-200">{data.ceritaVisi}</p>
+      </div>
+
       {botError && (
-        <p className="mb-4 text-sm text-red-400">
-          Verifikasi gagal. Mohon isi ulang formulir secara manual, lalu coba lagi.
-        </p>
+        <p className="mb-4 text-sm text-red-400">{t.stepReview.botError}</p>
       )}
 
       <div className="mb-3 flex justify-start">
         <button onClick={back} className="rounded-xl border border-white/15 px-6 py-3 text-sm font-bold text-neutral-200">
-          ← Kembali
+          {t.common.back}
         </button>
       </div>
 
@@ -92,10 +108,10 @@ function StepReview({ data, onEdit, back, startTime, onSuccess }: StepReviewProp
         className="flex w-full flex-col items-center gap-1 rounded-xl bg-primary py-4 text-black disabled:opacity-60"
       >
         <span className="text-base font-bold">
-          {loading ? "Memproses Analisis..." : "🚀 Proses Analisis Sekarang"}
+          {loading ? t.stepReview.submitLoading : t.stepReview.submitLabel}
         </span>
         <span className="text-xs font-medium opacity-80">
-          Pastikan data sudah benar sebelum lanjut
+          {t.stepReview.submitHelper}
         </span>
       </button>
     </>

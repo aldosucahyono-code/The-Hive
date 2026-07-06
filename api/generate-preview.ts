@@ -17,10 +17,12 @@ type WizardPayload = {
   jenisBisnis: string;
   lokasi: string;
   sejakKapan?: string;
+  rencanaLaunching?: string;
   omsetBulanan?: string;
   targetPelanggan?: string;
   tantangan: string;
   target: string;
+  ceritaVisi?: string;
 };
 
 type PreviewData = {
@@ -33,7 +35,7 @@ type PreviewData = {
   opportunity: string;
 };
 
-const SYSTEM_PROMPT = `Anda adalah Beemo AI, konsultan bisnis dari THE HIVE untuk UMKM Indonesia.
+const SYSTEM_PROMPT_ID = `Anda adalah Beemo AI, konsultan bisnis dari THE HIVE untuk UMKM Indonesia.
 Tugas Anda di sini HANYA membuat PREVIEW GRATIS singkat — bukan laporan lengkap.
 
 ATURAN KETAT:
@@ -45,6 +47,12 @@ ATURAN KETAT:
 - Gunakan bahasa konsultan manusia yang hangat dan profesional, bukan bahasa AI generik.
 - Setiap kalimat harus terasa spesifik untuk bisnis ini, bukan template umum yang bisa
   dipakai bisnis apa pun.
+- Kalau pengguna menuliskan cerita/visi pribadi mereka, itu adalah SUMBER PALING PENTING
+  untuk memahami cara pandang, ambisi, dan gaya mereka — pakai untuk mengkalibrasi nada
+  bicara Anda dan membuat ringkasan terasa benar-benar mendengarkan cerita mereka, bukan
+  cuma mengolah data formulir.
+- Tulis SEMUA isi respons (summary, findings, strengths, improvements, opportunity,
+  statusLabel) dalam BAHASA INDONESIA.
 - Balas HANYA dengan JSON valid, tanpa markdown, tanpa teks lain, sesuai skema berikut:
 
 {
@@ -57,18 +65,67 @@ ATURAN KETAT:
   "opportunity": string (1 kalimat, peluang spesifik yang relevan dengan target/tantangan ini)
 }`;
 
-function buildUserPrompt(data: WizardPayload): string {
+const SYSTEM_PROMPT_EN = `You are Beemo AI, THE HIVE's business consultant for small and growing
+businesses. Your job here is ONLY to produce a short FREE PREVIEW — not the full report.
+
+STRICT RULES:
+- NEVER invent specific financial figures (revenue, ROI, breakeven, NPV, revenue projections).
+- A business health score (0-100) and a confidence level are professional opinions you may give.
+- This preview is a TEASER — give a genuine, specific overview that reflects the user's actual
+  data, but DO NOT give complete solutions, a detailed action plan, or specific competitor names
+  (those belong to the paid report).
+- Write like a warm, professional human consultant, not a generic AI.
+- Every sentence must feel specific to this business, not a generic template that could apply
+  to any business.
+- If the user wrote their own personal story/vision, that is the MOST IMPORTANT source for
+  understanding their mindset, ambition, and style — use it to calibrate your tone and make the
+  summary feel like you genuinely listened to their story, not just processed a form.
+- Write ALL of the response content (summary, findings, strengths, improvements, opportunity,
+  statusLabel) in ENGLISH.
+- Reply with ONLY valid JSON, no markdown, no other text, matching this schema:
+
+{
+  "businessHealthScore": number (0-100),
+  "statusLabel": string (e.g. "Needs Serious Attention" | "Needs Improvement" | "Doing Fairly Well" | "Doing Great"),
+  "summary": string (2-3 sentences, a short summary of this specific business's condition),
+  "findings": [string, string, string] (exactly 3 key findings specific to this business),
+  "strengths": string (1 sentence, something specifically positive from the data given),
+  "improvements": string (1 sentence, a specific area to improve based on this data),
+  "opportunity": string (1 sentence, a specific opportunity relevant to this target/challenge)
+}`;
+
+function buildUserPrompt(data: WizardPayload, lang: "id" | "en"): string {
   const isBaru = data.jenisAnalisis === "baru";
+
+  if (lang === "en") {
+    return `User's business data:
+- Type: ${isBaru ? "New business (planned, not yet running)" : "Already running business"}
+- Business name: ${data.namaBisnis}
+- Business type: ${data.jenisBisnis}
+- Location: ${data.lokasi}
+${data.sejakKapan ? `- Operating since: ${data.sejakKapan}` : ""}
+${data.rencanaLaunching ? `- Planned launch date: ${data.rencanaLaunching}` : ""}
+${data.omsetBulanan ? `- ${isBaru ? "Estimated starting capital" : "Average monthly revenue"} (stated by the user, not something you calculated): ${data.omsetBulanan}` : ""}
+${data.targetPelanggan ? `- Target customers: ${data.targetPelanggan}` : ""}
+- Biggest challenge: ${data.tantangan}
+- 6-12 month target: ${data.target}
+${data.ceritaVisi ? `\nUser's own story & vision (the most important source for understanding their mindset):\n"${data.ceritaVisi}"` : ""}
+
+Create a short free preview following the JSON schema already described.`;
+  }
+
   return `Data bisnis dari pengguna:
 - Jenis: ${isBaru ? "Bisnis baru (rencana, belum berjalan)" : "Bisnis sudah berjalan"}
 - Nama bisnis: ${data.namaBisnis}
 - Jenis bisnis: ${data.jenisBisnis}
 - Lokasi: ${data.lokasi}
 ${data.sejakKapan ? `- Sejak: ${data.sejakKapan}` : ""}
+${data.rencanaLaunching ? `- Rencana tanggal launching: ${data.rencanaLaunching}` : ""}
 ${data.omsetBulanan ? `- ${isBaru ? "Estimasi modal awal" : "Rata-rata omset bulanan"} (disebutkan oleh pengguna, bukan hasil hitungan Anda): ${data.omsetBulanan}` : ""}
 ${data.targetPelanggan ? `- Target pelanggan: ${data.targetPelanggan}` : ""}
 - Tantangan terbesar: ${data.tantangan}
 - Target 6-12 bulan ke depan: ${data.target}
+${data.ceritaVisi ? `\nCerita & visi dalam kata-kata pengguna sendiri (sumber insight paling penting soal cara pandang mereka):\n"${data.ceritaVisi}"` : ""}
 
 Buat preview gratis singkat sesuai skema JSON yang sudah dijelaskan.`;
 }
@@ -83,7 +140,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "ANTHROPIC_API_KEY belum diset di Vercel." });
   }
 
-  const { wizardData } = req.body as { wizardData: WizardPayload };
+  const { wizardData, lang } = req.body as { wizardData: WizardPayload; lang?: "id" | "en" };
+  const activeLang: "id" | "en" = lang === "en" ? "en" : "id";
+
   if (!wizardData?.namaBisnis || !wizardData?.tantangan || !wizardData?.target) {
     return res.status(400).json({ error: "Data tidak lengkap." });
   }
@@ -93,8 +152,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const message = await client.messages.create({
       model: "claude-sonnet-5",
       max_tokens: 1500,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildUserPrompt(wizardData) }],
+      system: activeLang === "en" ? SYSTEM_PROMPT_EN : SYSTEM_PROMPT_ID,
+      messages: [{ role: "user", content: buildUserPrompt(wizardData, activeLang) }],
     });
 
     const textBlock = message.content.find((b) => b.type === "text");

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { WizardData } from "./ChatWizard";
-import { isValidLocation, isValidOmset, isValidPastDate, isValidFreeText, getTodayString } from "../utils/validation";
+import { isValidLocation, isValidOmset, isValidPastDate, isValidFutureDate, isValidFreeText, getTodayString } from "../utils/validation";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type StepTwoProps = {
   data: WizardData;
@@ -18,6 +19,7 @@ const textareaOk = inputOk + " resize-none";
 const textareaErr = inputErr + " resize-none";
 
 function StepTwo({ data, updateField, next, back }: StepTwoProps) {
+  const { t } = useLanguage();
   const isBaru = data.jenisAnalisis === "baru";
   const omsetInputRef = useRef<HTMLInputElement>(null);
 
@@ -85,6 +87,7 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
   const [touched, setTouched] = useState({
     lokasi: false,
     sejakKapan: false,
+    rencanaLaunching: false,
     omsetBulanan: false,
     targetPelanggan: false,
   });
@@ -92,6 +95,7 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
 
   const lokasiValid = isValidLocation(data.lokasi);
   const sejakKapanValid = isValidPastDate(data.sejakKapan);
+  const rencanaLaunchingValid = isValidFutureDate(data.rencanaLaunching);
   const omsetValid = isValidOmset(data.omsetBulanan);
   const targetPelangganValid = isValidFreeText(data.targetPelanggan, 7, 2);
 
@@ -101,13 +105,25 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
 
   function handleNext() {
     if (isBaru) {
-      setTouched((prev) => ({ ...prev, lokasi: true, targetPelanggan: true, omsetBulanan: true }));
-      if (!lokasiValid || !targetPelangganValid || !omsetValid) {
+      setTouched((prev) => ({
+        ...prev,
+        lokasi: true,
+        targetPelanggan: true,
+        omsetBulanan: true,
+        rencanaLaunching: true,
+      }));
+      if (!lokasiValid || !targetPelangganValid || !omsetValid || !rencanaLaunchingValid) {
         setError(true);
         return;
       }
     } else {
-      setTouched({ lokasi: true, sejakKapan: true, omsetBulanan: true, targetPelanggan: true });
+      setTouched({
+        lokasi: true,
+        sejakKapan: true,
+        omsetBulanan: true,
+        targetPelanggan: true,
+        rencanaLaunching: false,
+      });
       if (!lokasiValid || !sejakKapanValid || !omsetValid) {
         setError(true);
         return;
@@ -120,48 +136,68 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
 
   return (
     <>
-      <div className="mb-6 text-xs font-bold uppercase tracking-widest text-primary">STEP 2 OF 4</div>
+      <div className="mb-6 text-xs font-bold uppercase tracking-widest text-primary">{t.stepTwo.stepLabel}</div>
 
       <div className="mb-5">
         <label className="mb-2 block text-sm">
-          {isBaru ? "Lokasi Rencana Bisnis Anda" : "Lokasi Bisnis Anda"} <span className="text-primary">*</span>
+          {isBaru ? t.stepTwo.lokasiLabelNew : t.stepTwo.lokasiLabelRunning} <span className="text-primary">*</span>
           {touched.lokasi && !lokasiValid && (
             <span className="ml-2 text-amber-400" title="Minimal 2 kata, tidak boleh asal/berulang">⚠</span>
           )}
         </label>
         <input
           type="text"
-          placeholder="Contoh : Sukun, Kota Malang"
+          placeholder={t.stepTwo.lokasiPlaceholder}
           value={data.lokasi}
           onChange={(e) => updateField("lokasi", e.target.value)}
           onBlur={() => markTouched("lokasi")}
           className={touched.lokasi && !lokasiValid ? inputErr : inputOk}
         />
-        <p className="mt-1.5 text-xs text-neutral-500">Sertakan kecamatan/kota (minimal 2 kata), jangan disingkat/asal ketik.</p>
+        <p className="mt-1.5 text-xs text-neutral-500">{t.stepTwo.lokasiHelper}</p>
       </div>
 
       {isBaru ? (
-        <div className="mb-5">
-          <label className="mb-2 block text-sm">
-            Target Pelanggan Anda <span className="text-primary">*</span>
-            {touched.targetPelanggan && !targetPelangganValid && (
-              <span className="ml-2 text-amber-400" title="Minimal 2 kata, jangan asal ketik">⚠</span>
-            )}
-          </label>
-          <textarea
-            rows={3}
-            placeholder="Contoh : Mahasiswa dan pekerja muda usia 18-30 tahun di sekitar kampus..."
-            value={data.targetPelanggan}
-            onChange={(e) => updateField("targetPelanggan", e.target.value)}
-            onBlur={() => markTouched("targetPelanggan")}
-            className={touched.targetPelanggan && !targetPelangganValid ? textareaErr : textareaOk}
-          />
-          <p className="mt-1.5 text-xs text-neutral-500">Ceritakan siapa calon pelanggan utama Anda.</p>
-        </div>
+        <>
+          <div className="mb-5">
+            <label className="mb-2 block text-sm">
+              {t.stepTwo.targetPelangganLabel} <span className="text-primary">*</span>
+              {touched.targetPelanggan && !targetPelangganValid && (
+                <span className="ml-2 text-amber-400" title="Minimal 2 kata, jangan asal ketik">⚠</span>
+              )}
+            </label>
+            <textarea
+              rows={3}
+              placeholder={t.stepTwo.targetPelangganPlaceholder}
+              value={data.targetPelanggan}
+              onChange={(e) => updateField("targetPelanggan", e.target.value)}
+              onBlur={() => markTouched("targetPelanggan")}
+              className={touched.targetPelanggan && !targetPelangganValid ? textareaErr : textareaOk}
+            />
+            <p className="mt-1.5 text-xs text-neutral-500">{t.stepTwo.targetPelangganHelper}</p>
+          </div>
+
+          <div className="mb-5">
+            <label className="mb-2 block text-sm">
+              {t.stepTwo.rencanaLaunchingLabel} <span className="text-primary">*</span>
+              {touched.rencanaLaunching && !rencanaLaunchingValid && (
+                <span className="ml-2 text-amber-400" title="Tidak boleh tanggal yang sudah lewat">⚠</span>
+              )}
+            </label>
+            <input
+              type="date"
+              min={todayString}
+              value={data.rencanaLaunching}
+              onChange={(e) => updateField("rencanaLaunching", e.target.value)}
+              onBlur={() => markTouched("rencanaLaunching")}
+              className={(touched.rencanaLaunching && !rencanaLaunchingValid ? inputErr : inputOk) + " [color-scheme:dark]"}
+            />
+            <p className="mt-1.5 text-xs text-neutral-500">{t.stepTwo.rencanaLaunchingHelper}</p>
+          </div>
+        </>
       ) : (
         <div className="mb-5">
           <label className="mb-2 block text-sm">
-            Sejak Kapan Bisnis Berjalan <span className="text-primary">*</span>
+            {t.stepTwo.sejakKapanLabel} <span className="text-primary">*</span>
             {touched.sejakKapan && !sejakKapanValid && (
               <span className="ml-2 text-amber-400" title="Tidak boleh tanggal di masa depan">⚠</span>
             )}
@@ -174,13 +210,13 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
             onBlur={() => markTouched("sejakKapan")}
             className={(touched.sejakKapan && !sejakKapanValid ? inputErr : inputOk) + " [color-scheme:dark]"}
           />
-          <p className="mt-1.5 text-xs text-neutral-500">Pilih tanggal mulai bisnis Anda beroperasi (tidak boleh tanggal yang belum terjadi).</p>
+          <p className="mt-1.5 text-xs text-neutral-500">{t.stepTwo.sejakKapanHelper}</p>
         </div>
       )}
 
       <div className="mb-6">
         <label className="mb-2 block text-sm">
-          {isBaru ? "Estimasi Modal Awal" : "Rata-rata Omset Bulanan Saat Ini"} <span className="text-primary">*</span>
+          {isBaru ? t.stepTwo.modalAwalLabel : t.stepTwo.omsetLabel} <span className="text-primary">*</span>
           {touched.omsetBulanan && !omsetValid && (
             <span className="ml-2 text-amber-400" title="Isi dengan angka">⚠</span>
           )}
@@ -189,25 +225,25 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
           ref={omsetInputRef}
           type="text"
           inputMode="numeric"
-          placeholder={isBaru ? "Contoh : Rp10.000.000,-" : "Contoh : Rp15.000.000,-"}
+          placeholder={isBaru ? t.stepTwo.omsetPlaceholderNew : t.stepTwo.omsetPlaceholderRunning}
           value={data.omsetBulanan}
           onChange={handleOmsetChange}
           onBlur={() => markTouched("omsetBulanan")}
           className={touched.omsetBulanan && !omsetValid ? inputErr : inputOk}
         />
-        <p className="mt-1.5 text-xs text-neutral-500">Cukup ketik angkanya, format Rupiah otomatis menyesuaikan.</p>
+        <p className="mt-1.5 text-xs text-neutral-500">{t.stepTwo.omsetHelper}</p>
       </div>
 
       {error && (
-        <p className="mb-4 text-sm text-red-400">Periksa kembali kolom yang ditandai ⚠ sebelum lanjut.</p>
+        <p className="mb-4 text-sm text-red-400">{t.stepTwo.formError}</p>
       )}
 
       <div className="flex justify-between">
         <button onClick={back} className="rounded-xl border border-white/15 px-6 py-3 text-sm font-bold text-neutral-200">
-          ← Kembali
+          {t.common.back}
         </button>
         <button onClick={handleNext} className="rounded-xl bg-primary px-6 py-3 text-sm font-bold text-black">
-          Lanjut →
+          {t.common.next}
         </button>
       </div>
     </>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { WizardData } from "./ChatWizard";
 import { isValidNameLike, isValidBrandName, isValidProfesi, isValidEmail } from "../utils/validation";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type StepOneProps = {
   data: WizardData;
@@ -21,6 +22,7 @@ const inputOk = inputBase + " border-white/10";
 const inputErr = inputBase + " border-red-500";
 
 function StepOne({ data, updateField, next }: StepOneProps) {
+  const { t } = useLanguage();
   const [touched, setTouched] = useState<TouchedState>({
     nama: false,
     email: false,
@@ -54,7 +56,7 @@ function StepOne({ data, updateField, next }: StepOneProps) {
 
   return (
     <>
-      <div className="mb-6 text-xs font-bold uppercase tracking-widest text-primary">STEP 1 OF 4</div>
+      <div className="mb-6 text-xs font-bold uppercase tracking-widest text-primary">{t.stepOne.stepLabel}</div>
 
       <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
         <label htmlFor="website">Website</label>
@@ -71,68 +73,68 @@ function StepOne({ data, updateField, next }: StepOneProps) {
 
       <div className="mb-5">
         <label className="mb-2 block text-sm">
-          Nama Anda <span className="text-primary">*</span>
+          {t.stepOne.namaLabel} <span className="text-primary">*</span>
           {touched.nama && !namaValid && (
             <span className="ml-2 text-amber-400" title="Hanya huruf, minimal 3 karakter, tidak boleh huruf berulang/asal">⚠</span>
           )}
         </label>
         <input
           type="text"
-          placeholder="Contoh : Michael Aldo"
+          placeholder={t.stepOne.namaPlaceholder}
           value={data.nama}
           onChange={(e) => updateField("nama", e.target.value)}
           onBlur={() => markTouched("nama")}
           className={touched.nama && !namaValid ? inputErr : inputOk}
         />
-        <p className="mt-1.5 text-xs text-neutral-500">Hanya huruf, minimal 3 karakter, tanpa angka/simbol/huruf berulang.</p>
+        <p className="mt-1.5 text-xs text-neutral-500">{t.stepOne.namaHelper}</p>
       </div>
 
       <div className="mb-5">
         <label className="mb-2 block text-sm">
-          Email Anda <span className="text-primary">*</span>
+          {t.stepOne.emailLabel} <span className="text-primary">*</span>
           {touched.email && !emailValid && (
             <span className="ml-2 text-amber-400" title="Masukkan format email yang benar">⚠</span>
           )}
         </label>
         <input
           type="email"
-          placeholder="Contoh : nama@email.com"
+          placeholder={t.stepOne.emailPlaceholder}
           value={data.email}
           onChange={(e) => updateField("email", e.target.value)}
           onBlur={() => markTouched("email")}
           className={touched.email && !emailValid ? inputErr : inputOk}
         />
-        <p className="mt-1.5 text-xs text-neutral-500">Bukti pembayaran Anda akan dikirim ke email ini.</p>
+        <p className="mt-1.5 text-xs text-neutral-500">{t.stepOne.emailHelper}</p>
       </div>
 
       <div className="mb-5">
         <label className="mb-2 block text-sm">
-          Profesi Anda <span className="text-primary">*</span>
+          {t.stepOne.profesiLabel} <span className="text-primary">*</span>
           {touched.profesi && !profesiValid && (
             <span className="ml-2 text-amber-400" title="Hanya huruf, minimal 3 karakter, tidak boleh mengandung profesi ilegal/negatif">⚠</span>
           )}
         </label>
         <input
           type="text"
-          placeholder="Founder, Owner, Manager..."
+          placeholder={t.stepOne.profesiPlaceholder}
           value={data.profesi}
           onChange={(e) => updateField("profesi", e.target.value)}
           onBlur={() => markTouched("profesi")}
           className={touched.profesi && !profesiValid ? inputErr : inputOk}
         />
-        <p className="mt-1.5 text-xs text-neutral-500">Hanya huruf, minimal 3 karakter, tidak boleh profesi ilegal/negatif (mis. pencuri, hacker).</p>
+        <p className="mt-1.5 text-xs text-neutral-500">{t.stepOne.profesiHelper}</p>
       </div>
 
       <div className="mb-5">
         <label className="mb-2 block text-sm">
-          Nama Bisnis/Brand Anda <span className="text-primary">*</span>
+          {t.stepOne.namaBisnisLabel} <span className="text-primary">*</span>
           {touched.namaBisnis && !namaBisnisValid && (
             <span className="ml-2 text-amber-400" title="Wajib diisi dengan nama yang wajar">⚠</span>
           )}
         </label>
         <input
           type="text"
-          placeholder="Contoh : King Rawon & King Juice Premium"
+          placeholder={t.stepOne.namaBisnisPlaceholder}
           value={data.namaBisnis}
           onChange={(e) => updateField("namaBisnis", e.target.value)}
           onBlur={() => markTouched("namaBisnis")}
@@ -142,29 +144,29 @@ function StepOne({ data, updateField, next }: StepOneProps) {
 
       <div className="mb-6">
         <label className="mb-2 block text-sm">
-          Jenis Bisnis Anda <span className="text-primary">*</span>
+          {t.stepOne.jenisBisnisLabel} <span className="text-primary">*</span>
           {touched.jenisBisnis && !jenisBisnisValid && (
             <span className="ml-2 text-amber-400" title="Hanya huruf, minimal 3 karakter, tidak boleh huruf berulang/asal">⚠</span>
           )}
         </label>
         <input
           type="text"
-          placeholder="Coffee Shop, Kontraktor, Retail..."
+          placeholder={t.stepOne.jenisBisnisPlaceholder}
           value={data.jenisBisnis}
           onChange={(e) => updateField("jenisBisnis", e.target.value)}
           onBlur={() => markTouched("jenisBisnis")}
           className={touched.jenisBisnis && !jenisBisnisValid ? inputErr : inputOk}
         />
-        <p className="mt-1.5 text-xs text-neutral-500">Hanya huruf, minimal 3 karakter, tanpa angka/simbol/huruf berulang.</p>
+        <p className="mt-1.5 text-xs text-neutral-500">{t.stepOne.jenisBisnisHelper}</p>
       </div>
 
       {error && (
-        <p className="mb-4 text-sm text-red-400">Periksa kembali kolom yang ditandai ⚠ sebelum lanjut.</p>
+        <p className="mb-4 text-sm text-red-400">{t.stepOne.formError}</p>
       )}
 
       <div className="flex justify-end">
         <button onClick={handleNext} className="rounded-xl bg-primary px-6 py-3 text-sm font-bold text-black">
-          Lanjut →
+          {t.common.next}
         </button>
       </div>
     </>
