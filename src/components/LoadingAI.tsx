@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
 type LoadingAIProps = {
+  /** true begitu hasil (sukses ATAU error) dari pemanggilan API sudah didapat. */
+  ready: boolean;
   onDone: () => void;
 };
 
@@ -11,25 +13,37 @@ const steps = [
   "Menyusun rekomendasi strategi...",
 ];
 
-function LoadingAI({ onDone }: LoadingAIProps) {
+const MIN_DISPLAY_MS = 3600;
+
+function LoadingAI({ ready, onDone }: LoadingAIProps) {
   const [index, setIndex] = useState(0);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
   useEffect(() => {
     const stepInterval = setInterval(() => {
       setIndex((prev) => (prev < steps.length - 1 ? prev + 1 : prev));
     }, 900);
 
-    const doneTimeout = setTimeout(() => {
-      onDone();
-    }, steps.length * 900 + 600);
+    const minTimeTimeout = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, MIN_DISPLAY_MS);
 
     return () => {
       clearInterval(stepInterval);
-      clearTimeout(doneTimeout);
+      clearTimeout(minTimeTimeout);
     };
-  }, [onDone]);
+  }, []);
 
-  const progress = Math.min(100, ((index + 1) / steps.length) * 100);
+  // Baru pindah ke hasil begitu KEDUANYA terpenuhi: animasi minimum sudah
+  // berjalan cukup lama (supaya tidak terasa "instan" dan mencurigakan),
+  // DAN hasil sungguhan dari Claude API (sukses atau error) sudah didapat.
+  useEffect(() => {
+    if (ready && minTimeElapsed) {
+      onDone();
+    }
+  }, [ready, minTimeElapsed, onDone]);
+
+  const progress = ready ? 100 : Math.min(95, ((index + 1) / steps.length) * 100);
 
   return (
     <section className="mx-auto flex max-w-md flex-col items-center px-6 py-24 text-center">

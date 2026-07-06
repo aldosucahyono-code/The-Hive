@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import ChooseAnalysisType from "./ChooseAnalysisType";
 import StepOne from "./StepOne";
@@ -6,7 +6,7 @@ import StepTwo from "./StepTwo";
 import StepThree from "./StepThree";
 import StepReview from "./StepReview";
 import LoadingAI from "./LoadingAI";
-import PreviewReport from "./PreviewReport";
+import PreviewReport, { type PreviewData } from "./PreviewReport";
 
 export type WizardData = {
   jenisAnalisis: "" | "baru" | "berjalan";
@@ -44,6 +44,9 @@ function ChatWizard() {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<WizardData>(initialData);
   const [startTime] = useState(() => Date.now());
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewReady, setPreviewReady] = useState(false);
 
   function updateField(field: keyof WizardData, value: string) {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -51,7 +54,50 @@ function ChatWizard() {
 
   function restart() {
     setData(initialData);
+    setPreviewData(null);
+    setPreviewError(null);
+    setPreviewReady(false);
     setStep(0);
+  }
+
+  /** Panggil Claude API untuk preview gratis. ready=true dilaporkan ke
+   * LoadingAI baik sukses maupun gagal, supaya animasi tidak menggantung
+   * selamanya kalau API error. */
+  async function runPreviewAnalysis() {
+    setPreviewReady(false);
+    setPreviewError(null);
+    try {
+      const response = await fetch("/api/generate-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wizardData: data }),
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        setPreviewError(json.error || "Gagal membuat preview.");
+        setPreviewData(null);
+      } else {
+        setPreviewData(json.preview as PreviewData);
+      }
+    } catch (err) {
+      console.error("runPreviewAnalysis error:", err);
+      setPreviewError("Terjadi kesalahan jaringan. Coba lagi.");
+      setPreviewData(null);
+    } finally {
+      setPreviewReady(true);
+    }
+  }
+
+  // Memicu pemanggilan API tepat sekali saat wizard masuk step loading (5).
+  useEffect(() => {
+    if (step === 5) {
+      runPreviewAnalysis();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  function retryPreview() {
+    setStep(5);
   }
 
   if (step === 0) {
@@ -66,11 +112,19 @@ function ChatWizard() {
   }
 
   if (step === 5) {
-    return <LoadingAI onDone={() => setStep(6)} />;
+    return <LoadingAI ready={previewReady} onDone={() => setStep(6)} />;
   }
 
   if (step === 6) {
-    return <PreviewReport data={data} onRestart={restart} />;
+    return (
+      <PreviewReport
+        data={data}
+        preview={previewData}
+        error={previewError}
+        onRetry={retryPreview}
+        onRestart={restart}
+      />
+    );
   }
 
   return (
