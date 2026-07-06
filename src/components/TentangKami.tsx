@@ -287,7 +287,7 @@ function TentangKami() {
                 Dibangun oleh Seseorang yang Percaya Bahwa Setiap Bisnis Berhak Bertumbuh
               </h2>
               <p className="mt-4 text-sm leading-relaxed text-neutral-400">
-                THE HIVE didirikan oleh A. Aldo Sucahyono, seorang profesional yang menghabiskan bertahun-tahun mendampingi dunia bisnis, mulai dari sektor perbankan hingga pengembangan strategi usaha.
+                THE HIVE didirikan oleh A. Aldo Sucahyono, seorang profesional yang menghabiskan bertahun-tahun mendampingi dunia bisnis, mulai dari sektor perbankan hingga pengembangan strategi usaha umkm ataupun korprasi.
               </p>
               <p className="mt-4 text-sm leading-relaxed text-neutral-400">
                 Dari pengalaman tersebut, ia menyadari bahwa banyak keputusan bisnis gagal bukan karena kurangnya semangat, melainkan karena minimnya akses terhadap analisis yang tepat.
