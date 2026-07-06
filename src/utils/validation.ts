@@ -137,3 +137,8 @@ export function isValidPastDate(value: string): boolean {
   if (!value.trim()) return false;
   return value <= getTodayString();
 }
+
+export function isValidFutureDate(value: string): boolean {
+  if (!value.trim()) return false;
+  return value >= getTodayString();
+}
