@@ -44,20 +44,34 @@ function StepThree({ data, updateField, next, back }: StepThreeProps) {
     next();
   }
 
+  const isBaru = data.jenisAnalisis === "baru";
+
+  const tantanganLabel = isBaru
+    ? "Tantangan Terbesar dalam Merintis Bisnis Ini"
+    : "Tantangan Terbesar Bisnis Anda";
+
+  const tantanganPlaceholder = isBaru
+    ? "Contoh : Modal terbatas untuk sewa tempat strategis dan belum punya jaringan supplier terpercaya..."
+    : "Contoh : Penjualan menurun karena kualitas produk tidak konsisten sejak bulan kedua buka...";
+
+  const targetPlaceholder = isBaru
+    ? "Contoh : Ingin buka dan langsung ramai pelanggan dalam 3 bulan pertama, balik modal dalam setahun..."
+    : "Contoh : Ingin omset naik 2x lipat dalam 6 bulan dengan menjangkau pelanggan mahasiswa...";
+
   return (
     <>
       <div className="mb-6 text-xs font-bold uppercase tracking-widest text-primary">STEP 3 OF 4</div>
 
       <div className="mb-5">
         <label className="mb-2 block text-sm">
-          Tantangan Terbesar Bisnis Anda <span className="text-primary">*</span>
+          {tantanganLabel} <span className="text-primary">*</span>
           {touched.tantangan && !tantanganValid && (
             <span className="ml-2 text-amber-400" title="Minimal 7 karakter, 2 kata, tidak boleh asal/berulang">⚠</span>
           )}
         </label>
         <textarea
           rows={5}
-          placeholder="Contoh : Penjualan menurun karena kualitas produk tidak konsisten sejak bulan kedua buka..."
+          placeholder={tantanganPlaceholder}
           value={data.tantangan}
           onChange={(e) => updateField("tantangan", e.target.value)}
           onBlur={() => markTouched("tantangan")}
@@ -75,7 +89,7 @@ function StepThree({ data, updateField, next, back }: StepThreeProps) {
         </label>
         <textarea
           rows={5}
-          placeholder="Contoh : Ingin omset naik 2x lipat dalam 6 bulan dengan menjangkau pelanggan mahasiswa..."
+          placeholder={targetPlaceholder}
           value={data.target}
           onChange={(e) => updateField("target", e.target.value)}
           onBlur={() => markTouched("target")}

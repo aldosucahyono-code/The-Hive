@@ -92,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 800,
+      max_tokens: 1500,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: buildUserPrompt(wizardData) }],
     });
@@ -100,7 +100,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const textBlock = message.content.find((b) => b.type === "text");
     const raw = textBlock && "text" in textBlock ? textBlock.text : "";
     const cleaned = raw.replace(/```json|```/g, "").trim();
-    const preview = JSON.parse(cleaned) as PreviewData;
+
+    let preview: PreviewData;
+    try {
+      preview = JSON.parse(cleaned) as PreviewData;
+    } catch (parseErr) {
+      // Log isi respons Claude yang gagal di-parse, supaya kita tahu persis
+      // kenapa (terpotong? ada teks tambahan? format salah?) lewat Vercel Logs.
+      console.error("generate-preview: JSON.parse gagal. stop_reason:", message.stop_reason);
+      console.error("generate-preview: raw response:", raw);
+      throw parseErr;
+    }
 
     return res.status(200).json({ preview });
   } catch (err) {
