@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import founderPhoto from "../assets/founder/aldo.png";
 import hiveLogo from "../assets/logo/hive-logo.png";
+import { useLanguage } from "../i18n/LanguageContext";
 
 /** Minimal scroll-reveal via IntersectionObserver — no animation library,
  * matches the guidance's "CSS Transition/Animation + Intersection Observer,
@@ -68,116 +69,32 @@ function NumberedList({ items }: { items: { title: string; text?: string }[] }) 
   );
 }
 
-type AccordionItem = {
-  icon: string;
-  title: string;
-  content: ReactNode;
-};
-
-const accordionItems: AccordionItem[] = [
-  {
-    icon: "👁️",
-    title: "Visi Kami",
-    content:
-      "Kami percaya bahwa setiap pelaku usaha berhak memiliki akses terhadap analisis bisnis kelas profesional. THE HIVE hadir untuk menghilangkan kesenjangan tersebut dengan menghadirkan Artificial Intelligence dan Business Intelligence yang membantu setiap keputusan bisnis menjadi lebih cerdas, lebih cepat, dan lebih berdampak. Visi kami adalah menjadi platform AI Business Intelligence paling dipercaya di Indonesia yang mengubah data menjadi keputusan, keputusan menjadi pertumbuhan, dan pertumbuhan menjadi masa depan bisnis yang lebih baik.",
-  },
-  {
-    icon: "🎯",
-    title: "Misi Kami",
-    content: (
-      <NumberedList
-        items={[
-          {
-            title: "Menghadirkan Analisis Bisnis Profesional untuk Semua",
-            text: "Kami percaya bahwa setiap pelaku usaha berhak mendapatkan akses terhadap analisis bisnis berkualitas. Karena itu, kami membangun teknologi yang mampu menyederhanakan proses analisis tanpa mengurangi kedalaman insight yang diberikan.",
-          },
-          {
-            title: "Mengubah Data Menjadi Keputusan yang Bernilai",
-            text: "Kami mengolah berbagai informasi bisnis menjadi rekomendasi yang jelas, terukur, dan dapat langsung digunakan, sehingga setiap keputusan didasarkan pada data, bukan sekadar asumsi.",
-          },
-          {
-            title: "Membantu Bisnis Bertumbuh Secara Berkelanjutan",
-            text: "THE HIVE tidak hanya membantu menyelesaikan masalah hari ini, tetapi juga membantu pelaku usaha melihat peluang baru, memahami risiko, dan menyusun strategi pertumbuhan jangka panjang.",
-          },
-          {
-            title: "Menggabungkan Artificial Intelligence dan Business Intelligence",
-            text: "Kami mengintegrasikan kecerdasan buatan dengan pendekatan Business Intelligence agar setiap laporan tidak hanya cepat dihasilkan, tetapi juga relevan, mudah dipahami, dan memiliki nilai praktis.",
-          },
-          {
-            title: "Terus Belajar, Terus Berkembang",
-            text: "Kami berkomitmen untuk terus meningkatkan kualitas AI, memperluas sumber data, serta menyempurnakan metode analisis agar THE HIVE selalu memberikan insight yang semakin akurat seiring berkembangnya dunia bisnis.",
-          },
-          {
-            title: "Membangun Ekosistem Keputusan Bisnis Indonesia",
-            text: "Kami ingin menjadi mitra berpikir bagi jutaan pelaku usaha Indonesia, membantu mereka memahami bisnisnya lebih dalam, mengambil keputusan yang lebih baik, dan menciptakan dampak nyata bagi pertumbuhan ekonomi nasional.",
-          },
-        ]}
-      />
-    ),
-  },
-  {
-    icon: "💡",
-    title: "Kenapa THE HIVE Dibuat?",
-    content:
-      "THE HIVE lahir dari keyakinan bahwa keputusan bisnis terbaik selalu dimulai dari data, bukan dugaan. Kami percaya setiap pelaku usaha, mulai dari UMKM hingga perusahaan besar, berhak mendapatkan analisis bisnis yang akurat tanpa harus memiliki tim konsultan atau kemampuan teknis yang rumit. Melalui perpaduan Artificial Intelligence (AI) dan analisis bisnis modern, THE HIVE membantu Anda memahami kondisi usaha, mengenali peluang pasar, menganalisis kompetitor, serta mengambil keputusan dengan lebih percaya diri. Tujuan kami sederhana: membuat analisis bisnis profesional menjadi lebih cepat, mudah, dan terjangkau agar semakin banyak bisnis di Indonesia dapat tumbuh secara berkelanjutan.",
-  },
-  {
-    icon: "🔶",
-    title: 'Filosofi Nama "THE HIVE"',
-    content: (
-      <>
-        <p>
-          THE HIVE bukan sekadar nama, tetapi sebuah filosofi. Terinspirasi dari cara lebah bekerja dalam satu ekosistem yang penuh disiplin, kolaborasi, dan kecerdasan, setiap bagian memiliki peran untuk menghasilkan sesuatu yang bernilai. Begitu pula THE HIVE yang menggabungkan berbagai sumber data, analisis, dan teknologi AI menjadi satu sistem yang mampu memberikan pemahaman bisnis secara menyeluruh.
-        </p>
-        <p className="mt-3">
-          Seperti lebah yang mengubah nektar menjadi madu, THE HIVE mengubah ribuan data menjadi wawasan yang mudah dipahami dan siap digunakan. Hasilnya bukan sekadar angka atau grafik, melainkan rekomendasi yang membantu pelaku usaha mengambil keputusan lebih cepat, lebih tepat, dan lebih percaya diri untuk mengembangkan bisnisnya.
-        </p>
-      </>
-    ),
-  },
-  {
-    icon: "⭐",
-    title: "Mengapa Harus THE HIVE?",
-    content: (
-      <NumberedList
-        items={[
-          { title: "Business Intelligence yang Berorientasi Keputusan" },
-          { title: "Artificial Intelligence yang Memahami Konteks Bisnis" },
-          { title: "Dibangun Khusus untuk Pelaku Usaha Indonesia" },
-          { title: "Laporan Profesional yang Siap Digunakan" },
-          { title: "Rekomendasi yang Dapat Langsung Diterapkan" },
-          { title: "Dibangun untuk Menjadi Mitra Bisnis, Bukan Sekadar AI" },
-        ]}
-      />
-    ),
-  },
-  {
-    icon: "💎",
-    title: "Nilai yang Kami Pegang",
-    content: (
-      <NumberedList
-        items={[
-          { title: "Data adalah Dasar Setiap Keputusan" },
-          { title: "Insight Harus Bisa Diterapkan" },
-          { title: "Dibangun untuk Bisnis Indonesia" },
-          { title: "Menjadi Partner, Bukan Sekadar AI" },
-          { title: "Terus Belajar dan Berkembang" },
-          { title: "Integritas di Atas Segalanya" },
-        ]}
-      />
-    ),
-  },
-];
-
-const coreValues = [
-  { icon: "📊", title: "Data Before Opinion", desc: "Keputusan yang baik selalu dimulai dari data." },
-  { icon: "🧩", title: "Simple but Powerful", desc: "Analisis yang baik tidak harus rumit untuk dipahami." },
-  { icon: "🚀", title: "Actionable Insight", desc: "Setiap rekomendasi harus dapat diterapkan." },
-  { icon: "📈", title: "Continuous Improvement", desc: "AI akan terus belajar, berkembang, dan menjadi lebih cerdas." },
-];
-
 function Accordion() {
+  const { t } = useLanguage();
   const [openIndex, setOpenIndex] = useState<number | null>(0);
+
+  const a = t.aboutPage.accordion;
+
+  const accordionItems: { icon: string; title: string; content: ReactNode }[] = [
+    { icon: "👁️", title: a.visi.title, content: a.visi.content },
+    { icon: "🎯", title: a.misi.title, content: <NumberedList items={a.misi.items} /> },
+    { icon: "💡", title: a.kenapaDibuat.title, content: a.kenapaDibuat.content },
+    {
+      icon: "🔶",
+      title: a.filosofiNama.title,
+      content: (
+        <>
+          {a.filosofiNama.paragraphs.map((p, i) => (
+            <p key={i} className={i > 0 ? "mt-3" : ""}>
+              {p}
+            </p>
+          ))}
+        </>
+      ),
+    },
+    { icon: "⭐", title: a.mengapaHarus.title, content: <NumberedList items={a.mengapaHarus.items} /> },
+    { icon: "💎", title: a.nilaiKami.title, content: <NumberedList items={a.nilaiKami.items} /> },
+  ];
 
   return (
     <div className="space-y-3">
@@ -223,6 +140,9 @@ function Accordion() {
 }
 
 function TentangKami() {
+  const { t } = useLanguage();
+  const p = t.aboutPage;
+
   return (
     <section className="py-16" id="tentang-kami">
       <div className="mx-auto max-w-6xl px-6">
@@ -234,22 +154,20 @@ function TentangKami() {
               before:h-px before:w-5 before:bg-gradient-to-r before:from-transparent before:to-primary before:content-['']
               after:h-px after:w-5 after:bg-gradient-to-r after:from-primary after:to-transparent after:content-['']"
             >
-              Tentang Kami
+              {p.badge}
             </span>
             <h1 className="mt-3 text-3xl font-extrabold leading-tight sm:text-4xl">
-              AI Business Consultant Pertama yang Dibangun untuk{" "}
-              <span className="text-primary">Bisnis Indonesia</span>
+              {p.heroTitlePrefix}{" "}
+              <span className="text-primary">{p.heroTitleHighlight}</span>
             </h1>
             <p className="mt-4 text-neutral-300">
-              THE HIVE membantu pemilik usaha memahami kondisi bisnis, menemukan
-              peluang pasar, mempelajari kompetitor, hingga menyusun strategi
-              bisnis berbasis AI dan Business Intelligence.
+              {p.heroDesc}
             </p>
             <a
               href="#filosofi"
               className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black transition-transform hover:-translate-y-0.5"
             >
-              Pelajari Filosofi Kami
+              {p.heroCta}
             </a>
           </Reveal>
 
@@ -281,26 +199,22 @@ function TentangKami() {
           <div className="grid grid-cols-1 items-center gap-10 rounded-2xl border border-white/10 bg-surface p-8 md:grid-cols-2 md:p-10">
             <div>
               <span className="text-xs font-bold uppercase tracking-widest text-primary">
-                Tentang Pendiri
+                {p.founder.eyebrow}
               </span>
               <h2 className="mt-2 text-2xl font-extrabold leading-snug">
-                Dibangun oleh Seseorang yang Percaya Bahwa Setiap Bisnis Berhak Bertumbuh
+                {p.founder.heading}
               </h2>
-              <p className="mt-4 text-sm leading-relaxed text-neutral-400">
-                THE-HIVE didirikan oleh A. Aldo Sucahyono, seorang profesional yang menghabiskan bertahun-tahun mendampingi dunia bisnis, mulai dari sektor perbankan hingga pengembangan strategi usaha umkm ataupun korporasi.
-              </p>
-              <p className="mt-4 text-sm leading-relaxed text-neutral-400">
-                Dari pengalaman tersebut, ia menyadari bahwa banyak keputusan bisnis gagal bukan karena kurangnya semangat, melainkan karena minimnya akses terhadap analisis yang tepat.
-              </p>
-              <p className="mt-4 text-sm leading-relaxed text-neutral-400">
-                Berangkat dari keyakinan bahwa teknologi seharusnya membantu, bukan menggantikan manusia, ia membangun THE HIVE sebagai platform yang menggabungkan Artificial Intelligence dan Business Intelligence agar setiap pelaku usaha—baik UMKM, startup, maupun perusahaan—dapat memperoleh analisis bisnis profesional yang sebelumnya hanya dapat diakses oleh organisasi besar.
-              </p>
+              {p.founder.paragraphs.map((text, i) => (
+                <p key={i} className="mt-4 text-sm leading-relaxed text-neutral-400">
+                  {text}
+                </p>
+              ))}
               <p className="mt-3 text-sm leading-relaxed text-neutral-400">
-                "Saya percaya, keputusan yang lebih baik akan melahirkan bisnis yang lebih kuat. Dan bisnis yang lebih kuat akan membawa dampak yang lebih besar bagi Indonesia."
+                {p.founder.quote}
               </p>
               <div className="mt-6 flex flex-wrap items-center gap-4">
                 <span className="rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary">
-                  — Founder of THE HIVE
+                  {p.founder.badge}
                 </span>
                 <a
                   href="https://www.linkedin.com/in/michael-aldo26"
@@ -308,7 +222,7 @@ function TentangKami() {
                   rel="noreferrer"
                   className="text-sm font-semibold text-neutral-300 underline decoration-white/20 underline-offset-4 hover:text-primary"
                 >
-                  Lihat LinkedIn →
+                  {p.founder.linkedinLabel}
                 </a>
               </div>
             </div>
@@ -319,8 +233,8 @@ function TentangKami() {
                 alt="Albertus Aldo Sucahyono, Founder of THE HIVE"
                 className="h-auto w-full object-contain drop-shadow-[0_10px_40px_rgba(255,152,0,0.25)]"
               />
-              <p className="mt-3 text-center text-[15px] font-bold">A. Aldo Sucahyono</p>
-              <p className="text-center text-xs text-neutral-500">Founder of THE HIVE</p>
+              <p className="mt-3 text-center text-[15px] font-bold">{p.founder.name}</p>
+              <p className="text-center text-xs text-neutral-500">{p.founder.role}</p>
             </div>
           </div>
         </Reveal>
@@ -328,10 +242,10 @@ function TentangKami() {
         {/* ---------- Core Values ---------- */}
         <Reveal className="mt-16">
           <span className="mb-6 block text-xs font-bold uppercase tracking-widest text-primary">
-            Nilai yang Kami Pegang
+            {p.coreValuesLabel}
           </span>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {coreValues.map((v) => (
+            {p.coreValues.map((v) => (
               <div
                 key={v.title}
                 className="rounded-2xl border border-white/10 bg-surface p-6 transition-transform hover:-translate-y-1 hover:border-primary/40"
@@ -351,11 +265,11 @@ function TentangKami() {
               “
             </span>
             <p className="mx-auto -mt-2 max-w-2xl text-lg font-medium leading-relaxed text-neutral-200">
-              Mengubah Data Menjadi Keputusan.
+              {p.quote.line1}
               <br />
-              Mengubah Keputusan Menjadi Pertumbuhan.
+              {p.quote.line2}
             </p>
-            <footer className="mt-4 text-sm font-bold text-primary">— THE HIVE</footer>
+            <footer className="mt-4 text-sm font-bold text-primary">{p.quote.footer}</footer>
           </blockquote>
         </Reveal>
       </div>

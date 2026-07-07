@@ -12,6 +12,7 @@ import FeedbackPage from "./components/FeedbackPage";
 import ReferralPage from "./components/ReferralPage";
 import TentangKami from "./components/TentangKami";
 import PaymentPage from "./components/PaymentPage";
+import Workspace from "./components/Workspace";
 
 function App() {
 
@@ -119,6 +120,16 @@ function App() {
       <>
         <Navbar />
         <PaymentPage plan={rawHash === "bayar-pro" ? "pro" : "platinum"} />
+        <Footer />
+      </>
+    );
+  }
+
+  if (rawHash === "workspace") {
+    return (
+      <>
+        <Navbar />
+        <Workspace />
         <Footer />
       </>
     );

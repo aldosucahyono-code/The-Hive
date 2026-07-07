@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 function ReferralPage() {
+  const { t } = useLanguage();
+  const p = t.referral;
   const [copied, setCopied] = useState(false);
 
   const shareUrl = "https://thehive.id";
-  const shareText = "Sebelum buka atau kembangkan usaha, cek dulu peluangnya di THE HIVE — analisis bisnis berbasis AI, gratis untuk mulai.";
+  const shareText = p.shareText;
 
   function copyLink() {
     navigator.clipboard.writeText(shareUrl);
@@ -17,11 +20,10 @@ function ReferralPage() {
   return (
     <section className="mx-auto max-w-xl px-6 py-16 text-center">
 
-      <span className="text-xs font-bold uppercase tracking-widest text-primary">Bagikan THE HIVE</span>
-      <h1 className="mt-2 text-2xl font-extrabold">Kenalkan THE HIVE ke Teman Anda</h1>
+      <span className="text-xs font-bold uppercase tracking-widest text-primary">{p.eyebrow}</span>
+      <h1 className="mt-2 text-2xl font-extrabold">{p.title}</h1>
       <p className="mt-3 text-sm text-neutral-400">
-        Punya teman atau kenalan yang sedang mau buka usaha atau mengembangkan
-        bisnisnya? Bagikan THE HIVE supaya mereka bisa coba analisis gratisnya.
+        {p.subtitle}
       </p>
 
       <div className="mt-8 rounded-2xl border border-white/10 bg-surface p-6">
@@ -31,7 +33,7 @@ function ReferralPage() {
         <div className="mb-4 flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm text-neutral-300">
           <span>{shareUrl}</span>
           <button onClick={copyLink} className="rounded-full border border-primary/30 px-3 py-1 text-xs text-primary">
-            {copied ? "Tersalin!" : "Salin"}
+            {copied ? p.copiedLabel : p.copyLabel}
           </button>
         </div>
 
@@ -41,7 +43,7 @@ function ReferralPage() {
           rel="noopener noreferrer"
           className="block w-full rounded-xl bg-primary py-4 text-base font-bold text-black transition-transform hover:-translate-y-0.5"
         >
-          📲 Bagikan lewat WhatsApp
+          {p.whatsappLabel}
         </a>
 
       </div>

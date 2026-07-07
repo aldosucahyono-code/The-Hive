@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { hardNavigate } from "../utils/navigate";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useAuth } from "../context/AuthContext";
+import AuthModal from "./AuthModal";
 
 declare global {
   interface Window {
@@ -14,6 +16,7 @@ export type PendingOrder = {
   namaBisnis: string;
   nama: string;
   email: string;
+  analysisId?: string | null;
 };
 
 type PlanInfo = {
@@ -59,26 +62,32 @@ function usePendingOrder(): PendingOrder | null {
 
 function PaymentPage({ plan }: { plan: PlanId }) {
   const { t } = useLanguage();
+  const { user, session } = useAuth();
   const info = PLAN_INFO[plan];
   const order = usePendingOrder();
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   async function handleBayar() {
-    if (!order) return;
+    if (!order || !session?.access_token) return;
     setIsProcessing(true);
     setPaymentError(null);
 
     try {
       const response = await fetch("/api/create-transaction", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           tier: plan,
           customerName: order.nama,
           customerEmail: order.email,
           businessName: order.namaBisnis,
+          analysisId: order.analysisId || null,
         }),
       });
 
@@ -92,10 +101,10 @@ function PaymentPage({ plan }: { plan: PlanId }) {
 
       window.snap.pay(data.token, {
         onSuccess: function () {
-          hardNavigate(`#pembayaran-sukses?order_id=${data.order_id}`);
+          hardNavigate("workspace");
         },
         onPending: function () {
-          hardNavigate(`#pembayaran-pending?order_id=${data.order_id}`);
+          hardNavigate("workspace");
         },
         onError: function () {
           setPaymentError(t.paymentPage.paymentErrorGeneric);
@@ -158,15 +167,31 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           </p>
         )}
 
-        <button
-          onClick={handleBayar}
-          disabled={isProcessing || !order}
-          className={`mt-6 w-full rounded-xl ${info.accentBg} py-4 text-base font-bold text-white transition ${
-            isProcessing || !order ? "cursor-not-allowed opacity-60" : "hover:opacity-90"
-          }`}
-        >
-          {isProcessing ? t.paymentPage.payButtonLoading : `${t.paymentPage.payButton} ${info.price}`}
-        </button>
+        {!user ? (
+          <div className="mt-6 rounded-xl border border-primary/30 bg-primary/10 p-5 text-center">
+            <p className="mb-3 text-sm text-neutral-200">
+              Aktifkan Workspace dulu (login lewat email) untuk melanjutkan pembayaran — ini
+              supaya laporan dan akses PRO/PLATINUM kamu tersimpan di akunmu.
+            </p>
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="rounded-full bg-primary px-6 py-2.5 text-sm font-bold text-black hover:opacity-90"
+            >
+              Aktifkan Workspace
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleBayar}
+            disabled={isProcessing || !order}
+            className={`mt-6 w-full rounded-xl ${info.accentBg} py-4 text-base font-bold text-white transition ${
+              isProcessing || !order ? "cursor-not-allowed opacity-60" : "hover:opacity-90"
+            }`}
+          >
+            {isProcessing ? t.paymentPage.payButtonLoading : `${t.paymentPage.payButton} ${info.price}`}
+          </button>
+        )}
+
         {paymentError && (
           <p className="mt-3 text-center text-xs text-red-400">{paymentError}</p>
         )}
@@ -174,6 +199,8 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           {t.paymentPage.footerNote}
         </p>
       </div>
+
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
     </section>
   );
 }

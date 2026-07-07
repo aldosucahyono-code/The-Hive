@@ -1,7 +1,9 @@
 // api/save-submission.ts
 //
 // Serverless function (Vercel) — dipanggil frontend setiap kali pelanggan
-// menyelesaikan wizard. Menyimpan data ke Supabase.
+// menyelesaikan wizard (preview gratis). Menyimpan wizard_data + hasil
+// preview ke tabel `analyses` di Supabase, supaya nanti bisa dikaitkan
+// dengan pembayaran (payments.analysis_id) dan riwayat di Workspace.
 //
 // ENV VARIABLES yang perlu di-set di Vercel (Project Settings → Environment
 // Variables), JANGAN PERNAH ditaruh di kode frontend:
@@ -15,6 +17,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+/** Kalau user sudah login (kirim header Authorization: Bearer <token>),
+ * kaitkan analysis ini ke akun mereka. Kalau belum login (masih anonim,
+ * baru coba preview gratis), user_id dibiarkan null — tetap boleh, karena
+ * kolom ini nullable di skema `analyses`. */
+async function getUserIdFromAuthHeader(req: Request): Promise<string | null> {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) return null;
+
+  const token = authHeader.slice("Bearer ".length);
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user.id;
+}
+
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
@@ -22,45 +38,35 @@ export default async function handler(req: Request): Promise<Response> {
 
   try {
     const body = await req.json();
+    const { wizardData, preview, lang } = body;
 
-    // Validasi dasar — pastikan field wajib memang ada, jangan percaya
-    // begitu saja data dari luar (walau sudah divalidasi di frontend,
-    // validasi frontend selalu bisa dilewati orang yang jago teknis).
+    if (!wizardData || typeof wizardData !== "object") {
+      return new Response(JSON.stringify({ error: "wizardData wajib diisi" }), { status: 400 });
+    }
+
     const required = ["email", "nama", "jenisAnalisis", "profesi", "namaBisnis", "jenisBisnis", "lokasi", "tantangan", "target"];
     for (const field of required) {
-      if (!body[field] || typeof body[field] !== "string") {
+      if (!wizardData[field] || typeof wizardData[field] !== "string") {
         return new Response(JSON.stringify({ error: `Field ${field} wajib diisi` }), { status: 400 });
       }
     }
 
-    const ip = req.headers.get("x-forwarded-for") || "unknown";
-    const userAgent = req.headers.get("user-agent") || "unknown";
+    const userId = await getUserIdFromAuthHeader(req);
 
     const { data, error } = await supabase
-      .from("submissions")
+      .from("analyses")
       .insert({
-        email: body.email,
-        nama: body.nama,
-        jenis_analisis: body.jenisAnalisis,
-        profesi: body.profesi,
-        nama_bisnis: body.namaBisnis,
-        jenis_bisnis: body.jenisBisnis,
-        lokasi: body.lokasi,
-        sejak_kapan: body.sejakKapan || null,
-        omset_bulanan: body.omsetBulanan || null,
-        target_pelanggan: body.targetPelanggan || null,
-        tantangan: body.tantangan,
-        target: body.target,
-        hasil_analisis_gratis: body.hasilAnalisisGratis || null,
-        status_pembayaran: "belum_bayar",
-        alamat_ip: ip,
-        user_agent: userAgent,
+        user_id: userId,
+        tier: "free",
+        wizard_data: { ...wizardData, lang: lang || "id" },
+        report_content: preview || null,
+        status: "completed",
       })
       .select("id")
       .single();
 
     if (error) {
-      console.error("Supabase insert error:", error);
+      console.error("save-submission insert error:", error);
       return new Response(JSON.stringify({ error: "Gagal menyimpan data" }), { status: 500 });
     }
 
@@ -68,9 +74,8 @@ export default async function handler(req: Request): Promise<Response> {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
-
-  } catch (err) {
-    console.error("save-submission error:", err);
+  } catch (error) {
+    console.error("save-submission error:", error);
     return new Response(JSON.stringify({ error: "Terjadi kesalahan server" }), { status: 500 });
   }
 }

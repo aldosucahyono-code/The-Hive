@@ -1,6 +1,8 @@
+import { useState } from "react";
 import type { WizardData } from "./ChatWizard";
 import { hardNavigate } from "../utils/navigate";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useAuth } from "../context/AuthContext";
 
 export type PreviewData = {
   businessHealthScore: number;
@@ -21,25 +23,64 @@ type PreviewReportProps = {
 };
 
 function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewReportProps) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const { session } = useAuth();
   const namaBisnis = data.namaBisnis || "Bisnis Anda";
   const isBaru = data.jenisAnalisis === "baru";
   const scoreLabel = isBaru ? t.previewReport.scoreLabelNew : t.previewReport.scoreLabelRunning;
+  const [preparingPlan, setPreparingPlan] = useState<"pro" | "platinum" | null>(null);
 
   const analysisChecklist = t.previewReport.checklist.map((label, i) => ({
     label,
     done: i < 3,
   }));
 
-  function goToPayment(plan: "pro" | "platinum") {
+  async function goToPayment(plan: "pro" | "platinum") {
+    setPreparingPlan(plan);
+
+    // Simpan wizard data + hasil preview ke tabel `analyses` dulu, supaya
+    // pembayaran nanti bisa dikaitkan ke riwayat analisis ini
+    // (payments.analysis_id). Kalau user sudah login, sertakan token biar
+    // langsung terhubung ke akunnya.
+    let analysisId: string | null = null;
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers.Authorization = `Bearer ${session.access_token}`;
+      }
+
+      const response = await fetch("/api/save-submission", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ wizardData: data, preview, lang }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        analysisId = json.id;
+      } else {
+        console.error("save-submission gagal:", json.error);
+      }
+    } catch (err) {
+      console.error("save-submission error:", err);
+      // Tidak menghalangi user lanjut ke pembayaran walau gagal simpan —
+      // analysisId akan null, payment tetap bisa jalan tanpa keterkaitan
+      // riwayat (kurang ideal, tapi tidak fatal).
+    }
+
     try {
       localStorage.setItem(
         "hive_pending_order",
-        JSON.stringify({ namaBisnis: data.namaBisnis, nama: data.nama, email: data.email })
+        JSON.stringify({
+          namaBisnis: data.namaBisnis,
+          nama: data.nama,
+          email: data.email,
+          analysisId,
+        })
       );
     } catch {
       // localStorage tidak tersedia — halaman pembayaran akan tampil tanpa ringkasan data.
     }
+
     hardNavigate(plan === "pro" ? "bayar-pro" : "bayar-platinum");
   }
 
@@ -199,9 +240,10 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
             </ul>
             <button
               onClick={() => goToPayment("pro")}
-              className="mt-6 w-full rounded-xl bg-blue-500 py-3 text-sm font-bold text-white transition-transform hover:-translate-y-0.5"
+              disabled={preparingPlan !== null}
+              className="mt-6 w-full rounded-xl bg-blue-500 py-3 text-sm font-bold text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {t.previewReport.proButton}
+              {preparingPlan === "pro" ? "Menyiapkan..." : t.previewReport.proButton}
             </button>
           </div>
 
@@ -224,9 +266,10 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
             </ul>
             <button
               onClick={() => goToPayment("platinum")}
-              className="mt-6 w-full rounded-xl bg-purple-500 py-3 text-sm font-bold text-white transition-transform hover:-translate-y-0.5"
+              disabled={preparingPlan !== null}
+              className="mt-6 w-full rounded-xl bg-purple-500 py-3 text-sm font-bold text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {t.previewReport.platinumButton}
+              {preparingPlan === "platinum" ? "Menyiapkan..." : t.previewReport.platinumButton}
             </button>
           </div>
         </div>
