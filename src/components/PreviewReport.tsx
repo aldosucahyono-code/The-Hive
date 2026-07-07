@@ -2,7 +2,6 @@ import { useState } from "react";
 import type { WizardData } from "./ChatWizard";
 import { hardNavigate } from "../utils/navigate";
 import { useLanguage } from "../i18n/LanguageContext";
-import { useAuth } from "../context/AuthContext";
 
 export type PreviewData = {
   businessHealthScore: number;
@@ -24,7 +23,6 @@ type PreviewReportProps = {
 
 function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewReportProps) {
   const { t, lang } = useLanguage();
-  const { session } = useAuth();
   const namaBisnis = data.namaBisnis || "Bisnis Anda";
   const isBaru = data.jenisAnalisis === "baru";
   const scoreLabel = isBaru ? t.previewReport.scoreLabelNew : t.previewReport.scoreLabelRunning;
@@ -38,33 +36,29 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
   async function goToPayment(plan: "pro" | "platinum") {
     setPreparingPlan(plan);
 
-    // Simpan wizard data + hasil preview ke tabel `analyses` dulu, supaya
-    // pembayaran nanti bisa dikaitkan ke riwayat analisis ini
-    // (payments.analysis_id). Kalau user sudah login, sertakan token biar
-    // langsung terhubung ke akunnya.
-    let analysisId: string | null = null;
+    // Simpan wizard data + hasil preview sebagai draft anonim (wizard_drafts).
+    // Draft ini BELUM terhubung ke business_profile/analysis manapun — itu
+    // baru terjadi lewat /api/promote-draft, setelah user login di halaman
+    // pembayaran. save-submission tidak butuh token sama sekali (memang
+    // dirancang bisa dipanggil tanpa login).
+    let draftId: string | null = null;
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (session?.access_token) {
-        headers.Authorization = `Bearer ${session.access_token}`;
-      }
-
       const response = await fetch("/api/save-submission", {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wizardData: data, preview, lang }),
       });
       const json = await response.json();
       if (response.ok) {
-        analysisId = json.id;
+        draftId = json.id;
       } else {
         console.error("save-submission gagal:", json.error);
       }
     } catch (err) {
       console.error("save-submission error:", err);
       // Tidak menghalangi user lanjut ke pembayaran walau gagal simpan —
-      // analysisId akan null, payment tetap bisa jalan tanpa keterkaitan
-      // riwayat (kurang ideal, tapi tidak fatal).
+      // draftId akan null, PaymentPage akan minta user isi ulang data
+      // secara manual (kurang ideal, tapi tidak fatal).
     }
 
     try {
@@ -74,7 +68,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           namaBisnis: data.namaBisnis,
           nama: data.nama,
           email: data.email,
-          analysisId,
+          draftId,
         })
       );
     } catch {

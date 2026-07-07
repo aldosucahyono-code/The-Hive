@@ -16,7 +16,7 @@ export type PendingOrder = {
   namaBisnis: string;
   nama: string;
   email: string;
-  analysisId?: string | null;
+  draftId?: string | null;
 };
 
 type PlanInfo = {
@@ -70,8 +70,58 @@ function PaymentPage({ plan }: { plan: PlanId }) {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
+  // businessProfileId didapat dari /api/promote-draft, dipanggil otomatis
+  // begitu user login DAN ada draftId dari wizard yang tersimpan. Sebelum
+  // ini selesai, tombol bayar tidak boleh aktif — karena create-transaction
+  // sekarang butuh businessProfileId, bukan lagi analysisId/draftId mentah.
+  const [businessProfileId, setBusinessProfileId] = useState<string | null>(null);
+  const [isPromoting, setIsPromoting] = useState(false);
+  const [promoteError, setPromoteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user || !session?.access_token || !order?.draftId || businessProfileId) return;
+
+    let cancelled = false;
+
+    async function promoteDraft() {
+      setIsPromoting(true);
+      setPromoteError(null);
+      try {
+        const response = await fetch("/api/promote-draft", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session!.access_token}`,
+          },
+          body: JSON.stringify({ draftId: order!.draftId }),
+        });
+        const json = await response.json();
+        if (cancelled) return;
+        if (response.ok) {
+          setBusinessProfileId(json.businessProfileId);
+        } else {
+          console.error("promote-draft gagal:", json.error);
+          setPromoteError("Gagal menyiapkan data bisnismu. Coba muat ulang halaman ini.");
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.error("promote-draft error:", err);
+        setPromoteError("Gagal terhubung ke server. Periksa koneksi internetmu.");
+      } finally {
+        if (!cancelled) setIsPromoting(false);
+      }
+    }
+
+    promoteDraft();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, session?.access_token, order?.draftId, businessProfileId]);
+
   async function handleBayar() {
-    if (!order || !session?.access_token) return;
+    if (!order || !session?.access_token || !businessProfileId) return;
     setIsProcessing(true);
     setPaymentError(null);
 
@@ -86,8 +136,7 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           tier: plan,
           customerName: order.nama,
           customerEmail: order.email,
-          businessName: order.namaBisnis,
-          analysisId: order.analysisId || null,
+          businessProfileId,
         }),
       });
 
@@ -183,15 +232,24 @@ function PaymentPage({ plan }: { plan: PlanId }) {
         ) : (
           <button
             onClick={handleBayar}
-            disabled={isProcessing || !order}
+            disabled={isProcessing || !order || isPromoting || !businessProfileId}
             className={`mt-6 w-full rounded-xl ${info.accentBg} py-4 text-base font-bold text-white transition ${
-              isProcessing || !order ? "cursor-not-allowed opacity-60" : "hover:opacity-90"
+              isProcessing || !order || isPromoting || !businessProfileId
+                ? "cursor-not-allowed opacity-60"
+                : "hover:opacity-90"
             }`}
           >
-            {isProcessing ? t.paymentPage.payButtonLoading : `${t.paymentPage.payButton} ${info.price}`}
+            {isProcessing
+              ? t.paymentPage.payButtonLoading
+              : isPromoting
+              ? "Menyiapkan data bisnismu..."
+              : `${t.paymentPage.payButton} ${info.price}`}
           </button>
         )}
 
+        {promoteError && (
+          <p className="mt-3 text-center text-xs text-red-400">{promoteError}</p>
+        )}
         {paymentError && (
           <p className="mt-3 text-center text-xs text-red-400">{paymentError}</p>
         )}

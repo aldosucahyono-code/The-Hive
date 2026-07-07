@@ -15,25 +15,28 @@ const MENU_ITEMS: { key: MenuKey; label: string; icon: string }[] = [
   { key: "chat", label: "Chat Beemo", icon: "💬" },
 ];
 
+// --- Tipe data mengikuti skema baru (Tahap 1 & 1.5) ---
+// Catatan: analyses sekarang menyimpan wizard_data mentah di kolom
+// `raw_input` (bukan lagi `wizard_data`/`tier`/`status` langsung di baris
+// analisis — tier sekarang level business_profile lewat `subscriptions`).
+
+type BusinessProfileRow = {
+  id: string;
+  business_name: string;
+  industry: string | null;
+};
+
 type AnalysisRow = {
   id: string;
-  tier: "free" | "pro" | "platinum";
-  wizard_data: { namaBisnis?: string; jenisBisnis?: string } | null;
-  status: string;
+  raw_input: { namaBisnis?: string; jenisBisnis?: string } | null;
+  is_baseline: boolean;
   created_at: string;
 };
 
-type AccessGrantRow = {
-  id: string;
-  tier: "pro" | "platinum";
-  expires_at: string;
-  is_active: boolean;
-};
-
-const TIER_BADGE: Record<string, string> = {
-  free: "border-white/20 bg-white/5 text-neutral-300",
-  pro: "border-blue-500/40 bg-blue-500/10 text-blue-300",
-  platinum: "border-purple-500/40 bg-purple-500/10 text-purple-300",
+type SubscriptionRow = {
+  tier: "free" | "pro" | "platinum";
+  status: "active" | "expired" | "cancelled";
+  expires_at: string | null;
 };
 
 function formatDate(iso: string) {
@@ -51,13 +54,8 @@ function daysLeft(expiresAt: string) {
 
 /** Kartu ringkasan status akses paling atas — menjawab pertanyaan
  * "aku sekarang punya akses apa, sampai kapan?" dalam sekali lihat. */
-function AccessStatusCard({ grants }: { grants: AccessGrantRow[] }) {
-  const now = Date.now();
-  const activeGrant = grants
-    .filter((g) => g.is_active && new Date(g.expires_at).getTime() > now)
-    .sort((a, b) => new Date(b.expires_at).getTime() - new Date(a.expires_at).getTime())[0];
-
-  if (!activeGrant) {
+function AccessStatusCard({ subscription }: { subscription: SubscriptionRow | null }) {
+  if (!subscription || subscription.tier === "free" || !subscription.expires_at) {
     return (
       <div className="rounded-2xl border border-white/10 bg-surface p-5">
         <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">Status Akses</p>
@@ -69,8 +67,8 @@ function AccessStatusCard({ grants }: { grants: AccessGrantRow[] }) {
     );
   }
 
-  const isPlatinum = activeGrant.tier === "platinum";
-  const remaining = daysLeft(activeGrant.expires_at);
+  const isPlatinum = subscription.tier === "platinum";
+  const remaining = daysLeft(subscription.expires_at);
 
   return (
     <div
@@ -81,10 +79,10 @@ function AccessStatusCard({ grants }: { grants: AccessGrantRow[] }) {
     >
       <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">Status Akses</p>
       <p className={"mt-2 text-lg font-bold " + (isPlatinum ? "text-purple-300" : "text-blue-300")}>
-        {activeGrant.tier.toUpperCase()} Aktif
+        {subscription.tier.toUpperCase()} Aktif
       </p>
       <p className="mt-1 text-sm text-neutral-300">
-        Sisa <strong>{remaining} hari</strong> lagi (berakhir {formatDate(activeGrant.expires_at)})
+        Sisa <strong>{remaining} hari</strong> lagi (berakhir {formatDate(subscription.expires_at)})
       </p>
     </div>
   );
@@ -108,8 +106,8 @@ function HistoryList({ analyses }: { analyses: AnalysisRow[] }) {
   return (
     <div className="space-y-3">
       {analyses.map((item) => {
-        const namaBisnis = item.wizard_data?.namaBisnis || "Tanpa Nama Bisnis";
-        const jenisBisnis = item.wizard_data?.jenisBisnis || "";
+        const namaBisnis = item.raw_input?.namaBisnis || "Tanpa Nama Bisnis";
+        const jenisBisnis = item.raw_input?.jenisBisnis || "";
         return (
           <div
             key={item.id}
@@ -120,14 +118,11 @@ function HistoryList({ analyses }: { analyses: AnalysisRow[] }) {
               {jenisBisnis && <p className="text-xs text-neutral-500">{jenisBisnis}</p>}
               <p className="mt-1 text-xs text-neutral-500">{formatDate(item.created_at)}</p>
             </div>
-            <span
-              className={
-                "rounded-full border px-3 py-1 text-xs font-bold uppercase " +
-                (TIER_BADGE[item.tier] || TIER_BADGE.free)
-              }
-            >
-              {item.tier}
-            </span>
+            {item.is_baseline && (
+              <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs font-bold uppercase text-neutral-300">
+                Analisa Awal
+              </span>
+            )}
           </div>
         );
       })}
@@ -144,11 +139,32 @@ function ComingSoon({ label }: { label: string }) {
   );
 }
 
+/** Ditampilkan kalau user sudah login tapi belum pernah menyelesaikan
+ * satu pun analisis (belum ada business_profile). Biasanya ini terjadi
+ * kalau user langsung buka /workspace tanpa lewat wizard dulu. */
+function NoBusinessYet() {
+  return (
+    <section className="mx-auto max-w-lg px-6 py-20 text-center">
+      <h1 className="text-2xl font-extrabold">Belum ada bisnis yang dianalisis</h1>
+      <p className="mt-3 text-sm text-neutral-400">
+        Mulai dari Beranda untuk mengisi wizard analisis bisnis pertamamu.
+      </p>
+      <button
+        onClick={() => hardNavigate("")}
+        className="mt-6 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black hover:opacity-90"
+      >
+        Mulai Analisis
+      </button>
+    </section>
+  );
+}
+
 function Workspace() {
   const { user, loading, signOut } = useAuth();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("history");
+  const [businessProfile, setBusinessProfile] = useState<BusinessProfileRow | null>(null);
   const [analyses, setAnalyses] = useState<AnalysisRow[]>([]);
-  const [grants, setGrants] = useState<AccessGrantRow[]>([]);
+  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
@@ -159,14 +175,46 @@ function Workspace() {
     async function loadData() {
       setDataLoading(true);
 
-      const [analysesRes, grantsRes] = await Promise.all([
+      // Mode single-business: ambil business_profile PALING AWAL milik
+      // user ini. Kalau nanti Workspace mendukung multi-bisnis, bagian ini
+      // yang perlu diganti jadi business-profile switcher.
+      const { data: profileRows, error: profileError } = await supabase
+        .from("business_profiles")
+        .select("id, business_name, industry")
+        .eq("active", true)
+        .order("created_at", { ascending: true })
+        .limit(1);
+
+      if (cancelled) return;
+
+      if (profileError) {
+        console.error("Gagal memuat business_profiles:", profileError);
+        setDataLoading(false);
+        return;
+      }
+
+      const profile = (profileRows as BusinessProfileRow[] | null)?.[0] || null;
+      setBusinessProfile(profile);
+
+      if (!profile) {
+        setAnalyses([]);
+        setSubscription(null);
+        setDataLoading(false);
+        return;
+      }
+
+      const [analysesRes, subscriptionRes] = await Promise.all([
         supabase
           .from("analyses")
-          .select("id, tier, wizard_data, status, created_at")
+          .select("id, raw_input, is_baseline, created_at")
+          .eq("business_profile_id", profile.id)
           .order("created_at", { ascending: false }),
         supabase
-          .from("access_grants")
-          .select("id, tier, expires_at, is_active"),
+          .from("subscriptions")
+          .select("tier, status, expires_at")
+          .eq("business_profile_id", profile.id)
+          .eq("status", "active")
+          .maybeSingle(),
       ]);
 
       if (cancelled) return;
@@ -177,10 +225,10 @@ function Workspace() {
         setAnalyses((analysesRes.data as AnalysisRow[]) || []);
       }
 
-      if (grantsRes.error) {
-        console.error("Gagal memuat access_grants:", grantsRes.error);
+      if (subscriptionRes.error) {
+        console.error("Gagal memuat subscriptions:", subscriptionRes.error);
       } else {
-        setGrants((grantsRes.data as AccessGrantRow[]) || []);
+        setSubscription((subscriptionRes.data as SubscriptionRow | null) || null);
       }
 
       setDataLoading(false);
@@ -223,12 +271,18 @@ function Workspace() {
     hardNavigate("");
   }
 
+  if (!dataLoading && !businessProfile) {
+    return <NoBusinessYet />;
+  }
+
   return (
     <section className="mx-auto max-w-6xl px-6 py-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <span className="text-xs font-bold uppercase tracking-widest text-primary">Workspace</span>
-          <h1 className="mt-1 text-xl font-extrabold">Halo, {user.email}</h1>
+          <h1 className="mt-1 text-xl font-extrabold">
+            Halo, {businessProfile?.business_name || user.email}
+          </h1>
         </div>
         <button
           onClick={handleSignOut}
@@ -239,7 +293,7 @@ function Workspace() {
       </div>
 
       <div className="mb-6">
-        <AccessStatusCard grants={grants} />
+        <AccessStatusCard subscription={subscription} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr]">
