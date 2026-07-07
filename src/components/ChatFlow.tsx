@@ -426,7 +426,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const showComposer = !!activeQuestion && (!allAnswered || !!editingField) && typingDone;
 
   return (
-    <div className="flex h-[75vh] max-h-[720px] min-h-[420px] flex-col">
+    <div className="flex h-[75dvh] max-h-[720px] min-h-[420px] flex-col">
       <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
         <label htmlFor="website">Website</label>
         <input
