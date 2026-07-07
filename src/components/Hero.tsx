@@ -149,11 +149,11 @@ function Hero({ onStart, animate }: HeroProps) {
               <BeemoQuoteCard />
             </div>
             <div className="relative flex items-center justify-center">
-              <div className="absolute h-64 w-64 rounded-full bg-primary/20 blur-3xl"></div>
+              <div className="absolute h-[28.8rem] w-[28.8rem] rounded-full bg-primary/20 blur-3xl"></div>
               <img
                 src={mascot}
                 alt="Beemo AI"
-                className={"relative w-64 drop-shadow-[0_0_40px_rgba(255,152,0,0.4)] " + (animate ? "animate-float-y" : "")}
+                className={"relative w-[28.8rem] max-w-[85vw] drop-shadow-[0_0_40px_rgba(255,152,0,0.4)] " + (animate ? "animate-float-y" : "")}
               />
             </div>
           </div>
