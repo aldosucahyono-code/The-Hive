@@ -219,9 +219,9 @@ function TentangKami() {
               </div>
             </div>
 
-            <div className="mx-auto w-full max-w-[420px]">
+            <div className="mx-auto w-full max-w-[630px]">
               <div className="relative flex items-center justify-center">
-                <div className="absolute h-72 w-72 rounded-full bg-primary/20 blur-3xl"></div>
+                <div className="absolute h-[27rem] w-[27rem] rounded-full bg-primary/20 blur-3xl"></div>
                 <img
                   src={founderPhoto}
                   alt="Founder of THE HIVE"
