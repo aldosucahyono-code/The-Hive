@@ -32,11 +32,6 @@ type Question = {
   invalidNudge: string;
 };
 
-type Message = {
-  role: "bot" | "user";
-  text: string;
-};
-
 const todayString = getTodayString();
 
 function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
@@ -178,11 +173,6 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   // pertanyaan yang BELUM dijawab yang otomatis ikut bahasa baru karena
   // dihitung ulang dari `questions` di atas.
 
-  function currentDisplayValue(): string {
-    if (!activeQuestion) return "";
-    return (data[activeQuestion.field] as string) || "";
-  }
-
   function handleCurrencyChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (!activeQuestion) return;
     const oldValue = (data.omsetBulanan as string) || "";
@@ -269,7 +259,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     onSuccess();
   }
 
-  function renderInput(question: Question, isEditing: boolean) {
+  function renderInput(question: Question) {
     const commonClass =
       "w-full rounded-xl border bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary " +
       (showError ? "border-red-500" : "border-white/10");
@@ -280,7 +270,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
           autoFocus
           rows={4}
           placeholder={question.placeholder}
-          value={isEditing ? inputValue : inputValue}
+          value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           className={commonClass + " resize-none"}
         />
@@ -424,7 +414,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       {/* Area input */}
       {activeQuestion && (!allAnswered || editingField) ? (
         <div className="mt-4">
-          {renderInput(activeQuestion, !!editingField)}
+          {renderInput(activeQuestion)}
           {showError && (
             <p className="mt-2 text-sm text-amber-400">⚠ {activeQuestion.invalidNudge}</p>
           )}
