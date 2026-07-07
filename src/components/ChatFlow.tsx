@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WizardData } from "./ChatWizard";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useAuth } from "../context/AuthContext";
 import {
   isValidNameLike,
   isValidBrandName,
@@ -49,6 +50,7 @@ function fill(template: string, data: WizardData): string {
 
 function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const { t } = useLanguage();
+  const { signInWithMagicLink } = useAuth();
   const isBaru = data.jenisAnalisis === "baru";
 
   const questions: Question[] = [
@@ -180,6 +182,11 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const [loading, setLoading] = useState(false);
   const [botError, setBotError] = useState(false);
   const [editingField, setEditingField] = useState<keyof WizardData | null>(null);
+  // "Kenali email yang sudah pernah gabung" — murni fitur UX, bukan gerbang
+  // akses. Kalau email dikenali, tawarkan kirim Magic Link (verifikasi
+  // kepemilikan tetap wajib) alih-alih memaksa isi wizard dari nol.
+  const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "recognized">("idle");
+  const [magicLinkState, setMagicLinkState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const scrollRef = useRef<HTMLDivElement>(null);
   const currencyInputRef = useRef<HTMLInputElement>(null);
 
@@ -195,6 +202,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       const q = questions.find((qq) => qq.field === editingField);
       return q ? q.prompt(data) : null;
     }
+    if (emailStatus === "recognized") return t.chatFlow.emailRecognizedMessage;
     if (allAnswered) return t.chatFlow.summaryIntro;
     return activeQuestion ? activeQuestion.prompt(data) : null;
   }
@@ -207,7 +215,13 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   // Kunci unik per "pesan bot yang sedang tampil" — dipakai supaya animasi
   // mengetik cuma jalan sekali per pesan baru, bukan tiap kali komponen
   // render ulang (misalnya saat mengetik jawaban).
-  const typingKey = editingField ? `edit-${editingField}` : allAnswered ? "summary" : `q-${answeredCount}`;
+  const typingKey = editingField
+    ? `edit-${editingField}`
+    : emailStatus === "recognized"
+      ? "email-recognized"
+      : allAnswered
+        ? "summary"
+        : `q-${answeredCount}`;
 
   useEffect(() => {
     if (typingIntervalRef.current) window.clearInterval(typingIntervalRef.current);
@@ -297,7 +311,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     });
   }
 
-  function handleSubmitAnswer() {
+  async function handleSubmitAnswer() {
     if (!activeQuestion) return;
     const value = activeQuestion.inputType === "currency" ? (data.omsetBulanan as string) || "" : inputValue;
 
@@ -315,8 +329,38 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       return;
     }
 
+    const isEmailField = activeQuestion.field === "email";
     setAnsweredCount((prev) => prev + 1);
     setInputValue("");
+
+    if (isEmailField) {
+      setEmailStatus("checking");
+      try {
+        const response = await fetch("/api/check-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: value }),
+        });
+        const json = await response.json();
+        setEmailStatus(response.ok && json.exists ? "recognized" : "idle");
+      } catch (err) {
+        console.error("check-email error:", err);
+        // Gagal cek -> tetap lanjutkan wizard seperti biasa, jangan
+        // menghalangi orang baru gara-gara masalah jaringan sesaat.
+        setEmailStatus("idle");
+      }
+    }
+  }
+
+  async function handleSendMagicLink() {
+    setMagicLinkState("sending");
+    const { error } = await signInWithMagicLink(data.email);
+    setMagicLinkState(error ? "error" : "sent");
+  }
+
+  function handleContinueAsNewAnalysis() {
+    setEmailStatus("idle");
+    setMagicLinkState("idle");
   }
 
   // Enter mengirim jawaban; di textarea, Shift+Enter tetap bikin baris baru
@@ -439,7 +483,12 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     bucket.rows.push(row);
   }
 
-  const showComposer = !!activeQuestion && (!allAnswered || !!editingField) && typingDone;
+  const showComposer =
+    !!activeQuestion &&
+    (!allAnswered || !!editingField) &&
+    typingDone &&
+    emailStatus !== "checking" &&
+    emailStatus !== "recognized";
 
   const phaseLabels: Record<PhaseKey, string> = {
     kenal: t.chatFlow.phaseKenal,
@@ -535,6 +584,37 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
               <TypingDots />
             ) : (
               <ChatBubble role="bot" text={currentBotFullText.slice(0, revealedLength)} />
+            )}
+          </div>
+        )}
+
+        {emailStatus === "recognized" && typingDone && (
+          <div className="space-y-3 pt-1">
+            {magicLinkState === "sent" ? (
+              <p className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm text-neutral-200">
+                {t.chatFlow.emailRecognizedSent}
+              </p>
+            ) : (
+              <>
+                <button
+                  onClick={handleSendMagicLink}
+                  disabled={magicLinkState === "sending"}
+                  className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {magicLinkState === "sending"
+                    ? t.chatFlow.emailRecognizedSending
+                    : t.chatFlow.emailRecognizedSendButton}
+                </button>
+                {magicLinkState === "error" && (
+                  <p className="text-sm text-red-400">{t.chatFlow.emailRecognizedError}</p>
+                )}
+                <button
+                  onClick={handleContinueAsNewAnalysis}
+                  className="w-full rounded-xl border border-white/15 py-3 text-sm text-neutral-300 hover:border-primary/40 hover:text-white"
+                >
+                  {t.chatFlow.emailRecognizedContinueButton}
+                </button>
+              </>
             )}
           </div>
         )}

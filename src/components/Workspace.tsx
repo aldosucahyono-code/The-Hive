@@ -1,24 +1,16 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../i18n/LanguageContext";
 import { supabase } from "../lib/supabaseClient";
 import { hardNavigate } from "../utils/navigate";
+import AddBusinessModal from "./AddBusinessModal";
+import type { Translations } from "../i18n/translations";
 
 type MenuKey = "history" | "score" | "report" | "target" | "competitor" | "growth" | "chat";
 
-const MENU_ITEMS: { key: MenuKey; label: string; icon: string }[] = [
-  { key: "score", label: "Business Score", icon: "📊" },
-  { key: "report", label: "Report", icon: "📄" },
-  { key: "target", label: "Target", icon: "🎯" },
-  { key: "competitor", label: "Competitor", icon: "🧭" },
-  { key: "growth", label: "Growth", icon: "📈" },
-  { key: "history", label: "History", icon: "🕘" },
-  { key: "chat", label: "Chat Beemo", icon: "💬" },
-];
-
-// --- Tipe data mengikuti skema baru (Tahap 1 & 1.5) ---
-// Catatan: analyses sekarang menyimpan wizard_data mentah di kolom
-// `raw_input` (bukan lagi `wizard_data`/`tier`/`status` langsung di baris
-// analisis — tier sekarang level business_profile lewat `subscriptions`).
+// --- Tipe data mengikuti skema Domain Model (Tahap 1, 1.5, 1.6) ---
+// Catatan penting: Workspace sekarang mendukung BANYAK business_profile per
+// akun (Active Business Context), bukan lagi asumsi "1 user = 1 bisnis".
 
 type BusinessProfileRow = {
   id: string;
@@ -39,8 +31,8 @@ type SubscriptionRow = {
   expires_at: string | null;
 };
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("id-ID", {
+function formatDate(iso: string, lang: "id" | "en") {
+  return new Date(iso).toLocaleDateString(lang === "id" ? "id-ID" : "en-US", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -52,17 +44,71 @@ function daysLeft(expiresAt: string) {
   return Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
 }
 
+function fillTemplate(template: string, vars: Record<string, string | number>): string {
+  return Object.entries(vars).reduce(
+    (acc, [key, value]) => acc.replaceAll(`{${key}}`, String(value)),
+    template
+  );
+}
+
+/** Business Switcher — dropdown pindah bisnis + tombol tambah bisnis baru.
+ * Sesuai arahan: cukup daftar bisnis + mana yang aktif + tombol tambah,
+ * belum perlu dashboard gabungan atau statistik lintas bisnis. */
+function BusinessSwitcher({
+  businesses,
+  activeId,
+  onSwitch,
+  onAddNew,
+  addLabel,
+}: {
+  businesses: BusinessProfileRow[];
+  activeId: string;
+  onSwitch: (id: string) => void;
+  onAddNew: () => void;
+  addLabel: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {businesses.length > 1 ? (
+        <select
+          value={activeId}
+          onChange={(e) => onSwitch(e.target.value)}
+          className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-neutral-200 focus:border-primary/50 focus:outline-none"
+        >
+          {businesses.map((b) => (
+            <option key={b.id} value={b.id} className="bg-black">
+              {b.business_name}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      <button
+        onClick={onAddNew}
+        className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-neutral-300 hover:border-primary/40 hover:text-white"
+      >
+        {addLabel}
+      </button>
+    </div>
+  );
+}
+
 /** Kartu ringkasan status akses paling atas — menjawab pertanyaan
  * "aku sekarang punya akses apa, sampai kapan?" dalam sekali lihat. */
-function AccessStatusCard({ subscription }: { subscription: SubscriptionRow | null }) {
+function AccessStatusCard({
+  subscription,
+  t,
+  lang,
+}: {
+  subscription: SubscriptionRow | null;
+  t: Translations;
+  lang: "id" | "en";
+}) {
   if (!subscription || subscription.tier === "free" || !subscription.expires_at) {
     return (
       <div className="rounded-2xl border border-white/10 bg-surface p-5">
-        <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">Status Akses</p>
-        <p className="mt-2 text-lg font-bold text-neutral-200">Paket Gratis</p>
-        <p className="mt-1 text-sm text-neutral-400">
-          Upgrade ke PRO atau PLATINUM untuk membuka laporan lengkap & konsultasi Chat Beemo.
-        </p>
+        <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">{t.workspace.accessFreeLabel}</p>
+        <p className="mt-2 text-lg font-bold text-neutral-200">{t.workspace.accessFreeTitle}</p>
+        <p className="mt-1 text-sm text-neutral-400">{t.workspace.accessFreeDesc}</p>
       </div>
     );
   }
@@ -77,28 +123,25 @@ function AccessStatusCard({ subscription }: { subscription: SubscriptionRow | nu
         (isPlatinum ? "border-purple-500/40 bg-purple-500/10" : "border-blue-500/40 bg-blue-500/10")
       }
     >
-      <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">Status Akses</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">{t.workspace.accessActiveLabel}</p>
       <p className={"mt-2 text-lg font-bold " + (isPlatinum ? "text-purple-300" : "text-blue-300")}>
-        {subscription.tier.toUpperCase()} Aktif
+        {fillTemplate(t.workspace.accessActiveTitle, { tier: subscription.tier.toUpperCase() })}
       </p>
       <p className="mt-1 text-sm text-neutral-300">
-        Sisa <strong>{remaining} hari</strong> lagi (berakhir {formatDate(subscription.expires_at)})
+        {fillTemplate(t.workspace.accessActiveRemaining, {
+          days: remaining,
+          date: formatDate(subscription.expires_at, lang),
+        })}
       </p>
     </div>
   );
 }
 
-function HistoryList({ analyses }: { analyses: AnalysisRow[] }) {
+function HistoryList({ analyses, t, lang }: { analyses: AnalysisRow[]; t: Translations; lang: "id" | "en" }) {
   if (analyses.length === 0) {
     return (
       <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
-        <p className="text-neutral-400">Belum ada riwayat analisis. Mulai analisis pertamamu dari Beranda.</p>
-        <button
-          onClick={() => hardNavigate("")}
-          className="mt-4 rounded-full bg-primary px-5 py-2 text-sm font-bold text-black hover:opacity-90"
-        >
-          Mulai Analisis Baru
-        </button>
+        <p className="text-neutral-400">{t.workspace.historyEmpty}</p>
       </div>
     );
   }
@@ -106,7 +149,7 @@ function HistoryList({ analyses }: { analyses: AnalysisRow[] }) {
   return (
     <div className="space-y-3">
       {analyses.map((item) => {
-        const namaBisnis = item.raw_input?.namaBisnis || "Tanpa Nama Bisnis";
+        const namaBisnis = item.raw_input?.namaBisnis || t.workspace.historyUnnamedBusiness;
         const jenisBisnis = item.raw_input?.jenisBisnis || "";
         return (
           <div
@@ -116,11 +159,11 @@ function HistoryList({ analyses }: { analyses: AnalysisRow[] }) {
             <div>
               <p className="font-semibold text-neutral-100">{namaBisnis}</p>
               {jenisBisnis && <p className="text-xs text-neutral-500">{jenisBisnis}</p>}
-              <p className="mt-1 text-xs text-neutral-500">{formatDate(item.created_at)}</p>
+              <p className="mt-1 text-xs text-neutral-500">{formatDate(item.created_at, lang)}</p>
             </div>
             {item.is_baseline && (
               <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs font-bold uppercase text-neutral-300">
-                Analisa Awal
+                {t.workspace.historyBaselineBadge}
               </span>
             )}
           </div>
@@ -130,30 +173,27 @@ function HistoryList({ analyses }: { analyses: AnalysisRow[] }) {
   );
 }
 
-function ComingSoon({ label }: { label: string }) {
+function ComingSoon({ label, desc }: { label: string; desc: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-surface p-10 text-center">
       <p className="text-lg font-bold text-neutral-200">{label}</p>
-      <p className="mt-2 text-sm text-neutral-500">Menu ini sedang kami siapkan, segera hadir di Workspace kamu.</p>
+      <p className="mt-2 text-sm text-neutral-500">{desc}</p>
     </div>
   );
 }
 
-/** Ditampilkan kalau user sudah login tapi belum pernah menyelesaikan
- * satu pun analisis (belum ada business_profile). Biasanya ini terjadi
- * kalau user langsung buka /workspace tanpa lewat wizard dulu. */
-function NoBusinessYet() {
+/** Ditampilkan kalau user sudah login tapi belum punya business_profile
+ * SAMA SEKALI (belum pernah menyelesaikan analisis apapun). */
+function NoBusinessYet({ t }: { t: Translations }) {
   return (
     <section className="mx-auto max-w-lg px-6 py-20 text-center">
-      <h1 className="text-2xl font-extrabold">Belum ada bisnis yang dianalisis</h1>
-      <p className="mt-3 text-sm text-neutral-400">
-        Mulai dari Beranda untuk mengisi wizard analisis bisnis pertamamu.
-      </p>
+      <h1 className="text-2xl font-extrabold">{t.workspace.noBusinessTitle}</h1>
+      <p className="mt-3 text-sm text-neutral-400">{t.workspace.noBusinessDesc}</p>
       <button
         onClick={() => hardNavigate("")}
         className="mt-6 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black hover:opacity-90"
       >
-        Mulai Analisis
+        {t.workspace.startAnalysisButton}
       </button>
     </section>
   );
@@ -161,58 +201,108 @@ function NoBusinessYet() {
 
 function Workspace() {
   const { user, loading, signOut } = useAuth();
+  const { t, lang } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("history");
-  const [businessProfile, setBusinessProfile] = useState<BusinessProfileRow | null>(null);
+  const [businesses, setBusinesses] = useState<BusinessProfileRow[]>([]);
+  const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
   const [analyses, setAnalyses] = useState<AnalysisRow[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  const [businessDataLoading, setBusinessDataLoading] = useState(true);
+  const [showAddBusiness, setShowAddBusiness] = useState(false);
 
+  const MENU_ITEMS: { key: MenuKey; label: string; icon: string }[] = [
+    { key: "score", label: t.workspace.menuScore, icon: "📊" },
+    { key: "report", label: t.workspace.menuReport, icon: "📄" },
+    { key: "target", label: t.workspace.menuTarget, icon: "🎯" },
+    { key: "competitor", label: t.workspace.menuCompetitor, icon: "🧭" },
+    { key: "growth", label: t.workspace.menuGrowth, icon: "📈" },
+    { key: "history", label: t.workspace.menuHistory, icon: "🕘" },
+    { key: "chat", label: t.workspace.menuChat, icon: "💬" },
+  ];
+
+  // Muat daftar business_profiles + Active Business Context (sekali per sesi user)
   useEffect(() => {
     if (!user) return;
 
     let cancelled = false;
 
-    async function loadData() {
+    async function loadBusinesses() {
       setDataLoading(true);
 
-      // Mode single-business: ambil business_profile PALING AWAL milik
-      // user ini. Kalau nanti Workspace mendukung multi-bisnis, bagian ini
-      // yang perlu diganti jadi business-profile switcher.
-      const { data: profileRows, error: profileError } = await supabase
-        .from("business_profiles")
-        .select("id, business_name, industry")
-        .eq("active", true)
-        .order("created_at", { ascending: true })
-        .limit(1);
+      const [profilesRes, prefsRes] = await Promise.all([
+        supabase
+          .from("business_profiles")
+          .select("id, business_name, industry")
+          .eq("active", true)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("user_preferences")
+          .select("active_business_profile_id")
+          .maybeSingle(),
+      ]);
 
       if (cancelled) return;
 
-      if (profileError) {
-        console.error("Gagal memuat business_profiles:", profileError);
+      if (profilesRes.error) {
+        console.error("Gagal memuat business_profiles:", profilesRes.error);
         setDataLoading(false);
         return;
       }
 
-      const profile = (profileRows as BusinessProfileRow[] | null)?.[0] || null;
-      setBusinessProfile(profile);
+      const profiles = (profilesRes.data as BusinessProfileRow[]) || [];
+      setBusinesses(profiles);
 
-      if (!profile) {
-        setAnalyses([]);
-        setSubscription(null);
+      if (profiles.length === 0) {
+        setActiveBusinessId(null);
         setDataLoading(false);
         return;
       }
+
+      const storedActiveId = prefsRes.data?.active_business_profile_id as string | null | undefined;
+      const validStoredId = storedActiveId && profiles.some((p) => p.id === storedActiveId) ? storedActiveId : null;
+      const resolvedActiveId = validStoredId || profiles[0].id;
+
+      setActiveBusinessId(resolvedActiveId);
+
+      // Kalau belum ada konteks aktif tersimpan (user baru pertama kali
+      // login), simpan defaultnya sekarang supaya konsisten di sesi berikutnya.
+      if (!validStoredId && user) {
+        await supabase
+          .from("user_preferences")
+          .update({ active_business_profile_id: resolvedActiveId })
+          .eq("user_id", user.id);
+      }
+
+      setDataLoading(false);
+    }
+
+    loadBusinesses();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Muat analyses + subscription untuk business yang sedang aktif
+  useEffect(() => {
+    if (!activeBusinessId) return;
+
+    let cancelled = false;
+
+    async function loadBusinessData() {
+      setBusinessDataLoading(true);
 
       const [analysesRes, subscriptionRes] = await Promise.all([
         supabase
           .from("analyses")
           .select("id, raw_input, is_baseline, created_at")
-          .eq("business_profile_id", profile.id)
+          .eq("business_profile_id", activeBusinessId)
           .order("created_at", { ascending: false }),
         supabase
           .from("subscriptions")
           .select("tier, status, expires_at")
-          .eq("business_profile_id", profile.id)
+          .eq("business_profile_id", activeBusinessId)
           .eq("status", "active")
           .maybeSingle(),
       ]);
@@ -231,20 +321,44 @@ function Workspace() {
         setSubscription((subscriptionRes.data as SubscriptionRow | null) || null);
       }
 
-      setDataLoading(false);
+      setBusinessDataLoading(false);
     }
 
-    loadData();
+    loadBusinessData();
 
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [activeBusinessId]);
+
+  async function handleSwitchBusiness(id: string) {
+    setActiveBusinessId(id);
+    if (user) {
+      await supabase
+        .from("user_preferences")
+        .update({ active_business_profile_id: id })
+        .eq("user_id", user.id);
+    }
+  }
+
+  function handleBusinessCreated(newBusinessProfileId: string) {
+    setActiveBusinessId(newBusinessProfileId);
+    setShowAddBusiness(false);
+    // Ambil ulang daftar lengkap dari server supaya nama/industry akurat.
+    supabase
+      .from("business_profiles")
+      .select("id, business_name, industry")
+      .eq("active", true)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (data) setBusinesses(data as BusinessProfileRow[]);
+      });
+  }
 
   if (loading) {
     return (
       <section className="mx-auto flex min-h-[50vh] max-w-lg items-center justify-center px-6 py-20 text-center">
-        <p className="text-neutral-400">Memuat Workspace kamu...</p>
+        <p className="text-neutral-400">{t.workspace.loadingLabel}</p>
       </section>
     );
   }
@@ -252,15 +366,13 @@ function Workspace() {
   if (!user) {
     return (
       <section className="mx-auto max-w-lg px-6 py-20 text-center">
-        <h1 className="text-2xl font-extrabold">Kamu belum login</h1>
-        <p className="mt-3 text-sm text-neutral-400">
-          Aktifkan Workspace dulu lewat tombol di Navbar untuk mengakses halaman ini.
-        </p>
+        <h1 className="text-2xl font-extrabold">{t.workspace.notLoggedInTitle}</h1>
+        <p className="mt-3 text-sm text-neutral-400">{t.workspace.notLoggedInDesc}</p>
         <button
           onClick={() => hardNavigate("")}
           className="mt-6 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black hover:opacity-90"
         >
-          Kembali ke Beranda
+          {t.workspace.backToHomeButton}
         </button>
       </section>
     );
@@ -271,29 +383,42 @@ function Workspace() {
     hardNavigate("");
   }
 
-  if (!dataLoading && !businessProfile) {
-    return <NoBusinessYet />;
+  if (!dataLoading && businesses.length === 0) {
+    return <NoBusinessYet t={t} />;
   }
+
+  const activeBusiness = businesses.find((b) => b.id === activeBusinessId) || null;
 
   return (
     <section className="mx-auto max-w-6xl px-6 py-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold uppercase tracking-widest text-primary">Workspace</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-primary">{t.workspace.eyebrow}</span>
           <h1 className="mt-1 text-xl font-extrabold">
-            Halo, {businessProfile?.business_name || user.email}
+            {fillTemplate(t.workspace.greetingHello, { name: activeBusiness?.business_name || user.email || "" })}
           </h1>
         </div>
-        <button
-          onClick={handleSignOut}
-          className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-neutral-300 hover:border-primary/40 hover:text-white"
-        >
-          Keluar dari Workspace
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {activeBusinessId && (
+            <BusinessSwitcher
+              businesses={businesses}
+              activeId={activeBusinessId}
+              onSwitch={handleSwitchBusiness}
+              onAddNew={() => setShowAddBusiness(true)}
+              addLabel={t.workspace.addBusinessButton}
+            />
+          )}
+          <button
+            onClick={handleSignOut}
+            className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-neutral-300 hover:border-primary/40 hover:text-white"
+          >
+            {t.workspace.signOutButton}
+          </button>
+        </div>
       </div>
 
       <div className="mb-6">
-        <AccessStatusCard subscription={subscription} />
+        <AccessStatusCard subscription={subscription} t={t} lang={lang} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr]">
@@ -321,17 +446,24 @@ function Workspace() {
 
         {/* Content */}
         <div>
-          {dataLoading ? (
+          {businessDataLoading ? (
             <div className="rounded-2xl border border-white/10 bg-surface p-10 text-center">
-              <p className="text-neutral-400">Memuat data...</p>
+              <p className="text-neutral-400">{t.workspace.loadingDataLabel}</p>
             </div>
           ) : activeMenu === "history" ? (
-            <HistoryList analyses={analyses} />
+            <HistoryList analyses={analyses} t={t} lang={lang} />
           ) : (
-            <ComingSoon label={MENU_ITEMS.find((m) => m.key === activeMenu)?.label || ""} />
+            <ComingSoon
+              label={MENU_ITEMS.find((m) => m.key === activeMenu)?.label || ""}
+              desc={t.workspace.comingSoonDesc}
+            />
           )}
         </div>
       </div>
+
+      {showAddBusiness && (
+        <AddBusinessModal onClose={() => setShowAddBusiness(false)} onCreated={handleBusinessCreated} />
+      )}
     </section>
   );
 }
