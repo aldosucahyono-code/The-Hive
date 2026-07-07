@@ -2,8 +2,15 @@
 //
 // Serverless function (Vercel) — dipanggil frontend setiap kali pelanggan
 // menyelesaikan wizard (preview gratis). Menyimpan wizard_data + hasil
-// preview ke tabel `analyses` di Supabase, supaya nanti bisa dikaitkan
-// dengan pembayaran (payments.analysis_id) dan riwayat di Workspace.
+// preview ke tabel `wizard_drafts` — TIDAK ke `analyses` lagi.
+//
+// PERUBAHAN PENTING (Tahap 1.5):
+// wizard_drafts sengaja berada DI LUAR Domain Model bisnis (business_profiles
+// / analyses). Preview gratis harus bisa dicoba tanpa login sama sekali,
+// sedangkan analyses & business_profiles di skema baru WAJIB terikat ke
+// business_profile_id yang tidak boleh null. Draft ini baru "naik level"
+// jadi business_profile + analysis lewat /api/promote-draft, setelah user
+// benar-benar login (Aktifkan Workspace).
 //
 // ENV VARIABLES yang perlu di-set di Vercel (Project Settings → Environment
 // Variables), JANGAN PERNAH ditaruh di kode frontend:
@@ -16,20 +23,6 @@ const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-/** Kalau user sudah login (kirim header Authorization: Bearer <token>),
- * kaitkan analysis ini ke akun mereka. Kalau belum login (masih anonim,
- * baru coba preview gratis), user_id dibiarkan null — tetap boleh, karena
- * kolom ini nullable di skema `analyses`. */
-async function getUserIdFromAuthHeader(req: Request): Promise<string | null> {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  const token = authHeader.slice("Bearer ".length);
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user.id;
-}
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") {
@@ -51,16 +44,17 @@ export default async function handler(req: Request): Promise<Response> {
       }
     }
 
-    const userId = await getUserIdFromAuthHeader(req);
-
+    // Sengaja TIDAK cek token/login di sini. wizard_drafts murni anonim —
+    // siapapun (login atau tidak) boleh membuat draft, karena RLS tabel ini
+    // menutup akses browser sama sekali (hanya service_role/backend yang
+    // boleh insert/select). Keterkaitan ke akun baru dibuat nanti di
+    // /api/promote-draft, setelah user login.
     const { data, error } = await supabase
-      .from("analyses")
+      .from("wizard_drafts")
       .insert({
-        user_id: userId,
-        tier: "free",
         wizard_data: { ...wizardData, lang: lang || "id" },
-        report_content: preview || null,
-        status: "completed",
+        preview_content: preview || null,
+        lang: lang || "id",
       })
       .select("id")
       .single();

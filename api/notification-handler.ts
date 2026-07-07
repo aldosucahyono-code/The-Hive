@@ -36,10 +36,10 @@ export default async function handler(req: any, res: any) {
     console.log(`Notifikasi diterima: ${order_id} - status: ${transaction_status}`);
 
     // Ambil kembali baris payment yang tadi dibuat create-transaction, untuk
-    // tahu siapa user_id-nya, analysis_id, dan tier apa yang dibeli.
+    // tahu business_profile_id dan tier apa yang dibeli.
     const { data: payment, error: paymentFetchError } = await supabase
       .from('payments')
-      .select('id, user_id, analysis_id, tier')
+      .select('id, business_profile_id, tier, status')
       .eq('midtrans_order_id', order_id)
       .single();
 
@@ -51,30 +51,41 @@ export default async function handler(req: any, res: any) {
     }
 
     if (transaction_status === 'settlement' || transaction_status === 'capture') {
+      // Hindari upgrade subscription dua kali kalau Midtrans mengirim
+      // notifikasi settlement lebih dari sekali untuk order yang sama
+      // (webhook Midtrans memang bisa retry).
+      if (payment.status === 'settlement') {
+        return res.status(200).json({ message: 'OK (already processed)' });
+      }
+
       await supabase.from('payments').update({ status: 'settlement' }).eq('id', payment.id);
 
       const durationDays = ACCESS_DURATION_DAYS[payment.tier] ?? 7;
       const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
-      const { error: grantError } = await supabase.from('access_grants').insert({
-        user_id: payment.user_id,
-        analysis_id: payment.analysis_id,
-        tier: payment.tier,
-        expires_at: expiresAt,
-        is_active: true,
-      });
+      // subscriptions hanya boleh punya SATU baris berstatus 'active' per
+      // business_profile (constraint di DB) — jadi expire dulu yang lama
+      // (termasuk 'free' bawaan sejak business_profile dibuat), baru insert
+      // yang baru.
+      const { error: expireError } = await supabase
+        .from('subscriptions')
+        .update({ status: 'expired' })
+        .eq('business_profile_id', payment.business_profile_id)
+        .eq('status', 'active');
 
-      if (grantError) {
-        console.error('access_grants insert error:', grantError);
+      if (expireError) {
+        console.error('subscriptions expire error:', expireError);
       }
 
-      // Selaraskan tier di analyses (kalau ada analysis_id terkait), supaya
-      // riwayat di Workspace langsung mencerminkan tier yang sudah dibayar.
-      if (payment.analysis_id) {
-        await supabase
-          .from('analyses')
-          .update({ tier: payment.tier })
-          .eq('id', payment.analysis_id);
+      const { error: subError } = await supabase.from('subscriptions').insert({
+        business_profile_id: payment.business_profile_id,
+        tier: payment.tier,
+        status: 'active',
+        expires_at: expiresAt,
+      });
+
+      if (subError) {
+        console.error('subscriptions insert error:', subError);
       }
     } else if (transaction_status === 'pending') {
       await supabase.from('payments').update({ status: 'pending' }).eq('id', payment.id);

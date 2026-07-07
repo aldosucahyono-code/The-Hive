@@ -23,9 +23,8 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // Wajib login — pembayaran harus terkait ke akun (profiles.id) supaya
-    // access_grants bisa dibuat untuk user yang benar setelah pembayaran
-    // dikonfirmasi. Token diverifikasi ke Supabase, bukan sekadar dipercaya
+    // Wajib login — pembayaran harus terkait ke business_profile milik
+    // akun ini. Token diverifikasi ke Supabase, bukan sekadar dipercaya
     // dari body request (client bisa memalsukan apa saja di body).
     const authHeader = req.headers.authorization as string | undefined;
     if (!authHeader?.startsWith('Bearer ')) {
@@ -38,7 +37,7 @@ export default async function handler(req: any, res: any) {
     }
     const userId = userData.user.id;
 
-    const { tier, customerName, customerEmail, businessName, analysisId } = req.body;
+    const { tier, customerName, customerEmail, businessProfileId } = req.body;
 
     const tierConfig = TIER_PRICES[tier];
     if (!tierConfig) {
@@ -49,16 +48,33 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Nama dan email wajib diisi' });
     }
 
+    if (!businessProfileId) {
+      return res.status(400).json({ error: 'businessProfileId wajib diisi' });
+    }
+
+    // Pastikan business_profile ini benar milik user yang sedang login —
+    // jangan sampai orang bisa bayar untuk business_profile milik orang lain
+    // hanya dengan menebak/mengganti ID di request.
+    const { data: businessProfile, error: bpError } = await supabase
+      .from('business_profiles')
+      .select('id, user_id')
+      .eq('id', businessProfileId)
+      .single();
+
+    if (bpError || !businessProfile || businessProfile.user_id !== userId) {
+      return res.status(403).json({ error: 'Business profile tidak valid untuk akun ini.' });
+    }
+
     const orderId = `THEHIVE-${tier.toUpperCase()}-${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 8)}`;
 
     // Catat transaksi ini di database SEBELUM memanggil Midtrans, dengan
     // status 'pending'. Kalau webhook Midtrans nanti konfirmasi sukses,
-    // notification-handler tinggal update baris ini + buat access_grants.
+    // notification-handler tinggal update baris ini + buat/upgrade
+    // subscriptions untuk business_profile ini.
     const { error: paymentInsertError } = await supabase.from('payments').insert({
-      user_id: userId,
-      analysis_id: analysisId || null,
+      business_profile_id: businessProfileId,
       midtrans_order_id: orderId,
       tier,
       amount: tierConfig.amount,
@@ -87,7 +103,7 @@ export default async function handler(req: any, res: any) {
           name: tierConfig.label,
         },
       ],
-      custom_field1: businessName || '',
+      custom_field1: businessProfileId,
       custom_field2: tier,
     };
 
