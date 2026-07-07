@@ -226,9 +226,9 @@ const id = {
 
   hero: {
     badge: "🔥 Harga Beta Terbatas",
-    title: "Dapatkan Laporan Analisis Bisnis Profesional dalam Hitungan Menit",
+    title: "Mulai Perjalanan Menuju Omzet Rp100 Juta Pertamamu.",
     subtitle:
-      "Masukkan informasi bisnis Anda. Beemo akan menganalisis kondisi bisnis, membandingkan kompetitor, menemukan peluang pasar, lalu menyusun laporan profesional yang siap digunakan dalam beberapa menit.",
+      "Dapatkan analisis AI, peluang pasar, peta kompetitor, dan strategi bisnis yang siap diterapkan dalam hitungan menit.",
     ctaButton: "🚀 Mulai Analisis Bisnis Gratis!!",
     beemoGreeting: "Halo, saya Beemo.",
     beemoDesc:
@@ -848,9 +848,9 @@ const en: Translations = {
 
   hero: {
     badge: "🔥 Limited Beta Pricing",
-    title: "Get a Professional Business Analysis Report in Minutes",
+    title: "Start Your Journey to Your First Rp100 Million Revenue.",
     subtitle:
-      "Enter your business information. Beemo will analyze your business condition, compare competitors, find market opportunities, then put together a professional, ready-to-use report in minutes.",
+      "Get AI-powered analysis, market opportunities, a competitor map, and a ready-to-execute business strategy in minutes.",
     ctaButton: "🚀 Start Your Free Business Analysis!!",
     beemoGreeting: "Hi, I'm Beemo.",
     beemoDesc:

@@ -1,10 +1,103 @@
-import mascot from "../assets/mascot/beemo.png";
+import { useEffect, useRef, useState } from "react";
+import mascot from "../assets/mascot/beemo-laptop.png";
 import { useLanguage } from "../i18n/LanguageContext";
 
 type HeroProps = {
   onStart: () => void;
   animate: boolean;
 };
+
+/** Variasi ucapan Beemo di kartu Hero — ditampilkan bergantian secara acak,
+ * masing-masing dengan animasi mengetik, ganti tiap ~8 detik. */
+const BEEMO_QUOTES: { title: string; body: string }[] = [
+  {
+    title: "Halo, saya Beemo. 👋",
+    body: "Ayo kita capai omzet Rp100 juta pertamamu. Ceritakan bisnismu, dan biarkan saya menemukan peluang yang mungkin belum pernah kamu lihat.",
+  },
+  {
+    title: "Halo, saya Beemo.",
+    body: "Bisnismu layak tumbuh lebih cepat. Ceritakan bisnismu, saya akan membantu menyusun strategi yang siap dijalankan.",
+  },
+  {
+    title: "Halo, saya Beemo. 🤖🐝",
+    body: "Hari ini kita mulai perjalanan menuju bisnis impianmu. Ceritakan bisnismu, sisanya biar saya yang analisis.",
+  },
+  {
+    title: "Halo, saya Beemo. 🤖🐝",
+    body: "Banyak orang bekerja keras. Sedikit yang tahu strategi yang tepat. Mari kita temukan strategi bisnismu.",
+  },
+  {
+    title: "Halo, saya Beemo. 🤖🐝",
+    body: "Impianmu besar? Mari kita susun strategi agar impian itu menjadi target yang bisa dicapai.",
+  },
+  {
+    title: "",
+    body: "Omzet Rp100 Juta Bukan Sekadar Mimpi. Mulai Strateginya Hari Ini.",
+  },
+  {
+    title: "",
+    body: "Ayo Wujudkan Omzet Rp100 Juta Pertamamu. Ceritakan bisnismu, sisanya biar saya bantu analisis.",
+  },
+  {
+    title: "",
+    body: "Target Berikutnya? Omzet Rp100 Juta Pertama. Ceritakan bisnismu, dan biarkan saya membantu menyusun strategi untuk mencapainya.",
+  },
+];
+
+const ROTATE_MS = 8000;
+const CHAR_MS = 18;
+
+/** Kartu Beemo dengan efek mengetik — huruf muncul satu per satu, lalu
+ * setelah total ~8 detik pindah ke kalimat lain (urutan acak, tidak
+ * mengulang kalimat yang sama dua kali berturut-turut). */
+function BeemoQuoteCard() {
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [typedLength, setTypedLength] = useState(0);
+  const prevIndexRef = useRef(0);
+
+  const quote = BEEMO_QUOTES[quoteIndex];
+  const fullText = quote.title ? `${quote.title}\n${quote.body}` : quote.body;
+
+  useEffect(() => {
+    setTypedLength(0);
+    const typingInterval = setInterval(() => {
+      setTypedLength((len) => {
+        if (len >= fullText.length) {
+          clearInterval(typingInterval);
+          return len;
+        }
+        return len + 1;
+      });
+    }, CHAR_MS);
+
+    const rotateTimeout = setTimeout(() => {
+      let next = prevIndexRef.current;
+      while (next === prevIndexRef.current) {
+        next = Math.floor(Math.random() * BEEMO_QUOTES.length);
+      }
+      prevIndexRef.current = next;
+      setQuoteIndex(next);
+    }, ROTATE_MS);
+
+    return () => {
+      clearInterval(typingInterval);
+      clearTimeout(rotateTimeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteIndex]);
+
+  const typedText = fullText.slice(0, typedLength);
+  const [typedTitle, typedBody] = quote.title
+    ? [typedText.slice(0, quote.title.length), typedText.slice(quote.title.length + 1)]
+    : ["", typedText];
+
+  return (
+    <div className="flex min-h-[168px] max-w-xs flex-col justify-center rounded-2xl border border-primary/30 bg-surface p-5">
+      {typedTitle && <h3 className="mb-2 font-semibold text-primary">{typedTitle}</h3>}
+      <p className="text-sm leading-relaxed text-neutral-300">{typedBody}</p>
+    </div>
+  );
+}
 
 function Hero({ onStart, animate }: HeroProps) {
   const { t } = useLanguage();
@@ -52,11 +145,8 @@ function Hero({ onStart, animate }: HeroProps) {
           </div>
 
           <div className="flex flex-col items-center gap-6">
-            <div className={"max-w-xs rounded-2xl border border-primary/30 bg-surface p-5 " + fade("150ms")}>
-              <h3 className="mb-2 font-semibold text-primary">{t.hero.beemoGreeting}</h3>
-              <p className="text-sm leading-relaxed text-neutral-300">
-                {t.hero.beemoDesc}
-              </p>
+            <div className={fade("150ms")}>
+              <BeemoQuoteCard />
             </div>
             <div className="relative flex items-center justify-center">
               <div className="absolute h-64 w-64 rounded-full bg-primary/20 blur-3xl"></div>
