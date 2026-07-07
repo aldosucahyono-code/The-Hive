@@ -1,8 +1,9 @@
 // api/save-submission.ts
 //
-// Serverless function (Vercel) — dipanggil frontend setiap kali pelanggan
-// menyelesaikan wizard (preview gratis). Menyimpan wizard_data + hasil
-// preview ke tabel `wizard_drafts` — TIDAK ke `analyses` lagi.
+// Serverless function (Vercel, Node.js runtime — konsisten dengan
+// generate-preview.ts/generate-report.ts) — dipanggil frontend setiap kali
+// pelanggan menyelesaikan wizard (preview gratis). Menyimpan wizard_data +
+// hasil preview ke tabel `wizard_drafts` — TIDAK ke `analyses` lagi.
 //
 // PERUBAHAN PENTING (Tahap 1.5):
 // wizard_drafts sengaja berada DI LUAR Domain Model bisnis (business_profiles
@@ -17,6 +18,7 @@
 //   SUPABASE_URL
 //   SUPABASE_SERVICE_ROLE_KEY   (bukan anon key — ini kunci penuh, rahasia)
 
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -24,23 +26,22 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const body = await req.json();
-    const { wizardData, preview, lang } = body;
+    const { wizardData, preview, lang } = req.body;
 
     if (!wizardData || typeof wizardData !== "object") {
-      return new Response(JSON.stringify({ error: "wizardData wajib diisi" }), { status: 400 });
+      return res.status(400).json({ error: "wizardData wajib diisi" });
     }
 
     const required = ["email", "nama", "jenisAnalisis", "profesi", "namaBisnis", "jenisBisnis", "lokasi", "tantangan", "target"];
     for (const field of required) {
       if (!wizardData[field] || typeof wizardData[field] !== "string") {
-        return new Response(JSON.stringify({ error: `Field ${field} wajib diisi` }), { status: 400 });
+        return res.status(400).json({ error: `Field ${field} wajib diisi` });
       }
     }
 
@@ -61,15 +62,12 @@ export default async function handler(req: Request): Promise<Response> {
 
     if (error) {
       console.error("save-submission insert error:", error);
-      return new Response(JSON.stringify({ error: "Gagal menyimpan data" }), { status: 500 });
+      return res.status(500).json({ error: "Gagal menyimpan data" });
     }
 
-    return new Response(JSON.stringify({ id: data.id }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return res.status(200).json({ id: data.id });
   } catch (error) {
     console.error("save-submission error:", error);
-    return new Response(JSON.stringify({ error: "Terjadi kesalahan server" }), { status: 500 });
+    return res.status(500).json({ error: "Terjadi kesalahan server" });
   }
 }

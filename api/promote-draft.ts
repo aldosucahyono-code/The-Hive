@@ -1,8 +1,9 @@
 // api/promote-draft.ts
 //
-// Serverless function (Vercel) BARU — dipanggil frontend TEPAT SETELAH user
-// berhasil login (Aktifkan Workspace), kalau ada draftId tersimpan dari
-// wizard preview gratis sebelumnya (localStorage: hive_pending_order).
+// Serverless function (Vercel, Node.js runtime) BARU — dipanggil frontend
+// TEPAT SETELAH user berhasil login (Aktifkan Workspace), kalau ada draftId
+// tersimpan dari wizard preview gratis sebelumnya (localStorage:
+// hive_pending_order).
 //
 // Tugasnya "menaikkan level" satu wizard_draft anonim menjadi:
 //   1. business_profiles (kalau user belum pernah punya bisnis ini)
@@ -17,6 +18,7 @@
 //   SUPABASE_URL
 //   SUPABASE_SERVICE_ROLE_KEY
 
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -31,28 +33,27 @@ function guessBusinessStage(jenisAnalisis: string | undefined): "idea" | "runnin
   return jenisAnalisis === "baru" ? "idea" : "running";
 }
 
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const authHeader = req.headers.get("authorization");
+    const authHeader = req.headers.authorization as string | undefined;
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Silakan login terlebih dahulu." }), { status: 401 });
+      return res.status(401).json({ error: "Silakan login terlebih dahulu." });
     }
     const token = authHeader.slice("Bearer ".length);
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) {
-      return new Response(JSON.stringify({ error: "Sesi login tidak valid. Silakan login ulang." }), { status: 401 });
+      return res.status(401).json({ error: "Sesi login tidak valid. Silakan login ulang." });
     }
     const userId = userData.user.id;
     const userEmail = userData.user.email ?? null;
 
-    const body = await req.json();
-    const { draftId } = body;
+    const { draftId } = req.body;
     if (!draftId || typeof draftId !== "string") {
-      return new Response(JSON.stringify({ error: "draftId wajib diisi" }), { status: 400 });
+      return res.status(400).json({ error: "draftId wajib diisi" });
     }
 
     // Jaga-jaga: pastikan baris `profiles` untuk user ini ada. Biasanya ini
@@ -70,19 +71,16 @@ export default async function handler(req: Request): Promise<Response> {
       .single();
 
     if (draftError || !draft) {
-      return new Response(JSON.stringify({ error: "Draft tidak ditemukan" }), { status: 404 });
+      return res.status(404).json({ error: "Draft tidak ditemukan" });
     }
 
     // Sudah pernah dipromosikan sebelumnya — kembalikan hasil yang sama,
     // jangan buat business_profile/analysis kedua kalinya.
     if (draft.status === "promoted" && draft.business_profile_id) {
-      return new Response(
-        JSON.stringify({
-          businessProfileId: draft.business_profile_id,
-          analysisId: draft.analysis_id,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      return res.status(200).json({
+        businessProfileId: draft.business_profile_id,
+        analysisId: draft.analysis_id,
+      });
     }
 
     const wizardData = draft.wizard_data as Record<string, string>;
@@ -100,7 +98,7 @@ export default async function handler(req: Request): Promise<Response> {
 
     if (bpError || !businessProfile) {
       console.error("promote-draft business_profiles insert error:", bpError);
-      return new Response(JSON.stringify({ error: "Gagal membuat business profile" }), { status: 500 });
+      return res.status(500).json({ error: "Gagal membuat business profile" });
     }
 
     const { data: analysis, error: analysisError } = await supabase
@@ -115,7 +113,7 @@ export default async function handler(req: Request): Promise<Response> {
 
     if (analysisError || !analysis) {
       console.error("promote-draft analyses insert error:", analysisError);
-      return new Response(JSON.stringify({ error: "Gagal membuat analisa" }), { status: 500 });
+      return res.status(500).json({ error: "Gagal membuat analisa" });
     }
 
     await supabase
@@ -128,15 +126,12 @@ export default async function handler(req: Request): Promise<Response> {
       })
       .eq("id", draftId);
 
-    return new Response(
-      JSON.stringify({
-        businessProfileId: businessProfile.id,
-        analysisId: analysis.id,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+    return res.status(200).json({
+      businessProfileId: businessProfile.id,
+      analysisId: analysis.id,
+    });
   } catch (error) {
     console.error("promote-draft error:", error);
-    return new Response(JSON.stringify({ error: "Terjadi kesalahan server" }), { status: 500 });
+    return res.status(500).json({ error: "Terjadi kesalahan server" });
   }
 }
