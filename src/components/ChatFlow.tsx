@@ -25,7 +25,7 @@ type InputKind = "text" | "email" | "textarea" | "date-past" | "date-future" | "
 
 type Question = {
   field: keyof WizardData;
-  prompt: string;
+  prompt: (d: WizardData) => string;
   inputType: InputKind;
   placeholder?: string;
   validate: (value: string) => boolean;
@@ -34,16 +34,24 @@ type Question = {
 
 const todayString = getTodayString();
 
+/** Ganti token {namaField} di template terjemahan dengan jawaban yang sudah
+ * diberikan pengguna sejauh ini, supaya pertanyaan berikutnya terasa
+ * menyambung/personal — bukan daftar pertanyaan lepas-lepas. */
+function fill(template: string, data: WizardData): string {
+  return template
+    .replace(/\{nama\}/g, data.nama || "")
+    .replace(/\{profesi\}/g, data.profesi || "")
+    .replace(/\{namaBisnis\}/g, data.namaBisnis || "");
+}
+
 function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const { t } = useLanguage();
   const isBaru = data.jenisAnalisis === "baru";
 
-  // Daftar pertanyaan dibangun ulang tiap kali bahasa/jenis bisnis berubah,
-  // supaya prompt & placeholder-nya selalu sinkron.
   const questions: Question[] = [
     {
       field: "nama",
-      prompt: t.chatFlow.greeting,
+      prompt: () => t.chatFlow.greeting,
       inputType: "text",
       placeholder: t.stepOne.namaPlaceholder,
       validate: isValidNameLike,
@@ -51,7 +59,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     },
     {
       field: "email",
-      prompt: t.chatFlow.askEmail,
+      prompt: (d) => fill(t.chatFlow.askEmail, d),
       inputType: "email",
       placeholder: t.stepOne.emailPlaceholder,
       validate: isValidEmail,
@@ -59,7 +67,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     },
     {
       field: "profesi",
-      prompt: t.chatFlow.askProfesi,
+      prompt: () => t.chatFlow.askProfesi,
       inputType: "text",
       placeholder: t.stepOne.profesiPlaceholder,
       validate: isValidProfesi,
@@ -67,7 +75,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     },
     {
       field: "namaBisnis",
-      prompt: t.chatFlow.askNamaBisnis,
+      prompt: (d) => fill(t.chatFlow.askNamaBisnis, d),
       inputType: "text",
       placeholder: t.stepOne.namaBisnisPlaceholder,
       validate: isValidBrandName,
@@ -75,7 +83,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     },
     {
       field: "jenisBisnis",
-      prompt: t.chatFlow.askJenisBisnis,
+      prompt: (d) => fill(t.chatFlow.askJenisBisnis, d),
       inputType: "text",
       placeholder: t.stepOne.jenisBisnisPlaceholder,
       validate: isValidNameLike,
@@ -83,7 +91,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     },
     {
       field: "lokasi",
-      prompt: isBaru ? t.chatFlow.askLokasiNew : t.chatFlow.askLokasiRunning,
+      prompt: () => (isBaru ? t.chatFlow.askLokasiNew : t.chatFlow.askLokasiRunning),
       inputType: "text",
       placeholder: t.stepTwo.lokasiPlaceholder,
       validate: isValidLocation,
@@ -93,7 +101,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       ? ([
           {
             field: "targetPelanggan",
-            prompt: t.chatFlow.askTargetPelanggan,
+            prompt: () => t.chatFlow.askTargetPelanggan,
             inputType: "textarea",
             placeholder: t.stepTwo.targetPelangganPlaceholder,
             validate: (v: string) => isValidFreeText(v, 7, 2),
@@ -101,7 +109,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
           },
           {
             field: "rencanaLaunching",
-            prompt: t.chatFlow.askRencanaLaunching,
+            prompt: () => t.chatFlow.askRencanaLaunching,
             inputType: "date-future",
             validate: isValidFutureDate,
             invalidNudge: t.chatFlow.invalidDateFutureNudge,
@@ -110,7 +118,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       : ([
           {
             field: "sejakKapan",
-            prompt: t.chatFlow.askSejakKapan,
+            prompt: () => t.chatFlow.askSejakKapan,
             inputType: "date-past",
             validate: isValidPastDate,
             invalidNudge: t.chatFlow.invalidDatePastNudge,
@@ -118,7 +126,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
         ] as Question[])),
     {
       field: "omsetBulanan",
-      prompt: isBaru ? t.chatFlow.askModalAwal : t.chatFlow.askOmset,
+      prompt: () => (isBaru ? t.chatFlow.askModalAwal : t.chatFlow.askOmset),
       inputType: "currency",
       placeholder: isBaru ? t.stepTwo.omsetPlaceholderNew : t.stepTwo.omsetPlaceholderRunning,
       validate: isValidOmset,
@@ -126,7 +134,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     },
     {
       field: "tantangan",
-      prompt: isBaru ? t.chatFlow.askTantanganNew : t.chatFlow.askTantanganRunning,
+      prompt: (d) => fill(isBaru ? t.chatFlow.askTantanganNew : t.chatFlow.askTantanganRunning, d),
       inputType: "textarea",
       placeholder: isBaru ? t.stepThree.tantanganPlaceholderNew : t.stepThree.tantanganPlaceholderRunning,
       validate: (v: string) => isValidFreeText(v),
@@ -134,7 +142,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     },
     {
       field: "target",
-      prompt: t.chatFlow.askTarget,
+      prompt: () => t.chatFlow.askTarget,
       inputType: "textarea",
       placeholder: isBaru ? t.stepThree.targetPlaceholderNew : t.stepThree.targetPlaceholderRunning,
       validate: (v: string) => isValidFreeText(v),
@@ -142,7 +150,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     },
     {
       field: "ceritaVisi",
-      prompt: t.chatFlow.askCeritaVisi,
+      prompt: (d) => fill(t.chatFlow.askCeritaVisi, d),
       inputType: "textarea",
       placeholder: t.stepFour.placeholder,
       validate: (v: string) => isValidFreeText(v, 40, 10),
@@ -168,13 +176,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [answeredCount, editingField]);
 
-  // Kalau mulai ganti bahasa di tengah jalan, teks pertanyaan yang sudah
-  // dijawab tetap seperti apa adanya (histori tidak ditulis ulang) — cuma
-  // pertanyaan yang BELUM dijawab yang otomatis ikut bahasa baru karena
-  // dihitung ulang dari `questions` di atas.
-
   function handleCurrencyChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!activeQuestion) return;
     const oldValue = (data.omsetBulanan as string) || "";
     const rawValue = e.target.value;
     const newCursorPos = e.target.selectionStart ?? rawValue.length;
@@ -241,6 +243,16 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     setInputValue("");
   }
 
+  // Enter mengirim jawaban; di textarea, Shift+Enter tetap bikin baris baru
+  // (pola chat yang sudah familiar bagi kebanyakan orang).
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
+    if (e.key !== "Enter") return;
+    const isTextarea = (e.target as HTMLElement).tagName === "TEXTAREA";
+    if (isTextarea && e.shiftKey) return;
+    e.preventDefault();
+    handleSubmitAnswer();
+  }
+
   function startEdit(field: keyof WizardData) {
     setEditingField(field);
     setInputValue((data[field] as string) || "");
@@ -261,17 +273,18 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
   function renderInput(question: Question) {
     const commonClass =
-      "w-full rounded-xl border bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary " +
+      "w-full rounded-2xl border bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary " +
       (showError ? "border-red-500" : "border-white/10");
 
     if (question.inputType === "textarea") {
       return (
         <textarea
           autoFocus
-          rows={4}
+          rows={3}
           placeholder={question.placeholder}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
           className={commonClass + " resize-none"}
         />
       );
@@ -285,6 +298,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
           max={question.inputType === "date-past" ? todayString : undefined}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
           className={commonClass + " [color-scheme:dark]"}
         />
       );
@@ -299,6 +313,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
           placeholder={question.placeholder}
           value={data.omsetBulanan}
           onChange={handleCurrencyChange}
+          onKeyDown={handleKeyDown}
           className={commonClass}
         />
       );
@@ -310,6 +325,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
         placeholder={question.placeholder}
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
         className={commonClass}
       />
     );
@@ -337,7 +353,6 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     { group: t.chatFlow.ceritaVisiTitle, label: t.chatFlow.ceritaVisiTitle, field: "ceritaVisi" },
   ];
 
-  // Kelompokkan baris ringkasan per grup, tapi jaga urutan tampil.
   const groupedSummary: { group: string; rows: typeof summaryRows }[] = [];
   for (const row of summaryRows) {
     let bucket = groupedSummary.find((g) => g.group === row.group);
@@ -348,8 +363,10 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     bucket.rows.push(row);
   }
 
+  const showComposer = !!activeQuestion && (!allAnswered || !!editingField);
+
   return (
-    <div className="flex flex-col">
+    <div className="flex h-[75vh] max-h-[720px] min-h-[420px] flex-col">
       <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
         <label htmlFor="website">Website</label>
         <input
@@ -363,16 +380,15 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
         />
       </div>
 
-      <div ref={scrollRef} className="max-h-[65vh] space-y-4 overflow-y-auto pr-1 sm:max-h-[60vh]">
-        {/* Riwayat pertanyaan yang sudah dijawab */}
+      {/* Area pesan — bisa di-scroll, composer di bawah selalu terlihat */}
+      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-1 pb-2 pr-2">
         {questions.slice(0, answeredCount).map((q) => (
           <div key={q.field as string} className="space-y-2">
-            <ChatBubble role="bot" text={q.prompt} />
+            <ChatBubble role="bot" text={q.prompt(data)} />
             <ChatBubble role="user" text={(data[q.field] as string) || ""} />
           </div>
         ))}
 
-        {/* Ringkasan setelah semua pertanyaan terjawab */}
         {allAnswered && !editingField && (
           <div className="space-y-2">
             <ChatBubble role="bot" text={t.chatFlow.summaryIntro} />
@@ -403,46 +419,54 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
           </div>
         )}
 
-        {/* Pertanyaan aktif saat ini (atau mode edit) */}
         {activeQuestion && (!allAnswered || editingField) && (
-          <div className="space-y-2">
-            <ChatBubble role="bot" text={activeQuestion.prompt} />
+          <div className="space-y-1.5">
+            {!editingField && (
+              <p className="pl-10 text-xs font-medium text-neutral-500">
+                {t.chatFlow.progressLabel
+                  .replace("{current}", String(answeredCount + 1))
+                  .replace("{total}", String(questions.length))}
+              </p>
+            )}
+            <ChatBubble role="bot" text={activeQuestion.prompt(data)} />
+          </div>
+        )}
+
+        {allAnswered && !editingField && (
+          <div className="pt-1">
+            {botError && <p className="mb-3 text-sm text-red-400">{t.chatFlow.botError}</p>}
+            <button
+              onClick={handleProses}
+              disabled={loading}
+              className="flex w-full flex-col items-center gap-1 rounded-xl bg-primary py-4 text-black disabled:opacity-60"
+            >
+              <span className="text-base font-bold">
+                {loading ? t.chatFlow.submitLoading : t.chatFlow.submitLabel}
+              </span>
+              <span className="text-xs font-medium opacity-80">{t.chatFlow.submitHelper}</span>
+            </button>
           </div>
         )}
       </div>
 
-      {/* Area input */}
-      {activeQuestion && (!allAnswered || editingField) ? (
-        <div className="mt-4">
-          {renderInput(activeQuestion)}
-          {showError && (
-            <p className="mt-2 text-sm text-amber-400">⚠ {activeQuestion.invalidNudge}</p>
-          )}
-          <div className="mt-2 flex items-center justify-between">
-            <p className="text-xs text-neutral-500">{t.chatFlow.sendHint}</p>
+      {/* Composer — selalu menempel di bawah, mirip aplikasi chat pada umumnya */}
+      {showComposer && (
+        <div className="mt-3 flex-none border-t border-white/10 pt-3">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">{renderInput(activeQuestion)}</div>
             <button
               onClick={handleSubmitAnswer}
-              className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-black"
+              aria-label="send"
+              className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-primary text-black transition-transform hover:scale-105 active:scale-95"
             >
               ➤
             </button>
           </div>
+          {showError && (
+            <p className="mt-2 text-sm text-amber-400">⚠ {activeQuestion.invalidNudge}</p>
+          )}
         </div>
-      ) : allAnswered ? (
-        <div className="mt-4">
-          {botError && <p className="mb-3 text-sm text-red-400">{t.chatFlow.botError}</p>}
-          <button
-            onClick={handleProses}
-            disabled={loading}
-            className="flex w-full flex-col items-center gap-1 rounded-xl bg-primary py-4 text-black disabled:opacity-60"
-          >
-            <span className="text-base font-bold">
-              {loading ? t.chatFlow.submitLoading : t.chatFlow.submitLabel}
-            </span>
-            <span className="text-xs font-medium opacity-80">{t.chatFlow.submitHelper}</span>
-          </button>
-        </div>
-      ) : null}
+      )}
     </div>
   );
 }
