@@ -172,9 +172,69 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     ? questions.find((q) => q.field === editingField)!
     : questions[answeredCount];
 
+  // Teks pesan bot yang "sedang" ditampilkan saat ini — baik itu pertanyaan
+  // aktif, pertanyaan yang sedang diedit, maupun ringkasan penutup.
+  function getCurrentBotText(): string | null {
+    if (editingField) {
+      const q = questions.find((qq) => qq.field === editingField);
+      return q ? q.prompt(data) : null;
+    }
+    if (allAnswered) return t.chatFlow.summaryIntro;
+    return activeQuestion ? activeQuestion.prompt(data) : null;
+  }
+
+  const [revealedLength, setRevealedLength] = useState(0);
+  const [showTypingDots, setShowTypingDots] = useState(false);
+  const typingIntervalRef = useRef<number | null>(null);
+  const typingTimeoutRef = useRef<number | null>(null);
+
+  // Kunci unik per "pesan bot yang sedang tampil" — dipakai supaya animasi
+  // mengetik cuma jalan sekali per pesan baru, bukan tiap kali komponen
+  // render ulang (misalnya saat mengetik jawaban).
+  const typingKey = editingField ? `edit-${editingField}` : allAnswered ? "summary" : `q-${answeredCount}`;
+
+  useEffect(() => {
+    if (typingIntervalRef.current) window.clearInterval(typingIntervalRef.current);
+    if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+
+    const fullText = getCurrentBotText();
+    setRevealedLength(0);
+
+    if (fullText === null) {
+      setShowTypingDots(false);
+      return;
+    }
+
+    setShowTypingDots(true);
+    typingTimeoutRef.current = window.setTimeout(() => {
+      setShowTypingDots(false);
+      // Ringan: cuma setInterval biasa yang menambah panjang teks yang
+      // ditampilkan sedikit demi sedikit — bukan library animasi.
+      typingIntervalRef.current = window.setInterval(() => {
+        setRevealedLength((prev) => {
+          const next = prev + 3;
+          if (next >= fullText.length) {
+            if (typingIntervalRef.current) window.clearInterval(typingIntervalRef.current);
+            return fullText.length;
+          }
+          return next;
+        });
+      }, 16);
+    }, 450);
+
+    return () => {
+      if (typingIntervalRef.current) window.clearInterval(typingIntervalRef.current);
+      if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typingKey]);
+
+  const currentBotFullText = getCurrentBotText() || "";
+  const typingDone = !showTypingDots && revealedLength >= currentBotFullText.length;
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [answeredCount, editingField]);
+  }, [answeredCount, editingField, revealedLength, showTypingDots]);
 
   function handleCurrencyChange(e: React.ChangeEvent<HTMLInputElement>) {
     const oldValue = (data.omsetBulanan as string) || "";
@@ -363,7 +423,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     bucket.rows.push(row);
   }
 
-  const showComposer = !!activeQuestion && (!allAnswered || !!editingField);
+  const showComposer = !!activeQuestion && (!allAnswered || !!editingField) && typingDone;
 
   return (
     <div className="flex h-[75vh] max-h-[720px] min-h-[420px] flex-col">
@@ -391,31 +451,37 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
         {allAnswered && !editingField && (
           <div className="space-y-2">
-            <ChatBubble role="bot" text={t.chatFlow.summaryIntro} />
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5">
-              {groupedSummary.map((g) => (
-                <div key={g.group} className="mb-4 last:mb-0">
-                  <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-primary">{g.group}</h4>
-                  {g.rows.map((row) => (
-                    <div
-                      key={row.field as string}
-                      className="flex items-start justify-between gap-3 border-b border-white/5 py-1.5 text-sm last:border-b-0"
-                    >
-                      <div className="min-w-0">
-                        <span className="block text-neutral-400">{row.label}</span>
-                        <strong className="break-words">{(data[row.field] as string) || "—"}</strong>
-                      </div>
-                      <button
-                        onClick={() => startEdit(row.field)}
-                        className="flex-none rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300 hover:border-primary/40 hover:text-white"
+            {showTypingDots ? (
+              <TypingDots />
+            ) : (
+              <ChatBubble role="bot" text={currentBotFullText.slice(0, revealedLength)} />
+            )}
+            {typingDone && (
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5">
+                {groupedSummary.map((g) => (
+                  <div key={g.group} className="mb-4 last:mb-0">
+                    <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-primary">{g.group}</h4>
+                    {g.rows.map((row) => (
+                      <div
+                        key={row.field as string}
+                        className="flex items-start justify-between gap-3 border-b border-white/5 py-1.5 text-sm last:border-b-0"
                       >
-                        {t.chatFlow.editLabel}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
+                        <div className="min-w-0">
+                          <span className="block text-neutral-400">{row.label}</span>
+                          <strong className="break-words">{(data[row.field] as string) || "—"}</strong>
+                        </div>
+                        <button
+                          onClick={() => startEdit(row.field)}
+                          className="flex-none rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300 hover:border-primary/40 hover:text-white"
+                        >
+                          {t.chatFlow.editLabel}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -428,11 +494,15 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
                   .replace("{total}", String(questions.length))}
               </p>
             )}
-            <ChatBubble role="bot" text={activeQuestion.prompt(data)} />
+            {showTypingDots ? (
+              <TypingDots />
+            ) : (
+              <ChatBubble role="bot" text={currentBotFullText.slice(0, revealedLength)} />
+            )}
           </div>
         )}
 
-        {allAnswered && !editingField && (
+        {allAnswered && !editingField && typingDone && (
           <div className="pt-1">
             {botError && <p className="mb-3 text-sm text-red-400">{t.chatFlow.botError}</p>}
             <button
@@ -467,6 +537,21 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function TypingDots() {
+  return (
+    <div className="flex items-end gap-2">
+      <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-primary/30 bg-surface text-sm">
+        🤖
+      </div>
+      <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-surface px-4 py-3.5">
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:0ms]"></span>
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:150ms]"></span>
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:300ms]"></span>
+      </div>
     </div>
   );
 }

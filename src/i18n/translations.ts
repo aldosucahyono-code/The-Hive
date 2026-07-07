@@ -298,7 +298,7 @@ const id = {
   chatFlow: {
     greeting:
       "👋 Halo! Saya Beemo AI dari THE HIVE. Siap membantu kamu memahami bisnis, menganalisis kompetitor, dan menemukan peluang terbaik.\n\nSebelum mulai, boleh kenalan dulu? Siapa nama kamu?",
-    askEmail: "Senang kenalan denganmu, {nama}! 😊 Boleh minta emailmu? Bukti pembayaran nanti dikirim ke sini.",
+    askEmail: "Senang kenalan denganmu, {nama}! 😊 Boleh minta emailmu? Nanti saya pakai untuk kirim saran dan insight pengembangan bisnismu ke sana.",
     askProfesi: "Mantap! Sekarang cerita dong, kamu berperan sebagai apa di bisnis ini? (misalnya Founder, Owner, Manager)",
     askNamaBisnis: "Oke, {profesi} — apa nama bisnis atau brand kamu?",
     askJenisBisnis: "{namaBisnis}, nama yang bagus! 👍 Bisnis ini bergerak di bidang apa? (misalnya Coffee Shop, Retail, Jasa Konsultasi)",
@@ -639,7 +639,7 @@ const en: Translations = {
   chatFlow: {
     greeting:
       "👋 Hi! I'm Beemo AI from THE HIVE. Ready to help you understand your business, analyze competitors, and find the best opportunities.\n\nBefore we start, let's get acquainted — what's your name?",
-    askEmail: "Nice to meet you, {nama}! 😊 Could I get your email? Your payment receipt will be sent there.",
+    askEmail: "Nice to meet you, {nama}! 😊 Could I get your email? I'll use it to send you suggestions and insights for your business.",
     askProfesi: "Awesome! Tell me, what's your role in this business? (e.g. Founder, Owner, Manager)",
     askNamaBisnis: "Got it, {profesi} — what's the name of your business or brand?",
     askJenisBisnis: "{namaBisnis}, nice name! 👍 What industry is this business in? (e.g. Coffee Shop, Retail, Consulting)",
