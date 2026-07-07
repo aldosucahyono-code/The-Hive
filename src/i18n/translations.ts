@@ -180,6 +180,23 @@ const id = {
     ],
     platinumButton: "🔓 Unlock PLATINUM",
     footerNote: "🔒 Hasil analisis akan tersedia langsung dalam format PDF yang siap diunduh.",
+    unlockCta: "Buka Laporan Lengkap",
+    swotMock: [
+      "Kekuatan utama dari sisi produk dan operasional bisnis Anda",
+      "Kelemahan yang perlu segera diperhatikan",
+      "Peluang pasar yang belum banyak dimanfaatkan",
+      "Ancaman dari kompetitor yang perlu diwaspadai",
+    ],
+    competitorMock: [
+      "Beberapa kompetitor teridentifikasi di sekitar lokasi Anda",
+      "Perbandingan posisi dan kekuatan masing-masing",
+      "Celah pasar yang berpotensi bisa Anda manfaatkan",
+    ],
+    planMock: [
+      "Minggu 1: fokus pada langkah persiapan awal",
+      "Minggu 2: eksekusi strategi prioritas",
+      "Minggu 3-4: evaluasi dan penyesuaian",
+    ],
   },
 
   paymentPage: {
@@ -315,6 +332,11 @@ const id = {
     askCeritaVisi:
       "Terakhir, {nama} — boleh cerita lebih personal? Ceritakan kondisi kamu saat ini, impian terbesar yang ingin dicapai, dan bagaimana kamu memandang bisnis ini. Dari cerita kamu, saya akan bantu susun strategi yang paling sesuai.",
     summaryIntro: "Terima kasih banyak, {nama}. 🙏 Ceritamu sangat membantu. Ini ringkasan yang saya tangkap — cek dulu sebelum saya mulai analisis:",
+    phaseKenal: "Mengenal Bisnis",
+    phaseKondisi: "Memahami Kondisi",
+    phaseTarget: "Menentukan Target",
+    phaseStrategi: "Menyusun Strategi",
+    phaseSelesai: "Menyelesaikan Analisis",
     progressLabel: "Pertanyaan {current} dari {total}",
     editLabel: "Edit",
     sendPlaceholder: "Ketik jawabanmu di sini...",
@@ -521,6 +543,23 @@ const en: Translations = {
     ],
     platinumButton: "🔓 Unlock PLATINUM",
     footerNote: "🔒 Your analysis result will be available directly as a ready-to-download PDF.",
+    unlockCta: "Open Full Report",
+    swotMock: [
+      "Key strengths in your product and operations",
+      "Weaknesses that need attention soon",
+      "Market opportunities not yet fully tapped",
+      "Competitive threats worth watching",
+    ],
+    competitorMock: [
+      "Several competitors identified near your location",
+      "A comparison of positioning and strengths",
+      "A market gap you could potentially capture",
+    ],
+    planMock: [
+      "Week 1: focus on initial preparation",
+      "Week 2: execute priority strategy",
+      "Weeks 3-4: evaluate and adjust",
+    ],
   },
 
   paymentPage: {
@@ -656,6 +695,11 @@ const en: Translations = {
     askCeritaVisi:
       "Last one, {nama} — mind sharing something more personal? Tell me about your current situation, the biggest dream you want to achieve, and how you see business. From your story, I'll help craft the strategy that fits you best.",
     summaryIntro: "Thank you very much, {nama}. 🙏 Your story really helps. Here's what I've gathered — please review it before I start the analysis:",
+    phaseKenal: "Getting to Know Your Business",
+    phaseKondisi: "Understanding the Situation",
+    phaseTarget: "Defining the Target",
+    phaseStrategi: "Building the Strategy",
+    phaseSelesai: "Finishing the Analysis",
     progressLabel: "Question {current} of {total}",
     editLabel: "Edit",
     sendPlaceholder: "Type your answer here...",

@@ -143,41 +143,30 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
         </div>
       </div>
 
-      {/* Preview SWOT terkunci */}
-      <div className="mb-4 rounded-2xl border border-white/10 bg-black/20 p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-bold text-neutral-200">{t.previewReport.swotTitle}</p>
-            <p className="text-sm text-neutral-400">{t.previewReport.swotDesc}</p>
-          </div>
-          <span className="text-2xl">🔒</span>
-        </div>
-      </div>
+      {/* Preview SWOT — blur, bukan ikon gembok (supaya tidak terasa "dikunci") */}
+      <BlurTeaser
+        title={t.previewReport.swotTitle}
+        lines={t.previewReport.swotMock}
+        cta={t.previewReport.unlockCta}
+      />
 
       {/* Preview Kompetitor */}
-      <div className="mb-4 rounded-2xl border border-white/10 bg-black/20 p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-bold text-neutral-200">{t.previewReport.competitorTitle}</p>
-            <p className="text-sm text-neutral-400">{t.previewReport.competitorDesc}</p>
-          </div>
-          <span className="text-2xl">🔒</span>
-        </div>
-      </div>
+      <BlurTeaser
+        title={t.previewReport.competitorTitle}
+        lines={t.previewReport.competitorMock}
+        cta={t.previewReport.unlockCta}
+      />
 
       {/* Preview Rencana 30 Hari */}
-      <div className="mb-8 rounded-2xl border border-white/10 bg-black/20 p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-bold text-neutral-200">{t.previewReport.planTitle}</p>
-            <p className="text-sm text-neutral-400">{t.previewReport.planDesc}</p>
-          </div>
-          <span className="text-2xl">🔒</span>
-        </div>
-      </div>
+      <BlurTeaser
+        title={t.previewReport.planTitle}
+        lines={t.previewReport.planMock}
+        cta={t.previewReport.unlockCta}
+        marginBottom="mb-8"
+      />
 
       {/* Unlock Laporan Lengkap — dua paket */}
-      <div className="mb-8 rounded-3xl border border-white/10 bg-surface p-6 sm:p-8">
+      <div id="unlock-section" className="mb-8 rounded-3xl border border-white/10 bg-surface p-6 sm:p-8">
         <div className="mb-6 text-center">
           <span className="text-xs font-bold uppercase tracking-widest text-primary">
             {t.previewReport.unlockEyebrow}
@@ -254,6 +243,43 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
       </div>
 
     </section>
+  );
+}
+
+function BlurTeaser({
+  title,
+  lines,
+  cta,
+  marginBottom = "mb-4",
+}: {
+  title: string;
+  lines: string[];
+  cta: string;
+  marginBottom?: string;
+}) {
+  function scrollToUnlock() {
+    document.getElementById("unlock-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-5 ${marginBottom}`}>
+      <p className="mb-3 font-bold text-neutral-200">{title}</p>
+      <div aria-hidden="true" className="select-none space-y-2 blur-[3px]">
+        {lines.map((line, i) => (
+          <p key={i} className="text-sm text-neutral-400">
+            {line}
+          </p>
+        ))}
+      </div>
+      <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/85 via-black/50 to-transparent pb-4">
+        <button
+          onClick={scrollToUnlock}
+          className="rounded-xl bg-primary px-5 py-2 text-sm font-bold text-black transition-transform hover:-translate-y-0.5"
+        >
+          {cta}
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -23,6 +23,8 @@ type ChatFlowProps = {
 
 type InputKind = "text" | "email" | "textarea" | "date-past" | "date-future" | "currency";
 
+type PhaseKey = "kenal" | "kondisi" | "target" | "strategi";
+
 type Question = {
   field: keyof WizardData;
   prompt: (d: WizardData) => string;
@@ -30,6 +32,7 @@ type Question = {
   placeholder?: string;
   validate: (value: string) => boolean;
   invalidNudge: string;
+  phase: PhaseKey;
 };
 
 const todayString = getTodayString();
@@ -56,6 +59,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: t.stepOne.namaPlaceholder,
       validate: isValidNameLike,
       invalidNudge: t.chatFlow.invalidNudge,
+      phase: "kenal",
     },
     {
       field: "email",
@@ -64,6 +68,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: t.stepOne.emailPlaceholder,
       validate: isValidEmail,
       invalidNudge: t.chatFlow.invalidEmailNudge,
+      phase: "kenal",
     },
     {
       field: "profesi",
@@ -72,6 +77,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: t.stepOne.profesiPlaceholder,
       validate: isValidProfesi,
       invalidNudge: t.chatFlow.invalidNudge,
+      phase: "kenal",
     },
     {
       field: "namaBisnis",
@@ -80,6 +86,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: t.stepOne.namaBisnisPlaceholder,
       validate: isValidBrandName,
       invalidNudge: t.chatFlow.invalidNudge,
+      phase: "kenal",
     },
     {
       field: "jenisBisnis",
@@ -88,6 +95,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: t.stepOne.jenisBisnisPlaceholder,
       validate: isValidNameLike,
       invalidNudge: t.chatFlow.invalidNudge,
+      phase: "kenal",
     },
     {
       field: "lokasi",
@@ -96,6 +104,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: t.stepTwo.lokasiPlaceholder,
       validate: isValidLocation,
       invalidNudge: t.chatFlow.invalidNudge,
+      phase: "kondisi",
     },
     ...(isBaru
       ? ([
@@ -106,6 +115,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
             placeholder: t.stepTwo.targetPelangganPlaceholder,
             validate: (v: string) => isValidFreeText(v, 7, 2),
             invalidNudge: t.chatFlow.invalidNudge,
+            phase: "kondisi",
           },
           {
             field: "rencanaLaunching",
@@ -113,6 +123,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
             inputType: "date-future",
             validate: isValidFutureDate,
             invalidNudge: t.chatFlow.invalidDateFutureNudge,
+            phase: "kondisi",
           },
         ] as Question[])
       : ([
@@ -122,6 +133,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
             inputType: "date-past",
             validate: isValidPastDate,
             invalidNudge: t.chatFlow.invalidDatePastNudge,
+            phase: "kondisi",
           },
         ] as Question[])),
     {
@@ -131,6 +143,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: isBaru ? t.stepTwo.omsetPlaceholderNew : t.stepTwo.omsetPlaceholderRunning,
       validate: isValidOmset,
       invalidNudge: t.chatFlow.invalidGenericNudge,
+      phase: "kondisi",
     },
     {
       field: "tantangan",
@@ -139,6 +152,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: isBaru ? t.stepThree.tantanganPlaceholderNew : t.stepThree.tantanganPlaceholderRunning,
       validate: (v: string) => isValidFreeText(v),
       invalidNudge: t.chatFlow.invalidNudge,
+      phase: "target",
     },
     {
       field: "target",
@@ -147,6 +161,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: isBaru ? t.stepThree.targetPlaceholderNew : t.stepThree.targetPlaceholderRunning,
       validate: (v: string) => isValidFreeText(v),
       invalidNudge: t.chatFlow.invalidNudge,
+      phase: "target",
     },
     {
       field: "ceritaVisi",
@@ -155,6 +170,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: t.stepFour.placeholder,
       validate: (v: string) => isValidFreeText(v, 40, 10),
       invalidNudge: t.chatFlow.invalidNudge,
+      phase: "strategi",
     },
   ];
 
@@ -425,8 +441,36 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
   const showComposer = !!activeQuestion && (!allAnswered || !!editingField) && typingDone;
 
+  const phaseLabels: Record<PhaseKey, string> = {
+    kenal: t.chatFlow.phaseKenal,
+    kondisi: t.chatFlow.phaseKondisi,
+    target: t.chatFlow.phaseTarget,
+    strategi: t.chatFlow.phaseStrategi,
+  };
+  const currentPhaseLabel = allAnswered
+    ? t.chatFlow.phaseSelesai
+    : activeQuestion
+      ? phaseLabels[activeQuestion.phase]
+      : "";
+  const progressPercent = Math.round((answeredCount / questions.length) * 100);
+
   return (
     <div className="flex h-[75dvh] max-h-[720px] min-h-[420px] flex-col">
+      {/* Progress bar persisten — menggantikan teks "Step X dari Y" supaya
+          terasa seperti aplikasi AI modern, bukan formulir/wizard. */}
+      <div className="mb-3 flex-none">
+        <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-neutral-400">
+          <span>{currentPhaseLabel}</span>
+          <span>{progressPercent}%</span>
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-500"
+            style={{ width: `${progressPercent}%` }}
+          ></div>
+        </div>
+      </div>
+
       <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
         <label htmlFor="website">Website</label>
         <input
@@ -487,13 +531,6 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
         {activeQuestion && (!allAnswered || editingField) && (
           <div className="space-y-1.5">
-            {!editingField && (
-              <p className="pl-10 text-xs font-medium text-neutral-500">
-                {t.chatFlow.progressLabel
-                  .replace("{current}", String(answeredCount + 1))
-                  .replace("{total}", String(questions.length))}
-              </p>
-            )}
             {showTypingDots ? (
               <TypingDots />
             ) : (
