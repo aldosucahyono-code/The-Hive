@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 
 import ChooseAnalysisType from "./ChooseAnalysisType";
-import StepOne from "./StepOne";
-import StepTwo from "./StepTwo";
-import StepThree from "./StepThree";
-import StepFour from "./StepFour";
-import StepReview from "./StepReview";
+import ChatFlow from "./ChatFlow";
 import LoadingAI from "./LoadingAI";
 import PreviewReport, { type PreviewData } from "./PreviewReport";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -46,8 +42,12 @@ const initialData: WizardData = {
   honeypot: "",
 };
 
+// Step 0: pilih jenis analisis
+// Step 1: percakapan (ChatFlow menangani seluruh alur tanya-jawab + ringkasan)
+// Step 6: loading AI
+// Step 7: hasil preview
 function ChatWizard() {
-  const { t, lang } = useLanguage();
+  const { lang } = useLanguage();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<WizardData>(initialData);
   const [startTime] = useState(() => Date.now());
@@ -67,9 +67,6 @@ function ChatWizard() {
     setStep(0);
   }
 
-  /** Panggil Claude API untuk preview gratis. ready=true dilaporkan ke
-   * LoadingAI baik sukses maupun gagal, supaya animasi tidak menggantung
-   * selamanya kalau API error. */
   async function runPreviewAnalysis() {
     setPreviewReady(false);
     setPreviewError(null);
@@ -95,7 +92,6 @@ function ChatWizard() {
     }
   }
 
-  // Memicu pemanggilan API tepat sekali saat wizard masuk step loading (6).
   useEffect(() => {
     if (step === 6) {
       runPreviewAnalysis();
@@ -134,51 +130,17 @@ function ChatWizard() {
     );
   }
 
+  // step === 1: seluruh percakapan
   return (
-    <section className="mx-auto max-w-2xl px-6 py-16">
-
-      <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-primary/30 bg-surface text-2xl">
-          🤖
-        </div>
-        <h2 className="text-xl font-bold">{t.chatWizard.greeting}</h2>
-        <p className="mt-1 text-neutral-400">
-          {data.jenisAnalisis === "baru"
-            ? t.chatWizard.subtitleNew
-            : t.chatWizard.subtitleRunning}
-        </p>
+    <section className="mx-auto max-w-2xl px-6 py-10 sm:py-16">
+      <div className="rounded-3xl border border-white/10 bg-surface p-4 sm:p-6">
+        <ChatFlow
+          data={data}
+          updateField={updateField}
+          startTime={startTime}
+          onSuccess={() => setStep(6)}
+        />
       </div>
-
-      <div className="rounded-3xl border border-white/10 bg-surface p-6 sm:p-8">
-
-        {step === 1 && (
-          <StepOne data={data} updateField={updateField} next={() => setStep(2)} />
-        )}
-
-        {step === 2 && (
-          <StepTwo data={data} updateField={updateField} next={() => setStep(3)} back={() => setStep(1)} />
-        )}
-
-        {step === 3 && (
-          <StepThree data={data} updateField={updateField} next={() => setStep(4)} back={() => setStep(2)} />
-        )}
-
-        {step === 4 && (
-          <StepFour data={data} updateField={updateField} next={() => setStep(5)} back={() => setStep(3)} />
-        )}
-
-        {step === 5 && (
-          <StepReview
-            data={data}
-            onEdit={(target) => setStep(target)}
-            back={() => setStep(4)}
-            startTime={startTime}
-            onSuccess={() => setStep(6)}
-          />
-        )}
-
-      </div>
-
     </section>
   );
 }

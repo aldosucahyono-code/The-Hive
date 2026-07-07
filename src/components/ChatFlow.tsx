@@ -1,0 +1,481 @@
+import { useEffect, useRef, useState } from "react";
+import type { WizardData } from "./ChatWizard";
+import { useLanguage } from "../i18n/LanguageContext";
+import {
+  isValidNameLike,
+  isValidBrandName,
+  isValidProfesi,
+  isValidEmail,
+  isValidLocation,
+  isValidOmset,
+  isValidPastDate,
+  isValidFutureDate,
+  isValidFreeText,
+  getTodayString,
+} from "../utils/validation";
+
+type ChatFlowProps = {
+  data: WizardData;
+  updateField: (field: keyof WizardData, value: string) => void;
+  startTime: number;
+  onSuccess: () => void;
+};
+
+type InputKind = "text" | "email" | "textarea" | "date-past" | "date-future" | "currency";
+
+type Question = {
+  field: keyof WizardData;
+  prompt: string;
+  inputType: InputKind;
+  placeholder?: string;
+  validate: (value: string) => boolean;
+  invalidNudge: string;
+};
+
+type Message = {
+  role: "bot" | "user";
+  text: string;
+};
+
+const todayString = getTodayString();
+
+function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
+  const { t } = useLanguage();
+  const isBaru = data.jenisAnalisis === "baru";
+
+  // Daftar pertanyaan dibangun ulang tiap kali bahasa/jenis bisnis berubah,
+  // supaya prompt & placeholder-nya selalu sinkron.
+  const questions: Question[] = [
+    {
+      field: "nama",
+      prompt: t.chatFlow.greeting,
+      inputType: "text",
+      placeholder: t.stepOne.namaPlaceholder,
+      validate: isValidNameLike,
+      invalidNudge: t.chatFlow.invalidNudge,
+    },
+    {
+      field: "email",
+      prompt: t.chatFlow.askEmail,
+      inputType: "email",
+      placeholder: t.stepOne.emailPlaceholder,
+      validate: isValidEmail,
+      invalidNudge: t.chatFlow.invalidEmailNudge,
+    },
+    {
+      field: "profesi",
+      prompt: t.chatFlow.askProfesi,
+      inputType: "text",
+      placeholder: t.stepOne.profesiPlaceholder,
+      validate: isValidProfesi,
+      invalidNudge: t.chatFlow.invalidNudge,
+    },
+    {
+      field: "namaBisnis",
+      prompt: t.chatFlow.askNamaBisnis,
+      inputType: "text",
+      placeholder: t.stepOne.namaBisnisPlaceholder,
+      validate: isValidBrandName,
+      invalidNudge: t.chatFlow.invalidNudge,
+    },
+    {
+      field: "jenisBisnis",
+      prompt: t.chatFlow.askJenisBisnis,
+      inputType: "text",
+      placeholder: t.stepOne.jenisBisnisPlaceholder,
+      validate: isValidNameLike,
+      invalidNudge: t.chatFlow.invalidNudge,
+    },
+    {
+      field: "lokasi",
+      prompt: isBaru ? t.chatFlow.askLokasiNew : t.chatFlow.askLokasiRunning,
+      inputType: "text",
+      placeholder: t.stepTwo.lokasiPlaceholder,
+      validate: isValidLocation,
+      invalidNudge: t.chatFlow.invalidNudge,
+    },
+    ...(isBaru
+      ? ([
+          {
+            field: "targetPelanggan",
+            prompt: t.chatFlow.askTargetPelanggan,
+            inputType: "textarea",
+            placeholder: t.stepTwo.targetPelangganPlaceholder,
+            validate: (v: string) => isValidFreeText(v, 7, 2),
+            invalidNudge: t.chatFlow.invalidNudge,
+          },
+          {
+            field: "rencanaLaunching",
+            prompt: t.chatFlow.askRencanaLaunching,
+            inputType: "date-future",
+            validate: isValidFutureDate,
+            invalidNudge: t.chatFlow.invalidDateFutureNudge,
+          },
+        ] as Question[])
+      : ([
+          {
+            field: "sejakKapan",
+            prompt: t.chatFlow.askSejakKapan,
+            inputType: "date-past",
+            validate: isValidPastDate,
+            invalidNudge: t.chatFlow.invalidDatePastNudge,
+          },
+        ] as Question[])),
+    {
+      field: "omsetBulanan",
+      prompt: isBaru ? t.chatFlow.askModalAwal : t.chatFlow.askOmset,
+      inputType: "currency",
+      placeholder: isBaru ? t.stepTwo.omsetPlaceholderNew : t.stepTwo.omsetPlaceholderRunning,
+      validate: isValidOmset,
+      invalidNudge: t.chatFlow.invalidGenericNudge,
+    },
+    {
+      field: "tantangan",
+      prompt: isBaru ? t.chatFlow.askTantanganNew : t.chatFlow.askTantanganRunning,
+      inputType: "textarea",
+      placeholder: isBaru ? t.stepThree.tantanganPlaceholderNew : t.stepThree.tantanganPlaceholderRunning,
+      validate: (v: string) => isValidFreeText(v),
+      invalidNudge: t.chatFlow.invalidNudge,
+    },
+    {
+      field: "target",
+      prompt: t.chatFlow.askTarget,
+      inputType: "textarea",
+      placeholder: isBaru ? t.stepThree.targetPlaceholderNew : t.stepThree.targetPlaceholderRunning,
+      validate: (v: string) => isValidFreeText(v),
+      invalidNudge: t.chatFlow.invalidNudge,
+    },
+    {
+      field: "ceritaVisi",
+      prompt: t.chatFlow.askCeritaVisi,
+      inputType: "textarea",
+      placeholder: t.stepFour.placeholder,
+      validate: (v: string) => isValidFreeText(v, 40, 10),
+      invalidNudge: t.chatFlow.invalidNudge,
+    },
+  ];
+
+  const [answeredCount, setAnsweredCount] = useState(0);
+  const [inputValue, setInputValue] = useState("");
+  const [showError, setShowError] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [botError, setBotError] = useState(false);
+  const [editingField, setEditingField] = useState<keyof WizardData | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const currencyInputRef = useRef<HTMLInputElement>(null);
+
+  const allAnswered = answeredCount >= questions.length;
+  const activeQuestion = editingField
+    ? questions.find((q) => q.field === editingField)!
+    : questions[answeredCount];
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [answeredCount, editingField]);
+
+  // Kalau mulai ganti bahasa di tengah jalan, teks pertanyaan yang sudah
+  // dijawab tetap seperti apa adanya (histori tidak ditulis ulang) — cuma
+  // pertanyaan yang BELUM dijawab yang otomatis ikut bahasa baru karena
+  // dihitung ulang dari `questions` di atas.
+
+  function currentDisplayValue(): string {
+    if (!activeQuestion) return "";
+    return (data[activeQuestion.field] as string) || "";
+  }
+
+  function handleCurrencyChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!activeQuestion) return;
+    const oldValue = (data.omsetBulanan as string) || "";
+    const rawValue = e.target.value;
+    const newCursorPos = e.target.selectionStart ?? rawValue.length;
+    const isSingleBackspace = rawValue.length === oldValue.length - 1;
+
+    let workingDigits: string;
+    let digitsBeforeCursor: number;
+    const deletedChar = isSingleBackspace ? oldValue[newCursorPos] : undefined;
+
+    if (isSingleBackspace && deletedChar && !/[0-9]/.test(deletedChar)) {
+      const digitsBeforeOldCursor = oldValue.slice(0, newCursorPos).replace(/[^0-9]/g, "").length;
+      const allDigits = oldValue.replace(/[^0-9]/g, "");
+      workingDigits = allDigits.slice(0, digitsBeforeOldCursor - 1) + allDigits.slice(digitsBeforeOldCursor);
+      digitsBeforeCursor = digitsBeforeOldCursor - 1;
+    } else {
+      workingDigits = rawValue.replace(/[^0-9]/g, "");
+      digitsBeforeCursor = rawValue.slice(0, newCursorPos).replace(/[^0-9]/g, "").length;
+    }
+
+    const formatted = workingDigits ? "Rp" + Number(workingDigits).toLocaleString("id-ID") + ",-" : "";
+    updateField("omsetBulanan", formatted);
+
+    requestAnimationFrame(() => {
+      const el = currencyInputRef.current;
+      if (!el) return;
+      let seen = 0;
+      let newPos = el.value.length;
+      if (digitsBeforeCursor <= 0) {
+        newPos = 0;
+      } else {
+        for (let i = 0; i < el.value.length; i++) {
+          if (/[0-9]/.test(el.value[i])) {
+            seen++;
+            if (seen === digitsBeforeCursor) {
+              newPos = i + 1;
+              break;
+            }
+          }
+        }
+      }
+      el.setSelectionRange(newPos, newPos);
+    });
+  }
+
+  function handleSubmitAnswer() {
+    if (!activeQuestion) return;
+    const value = activeQuestion.inputType === "currency" ? (data.omsetBulanan as string) || "" : inputValue;
+
+    if (!activeQuestion.validate(value)) {
+      setShowError(true);
+      return;
+    }
+
+    setShowError(false);
+    updateField(activeQuestion.field, value);
+
+    if (editingField) {
+      setEditingField(null);
+      setInputValue("");
+      return;
+    }
+
+    setAnsweredCount((prev) => prev + 1);
+    setInputValue("");
+  }
+
+  function startEdit(field: keyof WizardData) {
+    setEditingField(field);
+    setInputValue((data[field] as string) || "");
+    setShowError(false);
+  }
+
+  function handleProses() {
+    const elapsed = Date.now() - startTime;
+    const looksLikeBot = data.honeypot.trim().length > 0 || elapsed < 5000;
+    if (looksLikeBot) {
+      setBotError(true);
+      return;
+    }
+    setBotError(false);
+    setLoading(true);
+    onSuccess();
+  }
+
+  function renderInput(question: Question, isEditing: boolean) {
+    const commonClass =
+      "w-full rounded-xl border bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary " +
+      (showError ? "border-red-500" : "border-white/10");
+
+    if (question.inputType === "textarea") {
+      return (
+        <textarea
+          autoFocus
+          rows={4}
+          placeholder={question.placeholder}
+          value={isEditing ? inputValue : inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          className={commonClass + " resize-none"}
+        />
+      );
+    }
+    if (question.inputType === "date-past" || question.inputType === "date-future") {
+      return (
+        <input
+          autoFocus
+          type="date"
+          min={question.inputType === "date-future" ? todayString : undefined}
+          max={question.inputType === "date-past" ? todayString : undefined}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          className={commonClass + " [color-scheme:dark]"}
+        />
+      );
+    }
+    if (question.inputType === "currency") {
+      return (
+        <input
+          ref={currencyInputRef}
+          autoFocus
+          type="text"
+          inputMode="numeric"
+          placeholder={question.placeholder}
+          value={data.omsetBulanan}
+          onChange={handleCurrencyChange}
+          className={commonClass}
+        />
+      );
+    }
+    return (
+      <input
+        autoFocus
+        type={question.inputType === "email" ? "email" : "text"}
+        placeholder={question.placeholder}
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        className={commonClass}
+      />
+    );
+  }
+
+  const summaryRows: { label: string; field: keyof WizardData; group: string }[] = [
+    { group: t.chatFlow.identitasTitle, label: t.chatFlow.namaLabel, field: "nama" },
+    { group: t.chatFlow.identitasTitle, label: t.chatFlow.profesiLabel, field: "profesi" },
+    { group: t.chatFlow.identitasTitle, label: t.chatFlow.namaBisnisLabel, field: "namaBisnis" },
+    { group: t.chatFlow.identitasTitle, label: t.chatFlow.jenisBisnisLabel, field: "jenisBisnis" },
+    { group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.lokasiLabel, field: "lokasi" },
+    ...(isBaru
+      ? [
+          { group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.targetPelangganLabel, field: "targetPelanggan" as const },
+          { group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.rencanaLaunchingLabel, field: "rencanaLaunching" as const },
+        ]
+      : [{ group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.sejakKapanLabel, field: "sejakKapan" as const }]),
+    {
+      group: t.chatFlow.lokasiKondisiTitle,
+      label: isBaru ? t.chatFlow.modalAwalLabel : t.chatFlow.omsetLabel,
+      field: "omsetBulanan",
+    },
+    { group: t.chatFlow.tantanganTargetTitle, label: t.chatFlow.tantanganLabel, field: "tantangan" },
+    { group: t.chatFlow.tantanganTargetTitle, label: t.chatFlow.targetLabel, field: "target" },
+    { group: t.chatFlow.ceritaVisiTitle, label: t.chatFlow.ceritaVisiTitle, field: "ceritaVisi" },
+  ];
+
+  // Kelompokkan baris ringkasan per grup, tapi jaga urutan tampil.
+  const groupedSummary: { group: string; rows: typeof summaryRows }[] = [];
+  for (const row of summaryRows) {
+    let bucket = groupedSummary.find((g) => g.group === row.group);
+    if (!bucket) {
+      bucket = { group: row.group, rows: [] };
+      groupedSummary.push(bucket);
+    }
+    bucket.rows.push(row);
+  }
+
+  return (
+    <div className="flex flex-col">
+      <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
+        <label htmlFor="website">Website</label>
+        <input
+          type="text"
+          id="website"
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          value={data.honeypot}
+          onChange={(e) => updateField("honeypot", e.target.value)}
+        />
+      </div>
+
+      <div ref={scrollRef} className="max-h-[65vh] space-y-4 overflow-y-auto pr-1 sm:max-h-[60vh]">
+        {/* Riwayat pertanyaan yang sudah dijawab */}
+        {questions.slice(0, answeredCount).map((q) => (
+          <div key={q.field as string} className="space-y-2">
+            <ChatBubble role="bot" text={q.prompt} />
+            <ChatBubble role="user" text={(data[q.field] as string) || ""} />
+          </div>
+        ))}
+
+        {/* Ringkasan setelah semua pertanyaan terjawab */}
+        {allAnswered && !editingField && (
+          <div className="space-y-2">
+            <ChatBubble role="bot" text={t.chatFlow.summaryIntro} />
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5">
+              {groupedSummary.map((g) => (
+                <div key={g.group} className="mb-4 last:mb-0">
+                  <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-primary">{g.group}</h4>
+                  {g.rows.map((row) => (
+                    <div
+                      key={row.field as string}
+                      className="flex items-start justify-between gap-3 border-b border-white/5 py-1.5 text-sm last:border-b-0"
+                    >
+                      <div className="min-w-0">
+                        <span className="block text-neutral-400">{row.label}</span>
+                        <strong className="break-words">{(data[row.field] as string) || "—"}</strong>
+                      </div>
+                      <button
+                        onClick={() => startEdit(row.field)}
+                        className="flex-none rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300 hover:border-primary/40 hover:text-white"
+                      >
+                        {t.chatFlow.editLabel}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pertanyaan aktif saat ini (atau mode edit) */}
+        {activeQuestion && (!allAnswered || editingField) && (
+          <div className="space-y-2">
+            <ChatBubble role="bot" text={activeQuestion.prompt} />
+          </div>
+        )}
+      </div>
+
+      {/* Area input */}
+      {activeQuestion && (!allAnswered || editingField) ? (
+        <div className="mt-4">
+          {renderInput(activeQuestion, !!editingField)}
+          {showError && (
+            <p className="mt-2 text-sm text-amber-400">⚠ {activeQuestion.invalidNudge}</p>
+          )}
+          <div className="mt-2 flex items-center justify-between">
+            <p className="text-xs text-neutral-500">{t.chatFlow.sendHint}</p>
+            <button
+              onClick={handleSubmitAnswer}
+              className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-black"
+            >
+              ➤
+            </button>
+          </div>
+        </div>
+      ) : allAnswered ? (
+        <div className="mt-4">
+          {botError && <p className="mb-3 text-sm text-red-400">{t.chatFlow.botError}</p>}
+          <button
+            onClick={handleProses}
+            disabled={loading}
+            className="flex w-full flex-col items-center gap-1 rounded-xl bg-primary py-4 text-black disabled:opacity-60"
+          >
+            <span className="text-base font-bold">
+              {loading ? t.chatFlow.submitLoading : t.chatFlow.submitLabel}
+            </span>
+            <span className="text-xs font-medium opacity-80">{t.chatFlow.submitHelper}</span>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ChatBubble({ role, text }: { role: "bot" | "user"; text: string }) {
+  const isBot = role === "bot";
+  return (
+    <div className={"flex items-end gap-2 " + (isBot ? "justify-start" : "justify-end")}>
+      {isBot && (
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-primary/30 bg-surface text-sm">
+          🤖
+        </div>
+      )}
+      <div
+        className={
+          "max-w-[80%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm leading-relaxed " +
+          (isBot ? "rounded-bl-sm bg-surface text-neutral-200" : "rounded-br-sm bg-primary text-black")
+        }
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
+
+export default ChatFlow;
