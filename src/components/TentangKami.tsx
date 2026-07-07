@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import founderPhoto from "../assets/founder/aldo.png";
+import founderPhoto from "../assets/founder/founder-mascot.png";
 import hiveLogo from "../assets/logo/hive-logo.png";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -216,25 +216,19 @@ function TentangKami() {
                 <span className="rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary">
                   {p.founder.badge}
                 </span>
-                <a
-                  href="https://www.linkedin.com/in/michael-aldo26"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm font-semibold text-neutral-300 underline decoration-white/20 underline-offset-4 hover:text-primary"
-                >
-                  {p.founder.linkedinLabel}
-                </a>
               </div>
             </div>
 
-            <div className="mx-auto w-full max-w-[280px]">
-              <img
-                src={founderPhoto}
-                alt="Albertus Aldo Sucahyono, Founder of THE HIVE"
-                className="h-auto w-full object-contain drop-shadow-[0_10px_40px_rgba(255,152,0,0.25)]"
-              />
-              <p className="mt-3 text-center text-[15px] font-bold">{p.founder.name}</p>
-              <p className="text-center text-xs text-neutral-500">{p.founder.role}</p>
+            <div className="mx-auto w-full max-w-[420px]">
+              <div className="relative flex items-center justify-center">
+                <div className="absolute h-72 w-72 rounded-full bg-primary/20 blur-3xl"></div>
+                <img
+                  src={founderPhoto}
+                  alt="Founder of THE HIVE"
+                  className="relative h-auto w-full object-contain drop-shadow-[0_10px_50px_rgba(255,152,0,0.35)]"
+                />
+              </div>
+              <p className="mt-3 text-center text-xs text-neutral-500">{p.founder.role}</p>
             </div>
           </div>
         </Reveal>

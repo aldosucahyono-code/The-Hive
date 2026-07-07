@@ -7,9 +7,11 @@ type HeroProps = {
   animate: boolean;
 };
 
+type Quote = { title: string; body: string };
+
 /** Variasi ucapan Beemo di kartu Hero — ditampilkan bergantian secara acak,
  * masing-masing dengan animasi mengetik, ganti tiap ~8 detik. */
-const BEEMO_QUOTES: { title: string; body: string }[] = [
+const BEEMO_QUOTES_ID: Quote[] = [
   {
     title: "Halo, saya Beemo. 👋",
     body: "Ayo kita capai omzet Rp100 juta pertamamu. Ceritakan bisnismu, dan biarkan saya menemukan peluang yang mungkin belum pernah kamu lihat.",
@@ -44,18 +46,55 @@ const BEEMO_QUOTES: { title: string; body: string }[] = [
   },
 ];
 
+const BEEMO_QUOTES_EN: Quote[] = [
+  {
+    title: "Hi, I'm Beemo. 👋",
+    body: "Let's reach your first Rp100 million in revenue. Tell me about your business, and I'll help you find opportunities you might not have seen yet.",
+  },
+  {
+    title: "Hi, I'm Beemo.",
+    body: "Your business deserves to grow faster. Tell me about it, and I'll help you build a strategy that's ready to execute.",
+  },
+  {
+    title: "Hi, I'm Beemo. 🤖🐝",
+    body: "Today we start the journey toward your dream business. Tell me about it, I'll handle the analysis.",
+  },
+  {
+    title: "Hi, I'm Beemo. 🤖🐝",
+    body: "Many people work hard. Few know the right strategy. Let's find yours.",
+  },
+  {
+    title: "Hi, I'm Beemo. 🤖🐝",
+    body: "Got big dreams? Let's turn them into a plan you can actually reach.",
+  },
+  {
+    title: "",
+    body: "Rp100 Million in Revenue Isn't Just a Dream. Start the Strategy Today.",
+  },
+  {
+    title: "",
+    body: "Let's Make Your First Rp100 Million Happen. Tell me about your business, I'll help with the analysis.",
+  },
+  {
+    title: "",
+    body: "What's Next? Your First Rp100 Million. Tell me about your business, and let me help build the strategy to get there.",
+  },
+];
+
 const ROTATE_MS = 8000;
 const CHAR_MS = 18;
 
 /** Kartu Beemo dengan efek mengetik — huruf muncul satu per satu, lalu
  * setelah total ~8 detik pindah ke kalimat lain (urutan acak, tidak
- * mengulang kalimat yang sama dua kali berturut-turut). */
-function BeemoQuoteCard() {
+ * mengulang kalimat yang sama dua kali berturut-turut). Bahasa mengikuti
+ * toggle ID/EN di Navbar — parent me-remount komponen ini via `key={lang}`
+ * setiap kali bahasa berganti, jadi state selalu bersih. */
+function BeemoQuoteCard({ quotes }: { quotes: Quote[] }) {
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [typedLength, setTypedLength] = useState(0);
   const prevIndexRef = useRef(0);
 
-  const quote = BEEMO_QUOTES[quoteIndex];
+  const quote = quotes[quoteIndex];
   const fullText = quote.title ? `${quote.title}\n${quote.body}` : quote.body;
 
   useEffect(() => {
@@ -73,7 +112,7 @@ function BeemoQuoteCard() {
     const rotateTimeout = setTimeout(() => {
       let next = prevIndexRef.current;
       while (next === prevIndexRef.current) {
-        next = Math.floor(Math.random() * BEEMO_QUOTES.length);
+        next = Math.floor(Math.random() * quotes.length);
       }
       prevIndexRef.current = next;
       setQuoteIndex(next);
@@ -100,7 +139,8 @@ function BeemoQuoteCard() {
 }
 
 function Hero({ onStart, animate }: HeroProps) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const beemoQuotes = lang === "id" ? BEEMO_QUOTES_ID : BEEMO_QUOTES_EN;
 
   const fade = (delay?: string) => {
     if (!animate) return "";
@@ -146,7 +186,7 @@ function Hero({ onStart, animate }: HeroProps) {
 
           <div className="flex flex-col items-center gap-6">
             <div className={fade("150ms")}>
-              <BeemoQuoteCard />
+              <BeemoQuoteCard key={lang} quotes={beemoQuotes} />
             </div>
             <div className="relative flex items-center justify-center">
               <div className="absolute h-[28.8rem] w-[28.8rem] rounded-full bg-primary/20 blur-3xl"></div>

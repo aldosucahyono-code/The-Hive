@@ -226,9 +226,9 @@ const id = {
 
   hero: {
     badge: "🔥 Harga Beta Terbatas",
-    title: "Mulai Perjalanan Menuju Omzet Rp100 Juta Pertamamu.",
+    title: "Keputusan Bisnis Yang Tepat Dimulai Disini",
     subtitle:
-      "Dapatkan analisis AI, peluang pasar, peta kompetitor, dan strategi bisnis yang siap diterapkan dalam hitungan menit.",
+      "Dalam hitungan menit, Beemo akan menganalisis bisnismu, menemukan peluang tersembunyi, memetakan kompetitor, dan menyusun strategi yang bisa langsung kamu jalankan. Jangan biarkan peluangmu diambil orang lain!",
     ctaButton: "🚀 Mulai Analisis Bisnis Gratis!!",
     beemoGreeting: "Halo, saya Beemo.",
     beemoDesc:
@@ -451,7 +451,7 @@ const id = {
       eyebrow: "Tentang Pendiri",
       heading: "Dibangun oleh Seseorang yang Percaya Bahwa Setiap Bisnis Berhak Bertumbuh",
       paragraphs: [
-        "THE-HIVE didirikan oleh A. Aldo Sucahyono, seorang profesional yang menghabiskan bertahun-tahun mendampingi dunia bisnis, mulai dari sektor perbankan hingga pengembangan strategi usaha umkm ataupun korporasi.",
+        "THE-HIVE didirikan oleh seorang profesional yang menghabiskan bertahun-tahun mendampingi dunia bisnis, mulai dari sektor perbankan hingga pengembangan strategi usaha umkm ataupun korporasi.",
         "Dari pengalaman tersebut, ia menyadari bahwa banyak keputusan bisnis gagal bukan karena kurangnya semangat, melainkan karena minimnya akses terhadap analisis yang tepat.",
         "Berangkat dari keyakinan bahwa teknologi seharusnya membantu, bukan menggantikan manusia, ia membangun THE HIVE sebagai platform yang menggabungkan Artificial Intelligence dan Business Intelligence agar setiap pelaku usaha—baik UMKM, startup, maupun perusahaan—dapat memperoleh analisis bisnis profesional yang sebelumnya hanya dapat diakses oleh organisasi besar.",
       ],
@@ -848,9 +848,9 @@ const en: Translations = {
 
   hero: {
     badge: "🔥 Limited Beta Pricing",
-    title: "Start Your Journey to Your First Rp100 Million Revenue.",
+    title: "The Right Business Decision Starts Here",
     subtitle:
-      "Get AI-powered analysis, market opportunities, a competitor map, and a ready-to-execute business strategy in minutes.",
+      "In just minutes, Beemo will analyze your business, uncover hidden opportunities, map out your competitors, and build a strategy you can put into action right away. Don't let someone else seize your opportunity!",
     ctaButton: "🚀 Start Your Free Business Analysis!!",
     beemoGreeting: "Hi, I'm Beemo.",
     beemoDesc:
@@ -1073,7 +1073,7 @@ const en: Translations = {
       eyebrow: "About the Founder",
       heading: "Built by Someone Who Believes Every Business Deserves to Grow",
       paragraphs: [
-        "THE HIVE was founded by A. Aldo Sucahyono, a professional who spent years working alongside the business world, from banking to developing business strategy for SMEs and corporations alike.",
+        "THE HIVE was founded by a professional who spent years working alongside the business world, from banking to developing business strategy for SMEs and corporations alike.",
         "From that experience, he realized many business decisions fail not from a lack of drive, but from a lack of access to the right analysis.",
         "Believing that technology should help, not replace, people, he built THE HIVE as a platform that combines Artificial Intelligence and Business Intelligence so every business owner — whether SME, startup, or enterprise — can access professional business analysis that was once only available to large organizations.",
       ],
