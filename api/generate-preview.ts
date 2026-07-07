@@ -1,7 +1,10 @@
 // api/generate-preview.ts
 //
 // Endpoint untuk Free Preview Analysis. Beda dari generate-report.ts:
-// - Jauh lebih ringan (max_tokens kecil, tanpa PDF), karena ini teaser gratis.
+// - Lebih ringan dari generate-report.ts (tanpa render PDF), karena ini
+//   teaser gratis. max_tokens dinaikkan ke 3000 (dari 1500) karena field
+//   Cerita & Visi bisa cukup panjang — respons lebih detail butuh ruang
+//   lebih untuk tidak terpotong di tengah JSON.
 // - TIDAK menghasilkan laporan lengkap — hanya skor + ringkasan singkat +
 //   3 temuan + 3 kartu (sudah baik/perlu diperbaiki/peluang), sesuai aturan
 //   tier Free Preview: teaser tanpa solusi lengkap.
@@ -151,7 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 1500,
+      max_tokens: 3000,
       system: activeLang === "en" ? SYSTEM_PROMPT_EN : SYSTEM_PROMPT_ID,
       messages: [{ role: "user", content: buildUserPrompt(wizardData, activeLang) }],
     });

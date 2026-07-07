@@ -70,11 +70,20 @@ function ChatWizard() {
   async function runPreviewAnalysis() {
     setPreviewReady(false);
     setPreviewError(null);
+
+    // Batas waktu di sisi browser — kalau server tidak merespons dalam waktu
+    // wajar (55 detik, sedikit di bawah batas 60 detik function di Vercel),
+    // gagalkan secara terkendali dan tampilkan pesan error + tombol coba
+    // lagi, daripada layar loading menggantung tanpa kepastian.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
+
     try {
       const response = await fetch("/api/generate-preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wizardData: data, lang }),
+        signal: controller.signal,
       });
       const json = await response.json();
       if (!response.ok) {
@@ -85,9 +94,14 @@ function ChatWizard() {
       }
     } catch (err) {
       console.error("runPreviewAnalysis error:", err);
-      setPreviewError("Terjadi kesalahan jaringan. Coba lagi.");
+      if (err instanceof Error && err.name === "AbortError") {
+        setPreviewError("Analisis memakan waktu terlalu lama. Coba lagi.");
+      } else {
+        setPreviewError("Terjadi kesalahan jaringan. Coba lagi.");
+      }
       setPreviewData(null);
     } finally {
+      clearTimeout(timeoutId);
       setPreviewReady(true);
     }
   }

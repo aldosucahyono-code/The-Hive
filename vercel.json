@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/generate-preview.ts": {
+      "maxDuration": 60
+    },
+    "api/generate-report.ts": {
+      "maxDuration": 60
+    }
+  }
+}
