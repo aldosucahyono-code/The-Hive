@@ -237,7 +237,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
               disabled={preparingPlan !== null}
               className="mt-6 w-full rounded-xl bg-blue-500 py-3 text-sm font-bold text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {preparingPlan === "pro" ? "Menyiapkan..." : t.previewReport.proButton}
+              {preparingPlan === "pro" ? t.previewReport.preparingButton : t.previewReport.proButton}
             </button>
           </div>
 
@@ -263,7 +263,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
               disabled={preparingPlan !== null}
               className="mt-6 w-full rounded-xl bg-purple-500 py-3 text-sm font-bold text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {preparingPlan === "platinum" ? "Menyiapkan..." : t.previewReport.platinumButton}
+              {preparingPlan === "platinum" ? t.previewReport.preparingButton : t.previewReport.platinumButton}
             </button>
           </div>
         </div>

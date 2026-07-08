@@ -110,12 +110,12 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           setBusinessProfileId(json.businessProfileId);
         } else {
           console.error("promote-draft gagal:", json.error);
-          setPromoteError("Gagal menyiapkan data bisnismu. Coba muat ulang halaman ini.");
+          setPromoteError(t.paymentPage.promoteErrorGeneric);
         }
       } catch (err) {
         if (cancelled) return;
         console.error("promote-draft error:", err);
-        setPromoteError("Gagal terhubung ke server. Periksa koneksi internetmu.");
+        setPromoteError(t.paymentPage.promoteErrorNetwork);
       } finally {
         if (!cancelled) setIsPromoting(false);
       }
@@ -218,7 +218,7 @@ function PaymentPage({ plan }: { plan: PlanId }) {
       const data = await response.json();
 
       if (!response.ok) {
-        setPaymentError(data.error || "Gagal memulai pembayaran");
+        setPaymentError(data.error || t.paymentPage.createTransactionErrorFallback);
         setIsProcessing(false);
         return;
       }
@@ -364,14 +364,13 @@ function PaymentPage({ plan }: { plan: PlanId }) {
         {!user ? (
           <div className="mt-6 rounded-xl border border-primary/30 bg-primary/10 p-5 text-center">
             <p className="mb-3 text-sm text-neutral-200">
-              Aktifkan Workspace dulu (login lewat email) untuk melanjutkan pembayaran — ini
-              supaya laporan dan akses PRO/PLATINUM kamu tersimpan di akunmu.
+              {t.paymentPage.authPromptDesc}
             </p>
             <button
               onClick={() => setShowAuthModal(true)}
               className="rounded-full bg-primary px-6 py-2.5 text-sm font-bold text-black hover:opacity-90"
             >
-              Aktifkan Workspace
+              {t.paymentPage.authPromptButton}
             </button>
           </div>
         ) : (
@@ -387,7 +386,7 @@ function PaymentPage({ plan }: { plan: PlanId }) {
             {isProcessing
               ? t.paymentPage.payButtonLoading
               : isPromoting
-              ? "Menyiapkan data bisnismu..."
+              ? t.paymentPage.preparingBusinessDataLabel
               : `${t.paymentPage.payButton} ${info.price}`}
           </button>
         )}

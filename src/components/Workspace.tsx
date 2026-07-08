@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useLanguage } from "../i18n/LanguageContext";
+import { useLanguage, fillTemplate, LOCALE_MAP } from "../i18n/LanguageContext";
 import { supabase } from "../lib/supabaseClient";
 import { hardNavigate } from "../utils/navigate";
 import AddBusinessModal from "./AddBusinessModal";
@@ -50,7 +50,7 @@ type Membership = {
 };
 
 function formatDate(iso: string, lang: "id" | "en") {
-  return new Date(iso).toLocaleDateString(lang === "id" ? "id-ID" : "en-US", {
+  return new Date(iso).toLocaleDateString(LOCALE_MAP[lang], {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -62,12 +62,6 @@ function daysLeft(expiresAt: string) {
   return Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
 }
 
-function fillTemplate(template: string, vars: Record<string, string | number>): string {
-  return Object.entries(vars).reduce(
-    (acc, [key, value]) => acc.replaceAll(`{${key}}`, String(value)),
-    template
-  );
-}
 
 /** Business Switcher — dropdown pindah bisnis + tombol tambah bisnis baru.
  * Sesuai arahan: cukup daftar bisnis + mana yang aktif + tombol tambah,
@@ -270,10 +264,10 @@ function BusinessScorePanel({
 
   const statusLabel = hasHealthData
     ? score >= 70
-      ? (lang === "id" ? "Kondisi Baik" : "Good Condition")
+      ? t.workspace.healthStatusGood
       : score >= 45
-        ? (lang === "id" ? "Perlu Perhatian" : "Needs Attention")
-        : (lang === "id" ? "Perlu Perhatian Serius" : "Needs Serious Attention")
+        ? t.workspace.healthStatusNeedsAttention
+        : t.workspace.healthStatusNeedsSeriousAttention
     : preview?.statusLabel;
 
   return (
@@ -289,7 +283,7 @@ function BusinessScorePanel({
         </div>
         {hasHealthData && (
           <p className="mt-3 text-xs text-neutral-500">
-            {lang === "id" ? "Dihitung dari Update Bisnis terakhirmu" : "Calculated from your latest Business Update"}
+            {t.workspace.healthCalculatedNote}
           </p>
         )}
       </div>
@@ -297,7 +291,7 @@ function BusinessScorePanel({
       {tier !== "free" && hasHealthData && health.dimensions && (
         <div className="rounded-2xl border border-white/10 bg-surface p-5">
           <h3 className="mb-3 text-sm font-bold text-neutral-200">
-            {lang === "id" ? "Rincian per Dimensi" : "Breakdown by Dimension"}
+            {t.workspace.healthBreakdownTitle}
           </h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {Object.entries(health.dimensions).map(([dim, dimScore]) => (
@@ -395,13 +389,11 @@ function TargetPanel({
   rawInput,
   tier,
   t,
-  lang,
   progress,
 }: {
   rawInput: Record<string, string> | null;
   tier: Tier;
   t: Translations;
-  lang: "id" | "en";
   progress: {
     journey: { baselineScore: number; currentScore: number; delta: number } | null;
     period: { previousScore: number; currentScore: number; delta: number } | null;
@@ -441,34 +433,32 @@ function TargetPanel({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                 <p className="mb-1 text-xs font-bold uppercase text-neutral-400">
-                  {lang === "id" ? "Journey (Sejak Awal)" : "Journey (Since Start)"}
+                  {t.workspace.targetJourneyLabel}
                 </p>
                 <p className="text-2xl font-black text-white">
                   {progress.journey.baselineScore} → {progress.journey.currentScore}
                 </p>
                 <p className={`text-sm font-semibold ${deltaColor(progress.journey.delta)}`}>
-                  {deltaLabel(progress.journey.delta)} {lang === "id" ? "poin" : "points"}
+                  {deltaLabel(progress.journey.delta)} {t.workspace.pointsUnit}
                 </p>
               </div>
 
               {progress.period ? (
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                   <p className="mb-1 text-xs font-bold uppercase text-neutral-400">
-                    {lang === "id" ? "Minggu Lalu vs Sekarang" : "Last Week vs Now"}
+                    {t.workspace.targetWeekCompareLabel}
                   </p>
                   <p className="text-2xl font-black text-white">
                     {progress.period.previousScore} → {progress.period.currentScore}
                   </p>
                   <p className={`text-sm font-semibold ${deltaColor(progress.period.delta)}`}>
-                    {deltaLabel(progress.period.delta)} {lang === "id" ? "poin" : "points"}
+                    {deltaLabel(progress.period.delta)} {t.workspace.pointsUnit}
                   </p>
                 </div>
               ) : (
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                   <p className="text-xs text-neutral-500">
-                    {lang === "id"
-                      ? "Perbandingan mingguan akan muncul setelah minggu kedua Business Update."
-                      : "Weekly comparison will appear after your second week of Business Updates."}
+                    {t.workspace.targetWeeklyComparisonPending}
                   </p>
                 </div>
               )}
@@ -1147,7 +1137,7 @@ function Workspace() {
           ) : activeMenu === "report" ? (
             <ReportPanel preview={latestPreview} t={t} />
           ) : activeMenu === "target" ? (
-            <TargetPanel rawInput={latestRawInput} tier={tier} t={t} lang={lang} progress={progressData} />
+            <TargetPanel rawInput={latestRawInput} tier={tier} t={t} progress={progressData} />
           ) : activeMenu === "competitor" ? (
             <CompetitorPanel tier={tier} t={t} onUpgradeClick={openUpgradeModal} />
           ) : activeMenu === "growth" ? (
@@ -1189,7 +1179,7 @@ function Workspace() {
                   <div key={u.id as string} className="rounded-xl border border-white/10 bg-surface p-4">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs text-neutral-500">
-                        {new Date(u.created_at as string).toLocaleDateString(lang === "id" ? "id-ID" : "en-US", {
+                        {new Date(u.created_at as string).toLocaleDateString(LOCALE_MAP[lang], {
                           day: "numeric",
                           month: "long",
                           year: "numeric",

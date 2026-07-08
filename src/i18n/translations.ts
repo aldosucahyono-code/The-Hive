@@ -16,6 +16,18 @@ const id = {
     langToggle: "EN",
   },
 
+  authModal: {
+    closeLabel: "Tutup",
+    sentTitle: "Cek Email Kamu 📬",
+    sentDescPrefix: "Kami sudah kirim link aktivasi ke ",
+    sentDescSuffix: ". Klik link di email itu untuk masuk ke Workspace.",
+    title: "Aktifkan Workspace",
+    subtitle: "Masukkan email kamu, kami kirim link aman untuk masuk — tanpa password.",
+    emailPlaceholder: "nama@email.com",
+    sendingButton: "Mengirim...",
+    sendButton: "Kirim Link Aktivasi",
+  },
+
   chooseAnalysisType: {
     greeting: "Halo, saya Beemo.",
     subtitle: "Pilih dulu jenis analisis yang Anda butuhkan.",
@@ -179,6 +191,7 @@ const id = {
       "Konsultasi Chat Beemo selama 30 hari",
     ],
     platinumButton: "🔓 Unlock PLATINUM",
+    preparingButton: "Menyiapkan...",
     footerNote: "🔒 Hasil analisis akan tersedia langsung dalam format PDF yang siap diunduh.",
     unlockCta: "Buka Laporan Lengkap",
     swotMock: [
@@ -226,6 +239,12 @@ const id = {
     confirmingFailedTitle: "Pembayaran Gagal",
     confirmingFailedDesc: "Pembayaran dibatalkan atau ditolak. Silakan coba lagi.",
     confirmingRetryButton: "Coba Bayar Lagi",
+    promoteErrorGeneric: "Gagal menyiapkan data bisnismu. Coba muat ulang halaman ini.",
+    promoteErrorNetwork: "Gagal terhubung ke server. Periksa koneksi internetmu.",
+    createTransactionErrorFallback: "Gagal memulai pembayaran",
+    authPromptDesc: "Aktifkan Workspace dulu (login lewat email) untuk melanjutkan pembayaran — ini supaya laporan dan akses PRO/PLATINUM kamu tersimpan di akunmu.",
+    authPromptButton: "Aktifkan Workspace",
+    preparingBusinessDataLabel: "Menyiapkan data bisnismu...",
   },
 
   navbar: {
@@ -234,6 +253,8 @@ const id = {
     fiturAI: "Fitur AI",
     paketBisnis: "Paket Bisnis",
     tentangKami: "Tentang Kami",
+    workspaceButton: "Workspace",
+    activateWorkspaceButton: "Aktifkan Workspace",
   },
 
   hero: {
@@ -697,10 +718,19 @@ const id = {
     loadingDataLabel: "Memuat data...",
     noAnalysisYet: "Belum ada hasil analisa untuk bisnis ini.",
     insightBeemoTitle: "Insight Beemo",
+    healthStatusGood: "Kondisi Baik",
+    healthStatusNeedsAttention: "Perlu Perhatian",
+    healthStatusNeedsSeriousAttention: "Perlu Perhatian Serius",
+    healthCalculatedNote: "Dihitung dari Update Bisnis terakhirmu",
+    healthBreakdownTitle: "Rincian per Dimensi",
     targetTitle: "Target yang Kamu Tetapkan",
     targetEmpty: "Belum ada target yang tercatat untuk bisnis ini.",
     targetProgressTitle: "Progress Menuju Target",
     targetProgressPlaceholder: "Progress akan muncul di sini setelah kamu rutin memperbarui kondisi bisnismu. Beemo akan menampilkan perubahan Business Score dari waktu ke waktu.",
+    targetJourneyLabel: "Journey (Sejak Awal)",
+    targetWeekCompareLabel: "Minggu Lalu vs Sekarang",
+    targetWeeklyComparisonPending: "Perbandingan mingguan akan muncul setelah minggu kedua Business Update.",
+    pointsUnit: "poin",
     competitorLockedDesc: "Analisa kompetitor — siapa pesaingmu, kekuatan & celah mereka — tersedia di laporan PRO/PLATINUM.",
     competitorUpgradeButton: "Lihat Paket PRO/PLATINUM",
     competitorProPlatinumMessage: "Laporan kompetitor akan tersedia setelah proses analisa lanjutan selesai. Fitur ini sedang kami integrasikan ke Workspace agar hasilnya lebih lengkap dan terstruktur.",
@@ -788,6 +818,18 @@ const en: Translations = {
     back: "← Back",
     edit: "Edit",
     langToggle: "ID",
+  },
+
+  authModal: {
+    closeLabel: "Close",
+    sentTitle: "Check Your Email 📬",
+    sentDescPrefix: "We've sent an activation link to ",
+    sentDescSuffix: ". Click the link in that email to enter your Workspace.",
+    title: "Activate Workspace",
+    subtitle: "Enter your email, we'll send you a secure link to sign in — no password needed.",
+    emailPlaceholder: "name@email.com",
+    sendingButton: "Sending...",
+    sendButton: "Send Activation Link",
   },
 
   chooseAnalysisType: {
@@ -953,6 +995,7 @@ const en: Translations = {
       "30 days of Beemo AI chat consultation",
     ],
     platinumButton: "🔓 Unlock PLATINUM",
+    preparingButton: "Preparing...",
     footerNote: "🔒 Your analysis result will be available directly as a ready-to-download PDF.",
     unlockCta: "Open Full Report",
     swotMock: [
@@ -1000,6 +1043,12 @@ const en: Translations = {
     confirmingFailedTitle: "Payment Failed",
     confirmingFailedDesc: "Payment was cancelled or denied. Please try again.",
     confirmingRetryButton: "Try Payment Again",
+    promoteErrorGeneric: "Failed to prepare your business data. Try reloading this page.",
+    promoteErrorNetwork: "Failed to connect to the server. Check your internet connection.",
+    createTransactionErrorFallback: "Failed to start payment",
+    authPromptDesc: "Activate your Workspace first (sign in by email) to continue with payment — this way your report and PRO/PLATINUM access are saved to your account.",
+    authPromptButton: "Activate Workspace",
+    preparingBusinessDataLabel: "Preparing your business data...",
   },
 
   navbar: {
@@ -1008,6 +1057,8 @@ const en: Translations = {
     fiturAI: "AI Features",
     paketBisnis: "Plans",
     tentangKami: "About Us",
+    workspaceButton: "Workspace",
+    activateWorkspaceButton: "Activate Workspace",
   },
 
   hero: {
@@ -1471,10 +1522,19 @@ const en: Translations = {
     loadingDataLabel: "Loading data...",
     noAnalysisYet: "No analysis results yet for this business.",
     insightBeemoTitle: "Beemo Insight",
+    healthStatusGood: "Good Condition",
+    healthStatusNeedsAttention: "Needs Attention",
+    healthStatusNeedsSeriousAttention: "Needs Serious Attention",
+    healthCalculatedNote: "Calculated from your latest Business Update",
+    healthBreakdownTitle: "Breakdown by Dimension",
     targetTitle: "Your Stated Target",
     targetEmpty: "No target recorded yet for this business.",
     targetProgressTitle: "Progress Toward Target",
     targetProgressPlaceholder: "Progress will appear here once you regularly update your business condition. Beemo will show how your Business Score changes over time.",
+    targetJourneyLabel: "Journey (Since Start)",
+    targetWeekCompareLabel: "Last Week vs Now",
+    targetWeeklyComparisonPending: "Weekly comparison will appear after your second week of Business Updates.",
+    pointsUnit: "points",
     competitorLockedDesc: "Competitor analysis — who your rivals are, their strengths & gaps — is available in the PRO/PLATINUM report.",
     competitorUpgradeButton: "View PRO/PLATINUM Plans",
     competitorProPlatinumMessage: "The competitor report will be available once the advanced analysis process is complete. We're integrating this feature into Workspace to make the results more complete and structured.",

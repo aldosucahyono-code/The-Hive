@@ -1,6 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { translations, type Lang } from "./translations";
 
+/** Kode locale untuk Intl/toLocaleDateString per bahasa. Menambah bahasa
+ * baru (Jepang, Mandarin, Arab, dst.) cukup tambah satu baris di sini —
+ * jangan ada lagi `lang === "id" ? "id-ID" : "en-US"` tersebar di komponen. */
+export const LOCALE_MAP: Record<Lang, string> = {
+  id: "id-ID",
+  en: "en-US",
+};
+
 type LanguageContextValue = {
   lang: Lang;
   setLang: (lang: Lang) => void;
@@ -57,4 +65,15 @@ export function useLanguage(): LanguageContextValue {
     throw new Error("useLanguage() dipanggil di luar <LanguageProvider>.");
   }
   return ctx;
+}
+
+/** Satu-satunya tempat untuk mengisi placeholder "{nama}" di dalam string
+ * kamus translations.ts. Semua komponen yang butuh interpolasi teks
+ * bilingual WAJIB pakai ini — jangan bikin salinan sendiri per komponen
+ * (dulu ada duplikat di Workspace.tsx sebelum dipusatkan ke sini). */
+export function fillTemplate(template: string, vars: Record<string, string | number>): string {
+  return Object.entries(vars).reduce(
+    (acc, [key, value]) => acc.replaceAll(`{${key}}`, String(value)),
+    template
+  );
 }
