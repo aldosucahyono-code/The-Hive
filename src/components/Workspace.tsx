@@ -4,6 +4,8 @@ import { useLanguage } from "../i18n/LanguageContext";
 import { supabase } from "../lib/supabaseClient";
 import { hardNavigate } from "../utils/navigate";
 import AddBusinessModal from "./AddBusinessModal";
+import ChatBeemoPanel from "./ChatBeemoPanel";
+import BusinessUpdateModal from "./BusinessUpdateModal";
 import type { Translations } from "../i18n/translations";
 
 type MenuKey = "history" | "score" | "report" | "target" | "competitor" | "growth" | "chat";
@@ -404,6 +406,10 @@ function Workspace() {
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
   const [showAddBusiness, setShowAddBusiness] = useState(false);
+  const [showBusinessUpdate, setShowBusinessUpdate] = useState(false);
+  const [updateHistory, setUpdateHistory] = useState<Array<Record<string, unknown>>>([]);
+  const [showUpdateHistory, setShowUpdateHistory] = useState(false);
+  const [updateHistoryLoading, setUpdateHistoryLoading] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -561,13 +567,13 @@ function Workspace() {
     setDeleteError(null);
 
     try {
-      const response = await fetch("/api/deactivate-business", {
+      const response = await fetch("/api/business", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ businessProfileId: activeBusinessId }),
+        body: JSON.stringify({ action: "archive", businessProfileId: activeBusinessId }),
       });
 
       if (!response.ok) {
@@ -620,13 +626,13 @@ function Workspace() {
     setRestoreError(null);
 
     try {
-      const response = await fetch("/api/restore-business", {
+      const response = await fetch("/api/business", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ businessProfileId }),
+        body: JSON.stringify({ action: "restore", businessProfileId }),
       });
 
       if (!response.ok) {
@@ -658,13 +664,13 @@ function Workspace() {
     setPermanentDeleteError(null);
 
     try {
-      const response = await fetch("/api/permanently-delete-business", {
+      const response = await fetch("/api/business", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ businessProfileId }),
+        body: JSON.stringify({ action: "delete", businessProfileId }),
       });
 
       if (!response.ok) {
@@ -682,6 +688,37 @@ function Workspace() {
       console.error("permanently-delete-business error:", err);
       setPermanentDeleteError(t.workspace.permanentDeleteError);
       setPermanentDeleting(false);
+    }
+  }
+
+  async function toggleUpdateHistory() {
+    const next = !showUpdateHistory;
+    setShowUpdateHistory(next);
+    if (next && activeBusinessId && session?.access_token) {
+      setUpdateHistoryLoading(true);
+      try {
+        const response = await fetch("/api/workspace", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ action: "listUpdates", businessProfileId: activeBusinessId }),
+        });
+        const json = await response.json();
+        if (response.ok) setUpdateHistory(json.updates || []);
+      } catch (err) {
+        console.error("listUpdates error:", err);
+      }
+      setUpdateHistoryLoading(false);
+    }
+  }
+
+  function handleUpdateSaved() {
+    setShowBusinessUpdate(false);
+    if (showUpdateHistory) {
+      setShowUpdateHistory(false);
+      toggleUpdateHistory();
     }
   }
 
@@ -756,6 +793,12 @@ function Workspace() {
                 onAddNew={() => setShowAddBusiness(true)}
                 addLabel={t.workspace.addBusinessButton}
               />
+              <button
+                onClick={() => setShowBusinessUpdate(true)}
+                className="rounded-full bg-primary/90 px-4 py-2 text-xs font-bold text-black hover:opacity-90"
+              >
+                {t.workspace.updateBusinessButton}
+              </button>
               <button
                 onClick={() => {
                   setConfirmingDelete(true);
@@ -846,6 +889,8 @@ function Workspace() {
             <CompetitorPanel tier={tier} t={t} />
           ) : activeMenu === "growth" ? (
             <GrowthPanel tier={tier} t={t} />
+          ) : activeMenu === "chat" ? (
+            activeBusinessId && <ChatBeemoPanel businessProfileId={activeBusinessId} tier={tier} t={t} lang={lang} />
           ) : (
             <ComingSoon
               label={MENU_ITEMS.find((m) => m.key === activeMenu)?.label || ""}
@@ -854,6 +899,43 @@ function Workspace() {
           )}
         </div>
       </div>
+
+      {/* Riwayat Update Bisnis */}
+      {activeBusinessId && (
+        <div className="mt-8 border-t border-white/10 pt-6">
+          <button onClick={toggleUpdateHistory} className="text-xs font-semibold text-neutral-400 hover:text-white">
+            {t.workspace.updateHistoryToggle}
+          </button>
+
+          {showUpdateHistory && (
+            <div className="mt-4 space-y-3">
+              {updateHistoryLoading ? (
+                <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
+              ) : updateHistory.length === 0 ? (
+                <p className="text-sm text-neutral-500">{t.workspace.updateHistoryEmpty}</p>
+              ) : (
+                updateHistory.map((u) => (
+                  <div key={u.id as string} className="rounded-xl border border-white/10 bg-surface p-4">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-neutral-500">
+                        {new Date(u.created_at as string).toLocaleDateString(lang === "id" ? "id-ID" : "en-US", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </p>
+                      <span className="rounded-full border border-white/15 px-2.5 py-0.5 text-xs font-semibold text-neutral-300">
+                        {u.kondisi_penjualan === "naik" ? "📈" : u.kondisi_penjualan === "turun" ? "📉" : "➡️"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-neutral-300">{u.content as string}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Recycle Bin — bisnis yang di-soft-delete, bisa dipulihkan atau
           dihapus permanen. Sengaja diletakkan di bawah, tidak mencolok. */}
@@ -940,6 +1022,14 @@ function Workspace() {
 
       {showAddBusiness && (
         <AddBusinessModal onClose={() => setShowAddBusiness(false)} onCreated={handleBusinessCreated} />
+      )}
+
+      {showBusinessUpdate && activeBusinessId && (
+        <BusinessUpdateModal
+          businessProfileId={activeBusinessId}
+          onClose={() => setShowBusinessUpdate(false)}
+          onSaved={handleUpdateSaved}
+        />
       )}
     </section>
   );

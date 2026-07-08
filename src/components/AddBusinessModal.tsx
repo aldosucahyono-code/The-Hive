@@ -166,13 +166,14 @@ function AddBusinessModal({ onClose, onCreated }: AddBusinessModalProps) {
 
     try {
       // 1. Buat business_profile baru
-      const bizResponse = await fetch("/api/create-business", {
+      const bizResponse = await fetch("/api/business", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
+          action: "create",
           businessName: namaBisnis,
           industry: jenisBisnis,
           businessStage: isBaru ? "idea" : "running",
@@ -199,13 +200,13 @@ function AddBusinessModal({ onClose, onCreated }: AddBusinessModalProps) {
       // 3. Simpan hasil analisa (kalau gagal pun, business_profile tetap ada —
       // tidak fatal, user masih bisa lihat bisnisnya di Workspace).
       if (preview) {
-        await fetch("/api/save-business-analysis", {
+        await fetch("/api/business", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ businessProfileId, wizardData, preview }),
+          body: JSON.stringify({ action: "saveAnalysis", businessProfileId, wizardData, preview }),
         });
       }
 
