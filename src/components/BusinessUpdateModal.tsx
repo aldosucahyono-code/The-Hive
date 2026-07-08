@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import { isValidFreeText } from "../utils/validation";
@@ -28,6 +28,54 @@ function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUp
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const omsetInputRef = useRef<HTMLInputElement>(null);
+
+  function handleOmsetChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const oldValue = omsetValue;
+    const rawValue = e.target.value;
+    const newCursorPos = e.target.selectionStart ?? rawValue.length;
+    const isSingleBackspace = rawValue.length === oldValue.length - 1;
+
+    let workingDigits: string;
+    let digitsBeforeCursor: number;
+
+    const deletedChar = isSingleBackspace ? oldValue[newCursorPos] : undefined;
+
+    if (isSingleBackspace && deletedChar && !/[0-9]/.test(deletedChar)) {
+      const digitsBeforeOldCursor = oldValue.slice(0, newCursorPos).replace(/[^0-9]/g, "").length;
+      const allDigits = oldValue.replace(/[^0-9]/g, "");
+      workingDigits =
+        allDigits.slice(0, digitsBeforeOldCursor - 1) + allDigits.slice(digitsBeforeOldCursor);
+      digitsBeforeCursor = digitsBeforeOldCursor - 1;
+    } else {
+      workingDigits = rawValue.replace(/[^0-9]/g, "");
+      digitsBeforeCursor = rawValue.slice(0, newCursorPos).replace(/[^0-9]/g, "").length;
+    }
+
+    const formatted = workingDigits ? "Rp" + Number(workingDigits).toLocaleString("id-ID") + ",-" : "";
+    setOmsetValue(formatted);
+
+    requestAnimationFrame(() => {
+      const el = omsetInputRef.current;
+      if (!el) return;
+      let seen = 0;
+      let newPos = el.value.length;
+      if (digitsBeforeCursor <= 0) {
+        newPos = 0;
+      } else {
+        for (let i = 0; i < el.value.length; i++) {
+          if (/[0-9]/.test(el.value[i])) {
+            seen++;
+            if (seen === digitsBeforeCursor) {
+              newPos = i + 1;
+              break;
+            }
+          }
+        }
+      }
+      el.setSelectionRange(newPos, newPos);
+    });
+  }
 
   const perkembanganValid = isValidFreeText(perkembangan, 10, 3);
   const pencapaianValid = isValidFreeText(pencapaian, 5, 2);
@@ -190,10 +238,11 @@ function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUp
               <div>
                 <label className="mb-1.5 block text-sm text-neutral-300">{t.businessUpdateModal.omsetLabel}</label>
                 <input
+                  ref={omsetInputRef}
                   type="text"
                   inputMode="numeric"
                   value={omsetValue}
-                  onChange={(e) => setOmsetValue(e.target.value)}
+                  onChange={handleOmsetChange}
                   placeholder={t.businessUpdateModal.omsetPlaceholder}
                   className={inputOk}
                 />

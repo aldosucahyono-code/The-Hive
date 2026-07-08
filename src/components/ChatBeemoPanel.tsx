@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { hardNavigate } from "../utils/navigate";
 import type { Translations } from "../i18n/translations";
 
 type Tier = "free" | "pro" | "platinum";
@@ -11,11 +10,13 @@ function ChatBeemoPanel({
   tier,
   t,
   lang,
+  onUpgradeClick,
 }: {
   businessProfileId: string;
   tier: Tier;
   t: Translations;
   lang: "id" | "en";
+  onUpgradeClick: () => void;
 }) {
   const { session } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -29,7 +30,7 @@ function ChatBeemoPanel({
         <div className="mb-3 text-2xl">🔒</div>
         <p className="mx-auto max-w-sm text-sm text-neutral-400">{t.workspace.chatLockedDesc}</p>
         <button
-          onClick={() => hardNavigate("")}
+          onClick={onUpgradeClick}
           className="mt-5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black hover:opacity-90"
         >
           {t.workspace.chatUpgradeButton}

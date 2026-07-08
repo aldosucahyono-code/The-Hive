@@ -701,6 +701,11 @@ const id = {
     updateBusinessButton: "📝 Update Bisnis",
     updateHistoryToggle: "📋 Riwayat Update Bisnis",
     updateHistoryEmpty: "Belum ada update yang tercatat.",
+    upgradeModalTitle: "Upgrade Bisnis Ini",
+    upgradeProcessing: "Menyiapkan pembayaran...",
+    upgradeErrorGeneric: "Gagal memulai pembayaran. Coba lagi.",
+    upgradeErrorNetwork: "Gagal terhubung ke server. Periksa koneksi internetmu.",
+    upgradeChecking: "Memperbarui status pembayaran... halaman akan otomatis update begitu selesai.",
   },
 
   addBusinessModal: {
@@ -1451,6 +1456,11 @@ const en: Translations = {
     updateBusinessButton: "📝 Update Business",
     updateHistoryToggle: "📋 Business Update History",
     updateHistoryEmpty: "No updates recorded yet.",
+    upgradeModalTitle: "Upgrade This Business",
+    upgradeProcessing: "Preparing payment...",
+    upgradeErrorGeneric: "Failed to start payment. Please try again.",
+    upgradeErrorNetwork: "Failed to connect to the server. Check your internet connection.",
+    upgradeChecking: "Updating payment status... the page will update automatically once done.",
   },
 
   addBusinessModal: {

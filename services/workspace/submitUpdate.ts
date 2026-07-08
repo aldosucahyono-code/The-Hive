@@ -7,6 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "../business/create.js";
+import { recalculateBusinessHealth } from "../business/recalculateHealth.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -83,6 +84,15 @@ export async function submitBusinessUpdate(userId: string, payload: Record<strin
   if (insertError || !update) {
     console.error("services/workspace/submitUpdate error:", insertError);
     return { status: 500, body: { error: "Gagal menyimpan update bisnis" } };
+  }
+
+  // Business Engine: hitung ulang Business Health berdasarkan update ini.
+  // Kegagalan di sini TIDAK membatalkan penyimpanan update (update tetap
+  // berharga meski recalculation gagal) — cukup dicatat di log server.
+  try {
+    await recalculateBusinessHealth(businessProfileId);
+  } catch (err) {
+    console.error("recalculateBusinessHealth error:", err);
   }
 
   return { status: 200, body: { updateId: update.id, createdAt: update.created_at } };

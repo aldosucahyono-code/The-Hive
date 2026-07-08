@@ -6,6 +6,7 @@ import { hardNavigate } from "../utils/navigate";
 import AddBusinessModal from "./AddBusinessModal";
 import ChatBeemoPanel from "./ChatBeemoPanel";
 import BusinessUpdateModal from "./BusinessUpdateModal";
+import UpgradeModal from "./UpgradeModal";
 import type { Translations } from "../i18n/translations";
 
 type MenuKey = "history" | "score" | "report" | "target" | "competitor" | "growth" | "chat";
@@ -216,8 +217,32 @@ type Tier = "free" | "pro" | "platinum";
 
 /** Business Score — gratis lihat ringkasan (skor+status saja), PRO lihat
  * lengkap, PLATINUM lengkap + Insight Beemo. */
-function BusinessScorePanel({ preview, tier, t }: { preview: PreviewOutput | null; tier: Tier; t: Translations }) {
-  if (!preview || typeof preview.businessHealthScore !== "number") {
+const DIMENSION_LABELS: Record<string, { id: string; en: string; icon: string }> = {
+  marketing: { id: "Marketing", en: "Marketing", icon: "📣" },
+  sales: { id: "Penjualan", en: "Sales", icon: "💰" },
+  operations: { id: "Operasional", en: "Operations", icon: "⚙️" },
+  finance: { id: "Keuangan", en: "Finance", icon: "🧾" },
+  customer: { id: "Pelanggan", en: "Customer", icon: "🧑‍🤝‍🧑" },
+  brand: { id: "Brand", en: "Brand", icon: "✨" },
+};
+
+function BusinessScorePanel({
+  preview,
+  health,
+  tier,
+  t,
+  lang,
+}: {
+  preview: PreviewOutput | null;
+  health: { dimensions: Record<string, number> | null; overall: number | null };
+  tier: Tier;
+  t: Translations;
+  lang: "id" | "en";
+}) {
+  const hasHealthData = health.overall !== null && health.dimensions !== null;
+  const score = hasHealthData ? (health.overall as number) : preview?.businessHealthScore;
+
+  if (typeof score !== "number") {
     return (
       <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
         <p className="text-neutral-400">{t.workspace.noAnalysisYet}</p>
@@ -225,7 +250,13 @@ function BusinessScorePanel({ preview, tier, t }: { preview: PreviewOutput | nul
     );
   }
 
-  const score = preview.businessHealthScore;
+  const statusLabel = hasHealthData
+    ? score >= 70
+      ? (lang === "id" ? "Kondisi Baik" : "Good Condition")
+      : score >= 45
+        ? (lang === "id" ? "Perlu Perhatian" : "Needs Attention")
+        : (lang === "id" ? "Perlu Perhatian Serius" : "Needs Serious Attention")
+    : preview?.statusLabel;
 
   return (
     <div className="space-y-4">
@@ -234,24 +265,46 @@ function BusinessScorePanel({ preview, tier, t }: { preview: PreviewOutput | nul
           {score}
           <span className="text-lg text-neutral-500">/100</span>
         </p>
-        <p className="mt-2 text-sm font-bold uppercase tracking-wide text-neutral-300">{preview.statusLabel}</p>
+        <p className="mt-2 text-sm font-bold uppercase tracking-wide text-neutral-300">{statusLabel}</p>
         <div className="mx-auto mt-4 h-2 max-w-xs overflow-hidden rounded-full bg-white/10">
           <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
         </div>
+        {hasHealthData && (
+          <p className="mt-3 text-xs text-neutral-500">
+            {lang === "id" ? "Dihitung dari Update Bisnis terakhirmu" : "Calculated from your latest Business Update"}
+          </p>
+        )}
       </div>
 
-      {tier !== "free" && preview.summary && (
+      {tier !== "free" && hasHealthData && health.dimensions && (
+        <div className="rounded-2xl border border-white/10 bg-surface p-5">
+          <h3 className="mb-3 text-sm font-bold text-neutral-200">
+            {lang === "id" ? "Rincian per Dimensi" : "Breakdown by Dimension"}
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {Object.entries(health.dimensions).map(([dim, dimScore]) => (
+              <div key={dim} className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+                <div className="text-lg">{DIMENSION_LABELS[dim]?.icon}</div>
+                <p className="mt-1 text-xs text-neutral-400">{DIMENSION_LABELS[dim]?.[lang] || dim}</p>
+                <p className="text-lg font-bold text-white">{dimScore}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tier !== "free" && preview?.summary && (
         <div className="rounded-2xl border border-white/10 bg-surface p-5">
           <h3 className="mb-2 text-sm font-bold text-neutral-200">{t.previewReport.summaryTitle}</h3>
           <p className="text-sm leading-relaxed text-neutral-400">{preview.summary}</p>
         </div>
       )}
 
-      {tier === "platinum" && (preview.improvements || preview.opportunity) && (
+      {tier === "platinum" && (preview?.improvements || preview?.opportunity) && (
         <div className="rounded-2xl border border-primary/30 bg-primary/10 p-5">
           <h3 className="mb-2 text-sm font-bold text-primary">{t.workspace.insightBeemoTitle}</h3>
-          {preview.improvements && <p className="text-sm leading-relaxed text-neutral-200">{preview.improvements}</p>}
-          {preview.opportunity && (
+          {preview?.improvements && <p className="text-sm leading-relaxed text-neutral-200">{preview.improvements}</p>}
+          {preview?.opportunity && (
             <p className="mt-2 text-sm leading-relaxed text-neutral-200">{preview.opportunity}</p>
           )}
         </div>
@@ -346,14 +399,14 @@ function TargetPanel({ rawInput, tier, t }: { rawInput: Record<string, string> |
 
 /** Competitor — terkunci total untuk Gratis (dengan upsell), transparan
  * (bukan "Segera Hadir") untuk PRO/PLATINUM yang menunggu Tahap B. */
-function CompetitorPanel({ tier, t }: { tier: Tier; t: Translations }) {
+function CompetitorPanel({ tier, t, onUpgradeClick }: { tier: Tier; t: Translations; onUpgradeClick: () => void }) {
   if (tier === "free") {
     return (
       <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
         <div className="mb-3 text-2xl">🔒</div>
         <p className="mx-auto max-w-sm text-sm text-neutral-400">{t.workspace.competitorLockedDesc}</p>
         <button
-          onClick={() => hardNavigate("")}
+          onClick={onUpgradeClick}
           className="mt-5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black hover:opacity-90"
         >
           {t.workspace.competitorUpgradeButton}
@@ -371,14 +424,14 @@ function CompetitorPanel({ tier, t }: { tier: Tier; t: Translations }) {
 }
 
 /** Growth — sama pola dengan Competitor. */
-function GrowthPanel({ tier, t }: { tier: Tier; t: Translations }) {
+function GrowthPanel({ tier, t, onUpgradeClick }: { tier: Tier; t: Translations; onUpgradeClick: () => void }) {
   if (tier === "free") {
     return (
       <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
         <div className="mb-3 text-2xl">🔒</div>
         <p className="mx-auto max-w-sm text-sm text-neutral-400">{t.workspace.growthLockedDesc}</p>
         <button
-          onClick={() => hardNavigate("")}
+          onClick={onUpgradeClick}
           className="mt-5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black hover:opacity-90"
         >
           {t.workspace.growthUpgradeButton}
@@ -403,10 +456,17 @@ function Workspace() {
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
   const [analyses, setAnalyses] = useState<AnalysisRow[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [businessHealth, setBusinessHealth] = useState<{ dimensions: Record<string, number> | null; overall: number | null }>({
+    dimensions: null,
+    overall: null,
+  });
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
   const [showAddBusiness, setShowAddBusiness] = useState(false);
   const [showBusinessUpdate, setShowBusinessUpdate] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [checkingUpgrade, setCheckingUpgrade] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [updateHistory, setUpdateHistory] = useState<Array<Record<string, unknown>>>([]);
   const [showUpdateHistory, setShowUpdateHistory] = useState(false);
   const [updateHistoryLoading, setUpdateHistoryLoading] = useState(false);
@@ -539,6 +599,25 @@ function Workspace() {
         setSubscription((subscriptionRes.data as SubscriptionRow | null) || null);
       }
 
+      if (session?.access_token) {
+        try {
+          const healthResponse = await fetch("/api/workspace", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ action: "getBusinessHealth", businessProfileId: activeBusinessId }),
+          });
+          const healthJson = await healthResponse.json();
+          if (!cancelled && healthResponse.ok) {
+            setBusinessHealth({ dimensions: healthJson.dimensions, overall: healthJson.overall });
+          }
+        } catch (err) {
+          console.error("getBusinessHealth error:", err);
+        }
+      }
+
       setBusinessDataLoading(false);
     }
 
@@ -547,7 +626,28 @@ function Workspace() {
     return () => {
       cancelled = true;
     };
-  }, [activeBusinessId]);
+  }, [activeBusinessId, refreshKey]);
+
+  useEffect(() => {
+    if (checkingUpgrade && subscription && subscription.tier !== "free") {
+      setCheckingUpgrade(false);
+    }
+  }, [subscription, checkingUpgrade]);
+
+  function handleUpgraded() {
+    setShowUpgradeModal(false);
+    setCheckingUpgrade(true);
+    let attempts = 0;
+    const maxAttempts = 5;
+    const interval = setInterval(() => {
+      attempts += 1;
+      setRefreshKey((k) => k + 1);
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        setCheckingUpgrade(false);
+      }
+    }, 2500);
+  }
 
   async function handleSwitchBusiness(id: string) {
     setActiveBusinessId(id);
@@ -846,6 +946,9 @@ function Workspace() {
 
       <div className="mb-6">
         <AccessStatusCard subscription={subscription} t={t} lang={lang} />
+        {checkingUpgrade && (
+          <p className="mt-2 text-xs text-neutral-400">{t.workspace.upgradeChecking}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr]">
@@ -880,17 +983,25 @@ function Workspace() {
           ) : activeMenu === "history" ? (
             <HistoryList analyses={analyses} t={t} lang={lang} />
           ) : activeMenu === "score" ? (
-            <BusinessScorePanel preview={latestPreview} tier={tier} t={t} />
+            <BusinessScorePanel preview={latestPreview} health={businessHealth} tier={tier} t={t} lang={lang} />
           ) : activeMenu === "report" ? (
             <ReportPanel preview={latestPreview} t={t} />
           ) : activeMenu === "target" ? (
             <TargetPanel rawInput={latestRawInput} tier={tier} t={t} />
           ) : activeMenu === "competitor" ? (
-            <CompetitorPanel tier={tier} t={t} />
+            <CompetitorPanel tier={tier} t={t} onUpgradeClick={() => setShowUpgradeModal(true)} />
           ) : activeMenu === "growth" ? (
-            <GrowthPanel tier={tier} t={t} />
+            <GrowthPanel tier={tier} t={t} onUpgradeClick={() => setShowUpgradeModal(true)} />
           ) : activeMenu === "chat" ? (
-            activeBusinessId && <ChatBeemoPanel businessProfileId={activeBusinessId} tier={tier} t={t} lang={lang} />
+            activeBusinessId && (
+              <ChatBeemoPanel
+                businessProfileId={activeBusinessId}
+                tier={tier}
+                t={t}
+                lang={lang}
+                onUpgradeClick={() => setShowUpgradeModal(true)}
+              />
+            )
           ) : (
             <ComingSoon
               label={MENU_ITEMS.find((m) => m.key === activeMenu)?.label || ""}
@@ -1029,6 +1140,15 @@ function Workspace() {
           businessProfileId={activeBusinessId}
           onClose={() => setShowBusinessUpdate(false)}
           onSaved={handleUpdateSaved}
+        />
+      )}
+
+      {showUpgradeModal && activeBusinessId && (
+        <UpgradeModal
+          businessProfileId={activeBusinessId}
+          businessName={activeBusiness?.business_name || ""}
+          onClose={() => setShowUpgradeModal(false)}
+          onUpgraded={handleUpgraded}
         />
       )}
     </section>
