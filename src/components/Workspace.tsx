@@ -200,7 +200,7 @@ function NoBusinessYet({ t }: { t: Translations }) {
 }
 
 function Workspace() {
-  const { user, loading, signOut } = useAuth();
+  const { user, session, loading, signOut } = useAuth();
   const { t, lang } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("history");
   const [businesses, setBusinesses] = useState<BusinessProfileRow[]>([]);
@@ -210,6 +210,17 @@ function Workspace() {
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
   const [showAddBusiness, setShowAddBusiness] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletedCount, setDeletedCount] = useState(0);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [recycleBinLoading, setRecycleBinLoading] = useState(false);
+  const [deletedBusinesses, setDeletedBusinesses] = useState<BusinessProfileRow[]>([]);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [confirmingPermanentDeleteId, setConfirmingPermanentDeleteId] = useState<string | null>(null);
+  const [permanentDeleting, setPermanentDeleting] = useState(false);
+  const [permanentDeleteError, setPermanentDeleteError] = useState<string | null>(null);
 
   const MENU_ITEMS: { key: MenuKey; label: string; icon: string }[] = [
     { key: "score", label: t.workspace.menuScore, icon: "📊" },
@@ -230,7 +241,7 @@ function Workspace() {
     async function loadBusinesses() {
       setDataLoading(true);
 
-      const [profilesRes, prefsRes] = await Promise.all([
+      const [profilesRes, prefsRes, deletedCountRes] = await Promise.all([
         supabase
           .from("business_profiles")
           .select("id, business_name, industry")
@@ -240,9 +251,15 @@ function Workspace() {
           .from("user_preferences")
           .select("active_business_profile_id")
           .maybeSingle(),
+        supabase
+          .from("business_profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("active", false),
       ]);
 
       if (cancelled) return;
+
+      setDeletedCount(deletedCountRes.count || 0);
 
       if (profilesRes.error) {
         console.error("Gagal memuat business_profiles:", profilesRes.error);
@@ -333,11 +350,140 @@ function Workspace() {
 
   async function handleSwitchBusiness(id: string) {
     setActiveBusinessId(id);
+    setConfirmingDelete(false);
+    setDeleteError(null);
     if (user) {
       await supabase
         .from("user_preferences")
         .update({ active_business_profile_id: id })
         .eq("user_id", user.id);
+    }
+  }
+
+  async function handleDeleteBusiness() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const response = await fetch("/api/deactivate-business", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ businessProfileId: activeBusinessId }),
+      });
+
+      if (!response.ok) {
+        const json = await response.json();
+        setDeleteError(json.error || t.workspace.deleteError);
+        setDeleting(false);
+        return;
+      }
+
+      const remaining = businesses.filter((b) => b.id !== activeBusinessId);
+      setBusinesses(remaining);
+      setConfirmingDelete(false);
+      setDeleting(false);
+      setDeletedCount((prev) => prev + 1);
+
+      if (remaining.length > 0) {
+        await handleSwitchBusiness(remaining[0].id);
+      } else {
+        setActiveBusinessId(null);
+      }
+    } catch (err) {
+      console.error("deactivate-business error:", err);
+      setDeleteError(t.workspace.deleteError);
+      setDeleting(false);
+    }
+  }
+
+  async function toggleRecycleBin() {
+    const next = !showRecycleBin;
+    setShowRecycleBin(next);
+
+    if (next && deletedBusinesses.length === 0 && deletedCount > 0) {
+      setRecycleBinLoading(true);
+      const { data, error } = await supabase
+        .from("business_profiles")
+        .select("id, business_name, industry")
+        .eq("active", false)
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setDeletedBusinesses(data as BusinessProfileRow[]);
+      }
+      setRecycleBinLoading(false);
+    }
+  }
+
+  async function handleRestore(businessProfileId: string) {
+    if (!session?.access_token) return;
+    setRestoringId(businessProfileId);
+
+    try {
+      const response = await fetch("/api/restore-business", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ businessProfileId }),
+      });
+
+      if (!response.ok) {
+        const json = await response.json();
+        console.error("restore-business error:", json.error);
+        setRestoringId(null);
+        return;
+      }
+
+      const restored = deletedBusinesses.find((b) => b.id === businessProfileId);
+      setDeletedBusinesses((prev) => prev.filter((b) => b.id !== businessProfileId));
+      setDeletedCount((prev) => Math.max(0, prev - 1));
+      if (restored) {
+        setBusinesses((prev) => [...prev, restored]);
+        await handleSwitchBusiness(businessProfileId);
+      }
+      setRestoringId(null);
+    } catch (err) {
+      console.error("restore-business error:", err);
+      setRestoringId(null);
+    }
+  }
+
+  async function handlePermanentDelete(businessProfileId: string) {
+    if (!session?.access_token) return;
+    setPermanentDeleting(true);
+    setPermanentDeleteError(null);
+
+    try {
+      const response = await fetch("/api/permanently-delete-business", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ businessProfileId }),
+      });
+
+      if (!response.ok) {
+        const json = await response.json();
+        setPermanentDeleteError(json.error || t.workspace.permanentDeleteError);
+        setPermanentDeleting(false);
+        return;
+      }
+
+      setDeletedBusinesses((prev) => prev.filter((b) => b.id !== businessProfileId));
+      setDeletedCount((prev) => Math.max(0, prev - 1));
+      setConfirmingPermanentDeleteId(null);
+      setPermanentDeleting(false);
+    } catch (err) {
+      console.error("permanently-delete-business error:", err);
+      setPermanentDeleteError(t.workspace.permanentDeleteError);
+      setPermanentDeleting(false);
     }
   }
 
@@ -400,13 +546,24 @@ function Workspace() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {activeBusinessId && (
-            <BusinessSwitcher
-              businesses={businesses}
-              activeId={activeBusinessId}
-              onSwitch={handleSwitchBusiness}
-              onAddNew={() => setShowAddBusiness(true)}
-              addLabel={t.workspace.addBusinessButton}
-            />
+            <>
+              <BusinessSwitcher
+                businesses={businesses}
+                activeId={activeBusinessId}
+                onSwitch={handleSwitchBusiness}
+                onAddNew={() => setShowAddBusiness(true)}
+                addLabel={t.workspace.addBusinessButton}
+              />
+              <button
+                onClick={() => {
+                  setConfirmingDelete(true);
+                  setDeleteError(null);
+                }}
+                className="rounded-full border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-300 hover:border-red-500/50 hover:text-red-200"
+              >
+                {t.workspace.deleteBusinessButton}
+              </button>
+            </>
           )}
           <button
             onClick={handleSignOut}
@@ -416,6 +573,31 @@ function Workspace() {
           </button>
         </div>
       </div>
+
+      {confirmingDelete && activeBusiness && (
+        <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-5">
+          <p className="text-sm text-neutral-200">
+            {fillTemplate(t.workspace.deleteConfirmMessage, { name: activeBusiness.business_name })}
+          </p>
+          {deleteError && <p className="mt-2 text-sm text-red-400">{deleteError}</p>}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              onClick={handleDeleteBusiness}
+              disabled={deleting}
+              className="rounded-full bg-red-500 px-4 py-2 text-xs font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deleting ? t.workspace.deleting : t.workspace.deleteConfirmYes}
+            </button>
+            <button
+              onClick={() => setConfirmingDelete(false)}
+              disabled={deleting}
+              className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-neutral-300 hover:text-white"
+            >
+              {t.workspace.deleteConfirmCancel}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mb-6">
         <AccessStatusCard subscription={subscription} t={t} lang={lang} />
@@ -460,6 +642,88 @@ function Workspace() {
           )}
         </div>
       </div>
+
+      {/* Recycle Bin — bisnis yang di-soft-delete, bisa dipulihkan atau
+          dihapus permanen. Sengaja diletakkan di bawah, tidak mencolok. */}
+      {deletedCount > 0 && (
+        <div className="mt-8 border-t border-white/10 pt-6">
+          <button
+            onClick={toggleRecycleBin}
+            className="text-xs font-semibold text-neutral-400 hover:text-white"
+          >
+            {fillTemplate(t.workspace.recycleBinToggle, { count: deletedCount })}
+          </button>
+
+          {showRecycleBin && (
+            <div className="mt-4 space-y-3">
+              {recycleBinLoading ? (
+                <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
+              ) : deletedBusinesses.length === 0 ? (
+                <p className="text-sm text-neutral-500">{t.workspace.recycleBinEmpty}</p>
+              ) : (
+                deletedBusinesses.map((b) => (
+                  <div
+                    key={b.id}
+                    className="rounded-xl border border-white/10 bg-surface p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-neutral-200">{b.business_name}</p>
+                        {b.industry && <p className="text-xs text-neutral-500">{b.industry}</p>}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleRestore(b.id)}
+                          disabled={restoringId === b.id}
+                          className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {restoringId === b.id ? t.workspace.restoring : t.workspace.restoreButton}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setConfirmingPermanentDeleteId(b.id);
+                            setPermanentDeleteError(null);
+                          }}
+                          className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 hover:border-red-500/50"
+                        >
+                          {t.workspace.permanentDeleteButton}
+                        </button>
+                      </div>
+                    </div>
+
+                    {confirmingPermanentDeleteId === b.id && (
+                      <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                        <p className="text-xs text-neutral-200">
+                          {fillTemplate(t.workspace.permanentDeleteConfirmMessage, { name: b.business_name })}
+                        </p>
+                        {permanentDeleteError && (
+                          <p className="mt-1.5 text-xs text-red-400">{permanentDeleteError}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handlePermanentDelete(b.id)}
+                            disabled={permanentDeleting}
+                            className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {permanentDeleting ? t.workspace.permanentDeleting : t.workspace.permanentDeleteConfirmYes}
+                          </button>
+                          <button
+                            onClick={() => setConfirmingPermanentDeleteId(null)}
+                            disabled={permanentDeleting}
+                            className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:text-white"
+                          >
+                            {t.workspace.deleteConfirmCancel}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {showAddBusiness && (
         <AddBusinessModal onClose={() => setShowAddBusiness(false)} onCreated={handleBusinessCreated} />
