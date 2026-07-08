@@ -39,10 +39,14 @@ type PreviewOutput = {
   opportunity?: string;
 };
 
-type SubscriptionRow = {
+// Bentuk ini mengikuti Membership yang dihitung backend
+// (services/membership/getActiveMembership.ts) — SATU-SATUNYA sumber
+// kebenaran soal "apakah membership ini masih aktif". Jangan query tabel
+// subscriptions langsung dari sini lagi.
+type Membership = {
   tier: "free" | "pro" | "platinum";
-  status: "active" | "expired" | "cancelled";
-  expires_at: string | null;
+  status: "active" | "expired" | "free";
+  expiresAt: string | null;
 };
 
 function formatDate(iso: string, lang: "id" | "en") {
@@ -109,15 +113,15 @@ function BusinessSwitcher({
 /** Kartu ringkasan status akses paling atas — menjawab pertanyaan
  * "aku sekarang punya akses apa, sampai kapan?" dalam sekali lihat. */
 function AccessStatusCard({
-  subscription,
+  membership,
   t,
   lang,
 }: {
-  subscription: SubscriptionRow | null;
+  membership: Membership | null;
   t: Translations;
   lang: "id" | "en";
 }) {
-  if (!subscription || subscription.tier === "free" || !subscription.expires_at) {
+  if (!membership || membership.status === "free") {
     return (
       <div className="rounded-2xl border border-white/10 bg-surface p-5">
         <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">{t.workspace.accessFreeLabel}</p>
@@ -127,8 +131,22 @@ function AccessStatusCard({
     );
   }
 
-  const isPlatinum = subscription.tier === "platinum";
-  const remaining = daysLeft(subscription.expires_at);
+  if (membership.status === "expired") {
+    return (
+      <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5">
+        <p className="text-xs font-bold uppercase tracking-widest text-amber-400">{t.workspace.accessExpiredLabel}</p>
+        <p className="mt-2 text-lg font-bold text-amber-300">{t.workspace.accessExpiredTitle}</p>
+        <p className="mt-1 text-sm text-neutral-300">
+          {membership.expiresAt
+            ? fillTemplate(t.workspace.accessExpiredDesc, { date: formatDate(membership.expiresAt, lang) })
+            : t.workspace.accessExpiredDescNoDate}
+        </p>
+      </div>
+    );
+  }
+
+  const isPlatinum = membership.tier === "platinum";
+  const remaining = daysLeft(membership.expiresAt as string);
 
   return (
     <div
@@ -139,12 +157,12 @@ function AccessStatusCard({
     >
       <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">{t.workspace.accessActiveLabel}</p>
       <p className={"mt-2 text-lg font-bold " + (isPlatinum ? "text-purple-300" : "text-blue-300")}>
-        {fillTemplate(t.workspace.accessActiveTitle, { tier: subscription.tier.toUpperCase() })}
+        {fillTemplate(t.workspace.accessActiveTitle, { tier: membership.tier.toUpperCase() })}
       </p>
       <p className="mt-1 text-sm text-neutral-300">
         {fillTemplate(t.workspace.accessActiveRemaining, {
           days: remaining,
-          date: formatDate(subscription.expires_at, lang),
+          date: formatDate(membership.expiresAt as string, lang),
         })}
       </p>
     </div>
@@ -520,7 +538,7 @@ function Workspace() {
   const [businesses, setBusinesses] = useState<BusinessProfileRow[]>([]);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
   const [analyses, setAnalyses] = useState<AnalysisRow[]>([]);
-  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [membership, setMembership] = useState<Membership | null>(null);
   const [businessHealth, setBusinessHealth] = useState<{ dimensions: Record<string, number> | null; overall: number | null }>({
     dimensions: null,
     overall: null,
@@ -535,6 +553,7 @@ function Workspace() {
   const [showBusinessUpdate, setShowBusinessUpdate] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [checkingUpgrade, setCheckingUpgrade] = useState(false);
+  const [upgradeOutcome, setUpgradeOutcome] = useState<"expired" | "pending" | "failed" | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [updateHistory, setUpdateHistory] = useState<Array<Record<string, unknown>>>([]);
   const [showUpdateHistory, setShowUpdateHistory] = useState(false);
@@ -640,19 +659,11 @@ function Workspace() {
     async function loadBusinessData() {
       setBusinessDataLoading(true);
 
-      const [analysesRes, subscriptionRes] = await Promise.all([
-        supabase
-          .from("analyses")
-          .select("id, raw_input, ai_output, is_baseline, created_at")
-          .eq("business_profile_id", activeBusinessId)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("subscriptions")
-          .select("tier, status, expires_at")
-          .eq("business_profile_id", activeBusinessId)
-          .eq("status", "active")
-          .maybeSingle(),
-      ]);
+      const analysesRes = await supabase
+        .from("analyses")
+        .select("id, raw_input, ai_output, is_baseline, created_at")
+        .eq("business_profile_id", activeBusinessId)
+        .order("created_at", { ascending: false });
 
       if (cancelled) return;
 
@@ -662,15 +673,13 @@ function Workspace() {
         setAnalyses((analysesRes.data as AnalysisRow[]) || []);
       }
 
-      if (subscriptionRes.error) {
-        console.error("Gagal memuat subscriptions:", subscriptionRes.error);
-      } else {
-        setSubscription((subscriptionRes.data as SubscriptionRow | null) || null);
-      }
-
       if (session?.access_token) {
         try {
-          const [healthResponse, progressResponse] = await Promise.all([
+          // Membership TIDAK dibaca langsung dari tabel subscriptions di
+          // sini lagi — selalu lewat action "getMembership", supaya
+          // pengecekan expires_at konsisten dengan services/beemo/chat.ts
+          // (satu sumber kebenaran: services/membership/getActiveMembership.ts).
+          const [healthResponse, progressResponse, membershipResponse] = await Promise.all([
             fetch("/api/workspace", {
               method: "POST",
               headers: {
@@ -687,9 +696,18 @@ function Workspace() {
               },
               body: JSON.stringify({ action: "getProgress", businessProfileId: activeBusinessId }),
             }),
+            fetch("/api/workspace", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ action: "getMembership", businessProfileId: activeBusinessId }),
+            }),
           ]);
           const healthJson = await healthResponse.json();
           const progressJson = await progressResponse.json();
+          const membershipJson = await membershipResponse.json();
           if (!cancelled) {
             if (healthResponse.ok) {
               setBusinessHealth({ dimensions: healthJson.dimensions, overall: healthJson.overall });
@@ -697,9 +715,14 @@ function Workspace() {
             if (progressResponse.ok) {
               setProgressData({ journey: progressJson.journey, period: progressJson.period });
             }
+            if (membershipResponse.ok) {
+              setMembership(membershipJson.membership as Membership);
+            } else {
+              console.error("Gagal memuat membership:", membershipJson.error);
+            }
           }
         } catch (err) {
-          console.error("getBusinessHealth/getProgress error:", err);
+          console.error("getBusinessHealth/getProgress/getMembership error:", err);
         }
       }
 
@@ -714,14 +737,47 @@ function Workspace() {
   }, [activeBusinessId, refreshKey]);
 
   useEffect(() => {
-    if (checkingUpgrade && subscription && subscription.tier !== "free") {
+    if (checkingUpgrade && membership && membership.tier !== "free") {
       setCheckingUpgrade(false);
+      setUpgradeOutcome(null);
     }
-  }, [subscription, checkingUpgrade]);
+  }, [membership, checkingUpgrade]);
+
+  // Setelah polling di handleUpgraded menyerah (subscription masih "free"),
+  // tanya langsung ke payments lewat backend apa status transaksi terakhirnya
+  // — supaya user dikasih tahu JELAS kalau transaksinya kadaluarsa, bukan
+  // dibiarkan diam melihat "Paket Gratis" tanpa penjelasan.
+  async function checkLatestPaymentOutcome() {
+    if (!activeBusinessId || !session?.access_token) return;
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "getLatestPayment", businessProfileId: activeBusinessId }),
+      });
+      if (!response.ok) return;
+      const json = await response.json();
+      const status = json.payment?.status;
+      if (status === "expired") setUpgradeOutcome("expired");
+      else if (status === "pending") setUpgradeOutcome("pending");
+      else if (status === "failed") setUpgradeOutcome("failed");
+    } catch (err) {
+      console.error("checkLatestPaymentOutcome error:", err);
+    }
+  }
+
+  function openUpgradeModal() {
+    setUpgradeOutcome(null);
+    setShowUpgradeModal(true);
+  }
 
   function handleUpgraded() {
     setShowUpgradeModal(false);
     setCheckingUpgrade(true);
+    setUpgradeOutcome(null);
     let attempts = 0;
     const maxAttempts = 5;
     const interval = setInterval(() => {
@@ -730,6 +786,7 @@ function Workspace() {
       if (attempts >= maxAttempts) {
         clearInterval(interval);
         setCheckingUpgrade(false);
+        checkLatestPaymentOutcome();
       }
     }, 2500);
   }
@@ -957,7 +1014,7 @@ function Workspace() {
   const latestAnalysis = analyses[0] || null;
   const latestPreview = latestAnalysis?.ai_output || null;
   const latestRawInput = latestAnalysis?.raw_input || null;
-  const tier = subscription?.tier || "free";
+  const tier = membership?.tier || "free";
 
   return (
     <section className="mx-auto max-w-6xl px-6 py-10">
@@ -1030,9 +1087,27 @@ function Workspace() {
       )}
 
       <div className="mb-6">
-        <AccessStatusCard subscription={subscription} t={t} lang={lang} />
+        <AccessStatusCard membership={membership} t={t} lang={lang} />
         {checkingUpgrade && (
           <p className="mt-2 text-xs text-neutral-400">{t.workspace.upgradeChecking}</p>
+        )}
+        {!checkingUpgrade && upgradeOutcome && (
+          <p
+            className={
+              "mt-2 rounded-lg border px-3 py-2 text-xs " +
+              (upgradeOutcome === "expired"
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                : upgradeOutcome === "failed"
+                  ? "border-red-500/40 bg-red-500/10 text-red-300"
+                  : "border-blue-500/40 bg-blue-500/10 text-blue-300")
+            }
+          >
+            {upgradeOutcome === "expired"
+              ? t.workspace.upgradeExpiredMessage
+              : upgradeOutcome === "failed"
+                ? t.workspace.upgradeFailedMessage
+                : t.workspace.upgradePendingMessage}
+          </p>
         )}
       </div>
 
@@ -1074,9 +1149,9 @@ function Workspace() {
           ) : activeMenu === "target" ? (
             <TargetPanel rawInput={latestRawInput} tier={tier} t={t} lang={lang} progress={progressData} />
           ) : activeMenu === "competitor" ? (
-            <CompetitorPanel tier={tier} t={t} onUpgradeClick={() => setShowUpgradeModal(true)} />
+            <CompetitorPanel tier={tier} t={t} onUpgradeClick={openUpgradeModal} />
           ) : activeMenu === "growth" ? (
-            <GrowthPanel tier={tier} t={t} onUpgradeClick={() => setShowUpgradeModal(true)} />
+            <GrowthPanel tier={tier} t={t} onUpgradeClick={openUpgradeModal} />
           ) : activeMenu === "chat" ? (
             activeBusinessId && (
               <ChatBeemoPanel
@@ -1084,7 +1159,7 @@ function Workspace() {
                 tier={tier}
                 t={t}
                 lang={lang}
-                onUpgradeClick={() => setShowUpgradeModal(true)}
+                onUpgradeClick={openUpgradeModal}
               />
             )
           ) : (

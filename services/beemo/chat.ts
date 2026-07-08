@@ -13,6 +13,7 @@
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ServiceResult } from "../business/create.js";
+import { getActiveMembership } from "../membership/getActiveMembership.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -82,14 +83,9 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
     return { status: 403, body: { error: "Business profile tidak valid untuk akun ini." } };
   }
 
-  const { data: subscription } = await supabase
-    .from("subscriptions")
-    .select("tier, status")
-    .eq("business_profile_id", businessProfileId)
-    .eq("status", "active")
-    .maybeSingle();
+  const membership = await getActiveMembership(businessProfileId);
 
-  const tier = subscription?.tier || "free";
+  const tier = membership.tier;
   if (tier === "free") {
     return {
       status: 403,
