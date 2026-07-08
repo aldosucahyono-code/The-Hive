@@ -33,7 +33,7 @@ function clamp(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-export async function recalculateBusinessHealth(businessProfileId: string): Promise<void> {
+export async function recalculateBusinessHealth(businessProfileId: string): Promise<number> {
   // 1. Ambil skor terakhir per dimensi (kalau belum pernah ada, mulai dari
   //    businessHealthScore hasil analisa AI pertama sebagai titik awal —
   //    itu satu-satunya "input AI" yang dipakai, sebagai TITIK AWAL saja,
@@ -91,7 +91,11 @@ export async function recalculateBusinessHealth(businessProfileId: string): Prom
   const latest = recentUpdates?.[0];
   const previous = recentUpdates?.[1];
 
-  if (!latest) return; // Tidak ada data -> tidak ada yang dihitung.
+  if (!latest) {
+    // Tidak ada data Business Update -> tidak ada yang dihitung ulang,
+    // kembalikan rata-rata skor yang sudah ada (baseline) apa adanya.
+    return Math.round(DIMENSIONS.reduce((sum, dim) => sum + currentScores[dim], 0) / DIMENSIONS.length);
+  }
 
   // 3. Dimensi Sales <- kondisi_penjualan
   let salesDelta = 0;
@@ -131,4 +135,9 @@ export async function recalculateBusinessHealth(businessProfileId: string): Prom
   }));
 
   await supabase.from("business_health").insert(rowsToInsert);
+
+  const overall = Math.round(
+    DIMENSIONS.reduce((sum, dim) => sum + updatedScores[dim], 0) / DIMENSIONS.length
+  );
+  return overall;
 }

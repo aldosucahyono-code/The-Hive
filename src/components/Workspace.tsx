@@ -373,8 +373,34 @@ function ReportPanel({ preview, t }: { preview: PreviewOutput | null; t: Transla
 /** Target — target yang pelanggan isi sendiri di wizard. PLATINUM
  * ditambah bagian Progress (placeholder transparan, bukan "coming soon",
  * sampai Business Engine di Tahap 2 jalan). */
-function TargetPanel({ rawInput, tier, t }: { rawInput: Record<string, string> | null; tier: Tier; t: Translations }) {
+function TargetPanel({
+  rawInput,
+  tier,
+  t,
+  lang,
+  progress,
+}: {
+  rawInput: Record<string, string> | null;
+  tier: Tier;
+  t: Translations;
+  lang: "id" | "en";
+  progress: {
+    journey: { baselineScore: number; currentScore: number; delta: number } | null;
+    period: { previousScore: number; currentScore: number; delta: number } | null;
+  };
+}) {
   const target = rawInput?.target;
+
+  function deltaLabel(delta: number): string {
+    const sign = delta > 0 ? "+" : "";
+    return `${sign}${delta}`;
+  }
+
+  function deltaColor(delta: number): string {
+    if (delta > 0) return "text-green-400";
+    if (delta < 0) return "text-red-400";
+    return "text-neutral-400";
+  }
 
   return (
     <div className="space-y-4">
@@ -389,8 +415,47 @@ function TargetPanel({ rawInput, tier, t }: { rawInput: Record<string, string> |
 
       {tier === "platinum" && (
         <div className="rounded-2xl border border-white/10 bg-surface p-5">
-          <h3 className="mb-2 text-sm font-bold text-neutral-200">{t.workspace.targetProgressTitle}</h3>
-          <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.targetProgressPlaceholder}</p>
+          <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.targetProgressTitle}</h3>
+
+          {!progress.journey ? (
+            <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.targetProgressPlaceholder}</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="mb-1 text-xs font-bold uppercase text-neutral-400">
+                  {lang === "id" ? "Journey (Sejak Awal)" : "Journey (Since Start)"}
+                </p>
+                <p className="text-2xl font-black text-white">
+                  {progress.journey.baselineScore} → {progress.journey.currentScore}
+                </p>
+                <p className={`text-sm font-semibold ${deltaColor(progress.journey.delta)}`}>
+                  {deltaLabel(progress.journey.delta)} {lang === "id" ? "poin" : "points"}
+                </p>
+              </div>
+
+              {progress.period ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="mb-1 text-xs font-bold uppercase text-neutral-400">
+                    {lang === "id" ? "Minggu Lalu vs Sekarang" : "Last Week vs Now"}
+                  </p>
+                  <p className="text-2xl font-black text-white">
+                    {progress.period.previousScore} → {progress.period.currentScore}
+                  </p>
+                  <p className={`text-sm font-semibold ${deltaColor(progress.period.delta)}`}>
+                    {deltaLabel(progress.period.delta)} {lang === "id" ? "poin" : "points"}
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs text-neutral-500">
+                    {lang === "id"
+                      ? "Perbandingan mingguan akan muncul setelah minggu kedua Business Update."
+                      : "Weekly comparison will appear after your second week of Business Updates."}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -460,6 +525,10 @@ function Workspace() {
     dimensions: null,
     overall: null,
   });
+  const [progressData, setProgressData] = useState<{
+    journey: { baselineScore: number; currentScore: number; delta: number } | null;
+    period: { previousScore: number; currentScore: number; delta: number } | null;
+  }>({ journey: null, period: null });
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
   const [showAddBusiness, setShowAddBusiness] = useState(false);
@@ -601,20 +670,36 @@ function Workspace() {
 
       if (session?.access_token) {
         try {
-          const healthResponse = await fetch("/api/workspace", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({ action: "getBusinessHealth", businessProfileId: activeBusinessId }),
-          });
+          const [healthResponse, progressResponse] = await Promise.all([
+            fetch("/api/workspace", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ action: "getBusinessHealth", businessProfileId: activeBusinessId }),
+            }),
+            fetch("/api/workspace", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ action: "getProgress", businessProfileId: activeBusinessId }),
+            }),
+          ]);
           const healthJson = await healthResponse.json();
-          if (!cancelled && healthResponse.ok) {
-            setBusinessHealth({ dimensions: healthJson.dimensions, overall: healthJson.overall });
+          const progressJson = await progressResponse.json();
+          if (!cancelled) {
+            if (healthResponse.ok) {
+              setBusinessHealth({ dimensions: healthJson.dimensions, overall: healthJson.overall });
+            }
+            if (progressResponse.ok) {
+              setProgressData({ journey: progressJson.journey, period: progressJson.period });
+            }
           }
         } catch (err) {
-          console.error("getBusinessHealth error:", err);
+          console.error("getBusinessHealth/getProgress error:", err);
         }
       }
 
@@ -987,7 +1072,7 @@ function Workspace() {
           ) : activeMenu === "report" ? (
             <ReportPanel preview={latestPreview} t={t} />
           ) : activeMenu === "target" ? (
-            <TargetPanel rawInput={latestRawInput} tier={tier} t={t} />
+            <TargetPanel rawInput={latestRawInput} tier={tier} t={t} lang={lang} progress={progressData} />
           ) : activeMenu === "competitor" ? (
             <CompetitorPanel tier={tier} t={t} onUpgradeClick={() => setShowUpgradeModal(true)} />
           ) : activeMenu === "growth" ? (

@@ -10,6 +10,7 @@ import { createClient } from "@supabase/supabase-js";
 import { submitBusinessUpdate } from "../services/workspace/submitUpdate.js";
 import { listBusinessUpdates } from "../services/workspace/listUpdates.js";
 import { getBusinessHealth } from "../services/workspace/getBusinessHealth.js";
+import { getProgress } from "../services/workspace/getProgress.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -41,6 +42,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "getBusinessHealth":
       result = await getBusinessHealth(userId, payload);
+      break;
+    case "getProgress":
+      result = await getProgress(userId, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });
