@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import {
@@ -43,6 +43,55 @@ function AddBusinessModal({ onClose, onCreated }: AddBusinessModalProps) {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [formError, setFormError] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const omsetInputRef = useRef<HTMLInputElement>(null);
+
+  function handleOmsetChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const oldValue = omsetBulanan;
+    const rawValue = e.target.value;
+    const newCursorPos = e.target.selectionStart ?? rawValue.length;
+    const isSingleBackspace = rawValue.length === oldValue.length - 1;
+
+    let workingDigits: string;
+    let digitsBeforeCursor: number;
+
+    const deletedChar = isSingleBackspace ? oldValue[newCursorPos] : undefined;
+
+    if (isSingleBackspace && deletedChar && !/[0-9]/.test(deletedChar)) {
+      // Backspace mengenai tanda format, bukan angka — geser ke angka terdekat.
+      const digitsBeforeOldCursor = oldValue.slice(0, newCursorPos).replace(/[^0-9]/g, "").length;
+      const allDigits = oldValue.replace(/[^0-9]/g, "");
+      workingDigits =
+        allDigits.slice(0, digitsBeforeOldCursor - 1) + allDigits.slice(digitsBeforeOldCursor);
+      digitsBeforeCursor = digitsBeforeOldCursor - 1;
+    } else {
+      workingDigits = rawValue.replace(/[^0-9]/g, "");
+      digitsBeforeCursor = rawValue.slice(0, newCursorPos).replace(/[^0-9]/g, "").length;
+    }
+
+    const formatted = workingDigits ? "Rp" + Number(workingDigits).toLocaleString("id-ID") + ",-" : "";
+    setOmsetBulanan(formatted);
+
+    requestAnimationFrame(() => {
+      const el = omsetInputRef.current;
+      if (!el) return;
+      let seen = 0;
+      let newPos = el.value.length;
+      if (digitsBeforeCursor <= 0) {
+        newPos = 0;
+      } else {
+        for (let i = 0; i < el.value.length; i++) {
+          if (/[0-9]/.test(el.value[i])) {
+            seen++;
+            if (seen === digitsBeforeCursor) {
+              newPos = i + 1;
+              break;
+            }
+          }
+        }
+      }
+      el.setSelectionRange(newPos, newPos);
+    });
+  }
 
   const isBaru = jenisAnalisis === "baru";
 
@@ -332,10 +381,11 @@ function AddBusinessModal({ onClose, onCreated }: AddBusinessModalProps) {
                 {isBaru ? t.stepTwo.modalAwalLabel : t.stepTwo.omsetLabel} <span className="text-primary">*</span>
               </label>
               <input
+                ref={omsetInputRef}
                 type="text"
                 inputMode="numeric"
                 value={omsetBulanan}
-                onChange={(e) => setOmsetBulanan(e.target.value)}
+                onChange={handleOmsetChange}
                 onBlur={() => markTouched("omsetBulanan")}
                 placeholder={isBaru ? t.stepTwo.omsetPlaceholderNew : t.stepTwo.omsetPlaceholderRunning}
                 className={touched.omsetBulanan && !omsetValid ? inputErr : inputOk}

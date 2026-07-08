@@ -20,9 +20,20 @@ type BusinessProfileRow = {
 
 type AnalysisRow = {
   id: string;
-  raw_input: { namaBisnis?: string; jenisBisnis?: string } | null;
+  raw_input: Record<string, string> | null;
+  ai_output: PreviewOutput | null;
   is_baseline: boolean;
   created_at: string;
+};
+
+type PreviewOutput = {
+  businessHealthScore?: number;
+  statusLabel?: string;
+  summary?: string;
+  findings?: string[];
+  strengths?: string;
+  improvements?: string;
+  opportunity?: string;
 };
 
 type SubscriptionRow = {
@@ -199,6 +210,189 @@ function NoBusinessYet({ t }: { t: Translations }) {
   );
 }
 
+type Tier = "free" | "pro" | "platinum";
+
+/** Business Score — gratis lihat ringkasan (skor+status saja), PRO lihat
+ * lengkap, PLATINUM lengkap + Insight Beemo. */
+function BusinessScorePanel({ preview, tier, t }: { preview: PreviewOutput | null; tier: Tier; t: Translations }) {
+  if (!preview || typeof preview.businessHealthScore !== "number") {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
+        <p className="text-neutral-400">{t.workspace.noAnalysisYet}</p>
+      </div>
+    );
+  }
+
+  const score = preview.businessHealthScore;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-surface p-6 text-center">
+        <p className="text-5xl font-black text-primary">
+          {score}
+          <span className="text-lg text-neutral-500">/100</span>
+        </p>
+        <p className="mt-2 text-sm font-bold uppercase tracking-wide text-neutral-300">{preview.statusLabel}</p>
+        <div className="mx-auto mt-4 h-2 max-w-xs overflow-hidden rounded-full bg-white/10">
+          <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
+        </div>
+      </div>
+
+      {tier !== "free" && preview.summary && (
+        <div className="rounded-2xl border border-white/10 bg-surface p-5">
+          <h3 className="mb-2 text-sm font-bold text-neutral-200">{t.previewReport.summaryTitle}</h3>
+          <p className="text-sm leading-relaxed text-neutral-400">{preview.summary}</p>
+        </div>
+      )}
+
+      {tier === "platinum" && (preview.improvements || preview.opportunity) && (
+        <div className="rounded-2xl border border-primary/30 bg-primary/10 p-5">
+          <h3 className="mb-2 text-sm font-bold text-primary">{t.workspace.insightBeemoTitle}</h3>
+          {preview.improvements && <p className="text-sm leading-relaxed text-neutral-200">{preview.improvements}</p>}
+          {preview.opportunity && (
+            <p className="mt-2 text-sm leading-relaxed text-neutral-200">{preview.opportunity}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Report — sama untuk semua tier (ringkasan analisa penuh). Laporan
+ * lengkap PDF PRO/PLATINUM menyusul di Tahap B, tidak menggantikan ini. */
+function ReportPanel({ preview, t }: { preview: PreviewOutput | null; t: Translations }) {
+  if (!preview) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
+        <p className="text-neutral-400">{t.workspace.noAnalysisYet}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {preview.summary && (
+        <div className="rounded-2xl border border-white/10 bg-surface p-5">
+          <h3 className="mb-2 text-sm font-bold text-neutral-200">{t.previewReport.summaryTitle}</h3>
+          <p className="text-sm leading-relaxed text-neutral-400">{preview.summary}</p>
+        </div>
+      )}
+
+      {preview.findings && preview.findings.length > 0 && (
+        <div className="rounded-2xl border border-white/10 bg-surface p-5">
+          <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.previewReport.findingsTitle}</h3>
+          <ul className="space-y-2">
+            {preview.findings.map((f, i) => (
+              <li key={i} className="text-sm leading-relaxed text-neutral-400">
+                {i + 1}. {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {preview.strengths && (
+          <div className="rounded-2xl border border-white/10 bg-surface p-4">
+            <p className="mb-1 text-xs font-bold uppercase text-primary">{t.previewReport.strengthsTitle}</p>
+            <p className="text-sm text-neutral-400">{preview.strengths}</p>
+          </div>
+        )}
+        {preview.improvements && (
+          <div className="rounded-2xl border border-white/10 bg-surface p-4">
+            <p className="mb-1 text-xs font-bold uppercase text-primary">{t.previewReport.improvementsTitle}</p>
+            <p className="text-sm text-neutral-400">{preview.improvements}</p>
+          </div>
+        )}
+        {preview.opportunity && (
+          <div className="rounded-2xl border border-white/10 bg-surface p-4">
+            <p className="mb-1 text-xs font-bold uppercase text-primary">{t.previewReport.opportunityTitle}</p>
+            <p className="text-sm text-neutral-400">{preview.opportunity}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Target — target yang pelanggan isi sendiri di wizard. PLATINUM
+ * ditambah bagian Progress (placeholder transparan, bukan "coming soon",
+ * sampai Business Engine di Tahap 2 jalan). */
+function TargetPanel({ rawInput, tier, t }: { rawInput: Record<string, string> | null; tier: Tier; t: Translations }) {
+  const target = rawInput?.target;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-surface p-5">
+        <h3 className="mb-2 text-sm font-bold text-neutral-200">{t.workspace.targetTitle}</h3>
+        {target ? (
+          <p className="text-sm leading-relaxed text-neutral-400">{target}</p>
+        ) : (
+          <p className="text-sm text-neutral-500">{t.workspace.targetEmpty}</p>
+        )}
+      </div>
+
+      {tier === "platinum" && (
+        <div className="rounded-2xl border border-white/10 bg-surface p-5">
+          <h3 className="mb-2 text-sm font-bold text-neutral-200">{t.workspace.targetProgressTitle}</h3>
+          <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.targetProgressPlaceholder}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Competitor — terkunci total untuk Gratis (dengan upsell), transparan
+ * (bukan "Segera Hadir") untuk PRO/PLATINUM yang menunggu Tahap B. */
+function CompetitorPanel({ tier, t }: { tier: Tier; t: Translations }) {
+  if (tier === "free") {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
+        <div className="mb-3 text-2xl">🔒</div>
+        <p className="mx-auto max-w-sm text-sm text-neutral-400">{t.workspace.competitorLockedDesc}</p>
+        <button
+          onClick={() => hardNavigate("")}
+          className="mt-5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black hover:opacity-90"
+        >
+          {t.workspace.competitorUpgradeButton}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
+      <p className="mx-auto max-w-md text-sm leading-relaxed text-neutral-300">
+        {t.workspace.competitorProPlatinumMessage}
+      </p>
+    </div>
+  );
+}
+
+/** Growth — sama pola dengan Competitor. */
+function GrowthPanel({ tier, t }: { tier: Tier; t: Translations }) {
+  if (tier === "free") {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
+        <div className="mb-3 text-2xl">🔒</div>
+        <p className="mx-auto max-w-sm text-sm text-neutral-400">{t.workspace.growthLockedDesc}</p>
+        <button
+          onClick={() => hardNavigate("")}
+          className="mt-5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black hover:opacity-90"
+        >
+          {t.workspace.growthUpgradeButton}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
+      <p className="mx-auto max-w-md text-sm leading-relaxed text-neutral-300">
+        {t.workspace.growthProPlatinumMessage}
+      </p>
+    </div>
+  );
+}
+
 function Workspace() {
   const { user, session, loading, signOut } = useAuth();
   const { t, lang } = useLanguage();
@@ -218,6 +412,7 @@ function Workspace() {
   const [recycleBinLoading, setRecycleBinLoading] = useState(false);
   const [deletedBusinesses, setDeletedBusinesses] = useState<BusinessProfileRow[]>([]);
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
   const [confirmingPermanentDeleteId, setConfirmingPermanentDeleteId] = useState<string | null>(null);
   const [permanentDeleting, setPermanentDeleting] = useState(false);
   const [permanentDeleteError, setPermanentDeleteError] = useState<string | null>(null);
@@ -313,7 +508,7 @@ function Workspace() {
       const [analysesRes, subscriptionRes] = await Promise.all([
         supabase
           .from("analyses")
-          .select("id, raw_input, is_baseline, created_at")
+          .select("id, raw_input, ai_output, is_baseline, created_at")
           .eq("business_profile_id", activeBusinessId)
           .order("created_at", { ascending: false }),
         supabase
@@ -422,6 +617,7 @@ function Workspace() {
   async function handleRestore(businessProfileId: string) {
     if (!session?.access_token) return;
     setRestoringId(businessProfileId);
+    setRestoreError(null);
 
     try {
       const response = await fetch("/api/restore-business", {
@@ -436,6 +632,7 @@ function Workspace() {
       if (!response.ok) {
         const json = await response.json();
         console.error("restore-business error:", json.error);
+        setRestoreError(json.error || t.workspace.restoreError);
         setRestoringId(null);
         return;
       }
@@ -450,6 +647,7 @@ function Workspace() {
       setRestoringId(null);
     } catch (err) {
       console.error("restore-business error:", err);
+      setRestoreError(t.workspace.restoreError);
       setRestoringId(null);
     }
   }
@@ -534,6 +732,10 @@ function Workspace() {
   }
 
   const activeBusiness = businesses.find((b) => b.id === activeBusinessId) || null;
+  const latestAnalysis = analyses[0] || null;
+  const latestPreview = latestAnalysis?.ai_output || null;
+  const latestRawInput = latestAnalysis?.raw_input || null;
+  const tier = subscription?.tier || "free";
 
   return (
     <section className="mx-auto max-w-6xl px-6 py-10">
@@ -634,6 +836,16 @@ function Workspace() {
             </div>
           ) : activeMenu === "history" ? (
             <HistoryList analyses={analyses} t={t} lang={lang} />
+          ) : activeMenu === "score" ? (
+            <BusinessScorePanel preview={latestPreview} tier={tier} t={t} />
+          ) : activeMenu === "report" ? (
+            <ReportPanel preview={latestPreview} t={t} />
+          ) : activeMenu === "target" ? (
+            <TargetPanel rawInput={latestRawInput} tier={tier} t={t} />
+          ) : activeMenu === "competitor" ? (
+            <CompetitorPanel tier={tier} t={t} />
+          ) : activeMenu === "growth" ? (
+            <GrowthPanel tier={tier} t={t} />
           ) : (
             <ComingSoon
               label={MENU_ITEMS.find((m) => m.key === activeMenu)?.label || ""}
@@ -656,6 +868,7 @@ function Workspace() {
 
           {showRecycleBin && (
             <div className="mt-4 space-y-3">
+              {restoreError && <p className="text-sm text-red-400">{restoreError}</p>}
               {recycleBinLoading ? (
                 <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
               ) : deletedBusinesses.length === 0 ? (
