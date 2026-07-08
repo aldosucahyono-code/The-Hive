@@ -6,7 +6,7 @@
 // hasilnya jadi PDF. Kalau nanti mau ubah gaya bahasa atau aturan konten,
 // cukup ubah di sini — tidak perlu sentuh kode render sama sekali.
 
-import type { Tier } from "./types";
+import type { Tier } from "./types.js";
 
 export function buildSystemPrompt(
   tier: Tier,

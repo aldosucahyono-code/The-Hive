@@ -1,5 +1,5 @@
-import { ReportData } from "./types";
-import { PRO_GREEN, PRO_GREEN_LIGHT, NAVY, NAVY_LIGHT, NAVY_BAND, PLAT_GOLD, GREY, FONT_STACK } from "./theme";
+import { ReportData } from "./types.js";
+import { PRO_GREEN, PRO_GREEN_LIGHT, NAVY, NAVY_LIGHT, NAVY_BAND, PLAT_GOLD, GREY, FONT_STACK } from "./theme.js";
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

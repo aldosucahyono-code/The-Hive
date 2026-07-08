@@ -7,8 +7,8 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
-import { submitBusinessUpdate } from "../services/workspace/submitUpdate";
-import { listBusinessUpdates } from "../services/workspace/listUpdates";
+import { submitBusinessUpdate } from "../services/workspace/submitUpdate.js";
+import { listBusinessUpdates } from "../services/workspace/listUpdates.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 

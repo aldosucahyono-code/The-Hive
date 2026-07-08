@@ -16,9 +16,9 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import Anthropic from "@anthropic-ai/sdk";
-import { buildSystemPrompt } from "../report-engine/reportPrompt";
-import { renderReportPdf } from "../report-engine/renderPdf";
-import type { ReportData, Tier } from "../report-engine/types";
+import { buildSystemPrompt } from "../report-engine/reportPrompt.js";
+import { renderReportPdf } from "../report-engine/renderPdf.js";
+import type { ReportData, Tier } from "../report-engine/types.js";
 
 type WizardPayload = {
   jenisAnalisis: "baru" | "berjalan" | "";

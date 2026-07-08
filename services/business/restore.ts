@@ -3,7 +3,7 @@
 // Business logic untuk action "restore" (active = true kembali).
 
 import { createClient } from "@supabase/supabase-js";
-import type { ServiceResult } from "./create";
+import type { ServiceResult } from "./create.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 

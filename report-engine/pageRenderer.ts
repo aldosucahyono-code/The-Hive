@@ -1,6 +1,6 @@
-import { IntelligencePage } from "./types";
-import { kpiRow, calloutBox, decisionConfidenceRow, swotMatrix, pageIdentity } from "./components";
-import { renderChart } from "./svgCharts";
+import { IntelligencePage } from "./types.js";
+import { kpiRow, calloutBox, decisionConfidenceRow, swotMatrix, pageIdentity } from "./components.js";
+import { renderChart } from "./svgCharts.js";
 
 /**
  * Renders exactly one Business Intelligence page. This is the single

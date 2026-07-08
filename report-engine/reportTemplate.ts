@@ -1,8 +1,8 @@
-import { ReportData, DecisionMapRow } from "./types";
-import { baseStyles } from "./styles";
-import { THEME, DECISION_COLORS } from "./theme";
-import { renderIntelligencePage } from "./pageRenderer";
-import { kpiRow, calloutBox, simpleTable } from "./components";
+import { ReportData, DecisionMapRow } from "./types.js";
+import { baseStyles } from "./styles.js";
+import { THEME, DECISION_COLORS } from "./theme.js";
+import { renderIntelligencePage } from "./pageRenderer.js";
+import { kpiRow, calloutBox, simpleTable } from "./components.js";
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

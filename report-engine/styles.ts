@@ -1,4 +1,4 @@
-import { TierTheme, LINE, MIST, GREY, INK, FONT_STACK } from "./theme";
+import { TierTheme, LINE, MIST, GREY, INK, FONT_STACK } from "./theme.js";
 
 /**
  * One stylesheet, parameterized by tier theme. Content pages are always

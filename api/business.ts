@@ -14,11 +14,11 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
-import { createBusiness } from "../services/business/create";
-import { archiveBusiness } from "../services/business/archive";
-import { restoreBusiness } from "../services/business/restore";
-import { deleteBusinessPermanently } from "../services/business/delete";
-import { saveBusinessAnalysis } from "../services/business/saveAnalysis";
+import { createBusiness } from "../services/business/create.js";
+import { archiveBusiness } from "../services/business/archive.js";
+import { restoreBusiness } from "../services/business/restore.js";
+import { deleteBusinessPermanently } from "../services/business/delete.js";
+import { saveBusinessAnalysis } from "../services/business/saveAnalysis.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 

@@ -1,9 +1,9 @@
 import { chromium } from "playwright";
 import { PDFDocument } from "pdf-lib";
-import { ReportData } from "./types";
-import { renderContentHtml } from "./reportTemplate";
-import { renderCoverHtml } from "./coverTemplate";
-import { PLAT_GOLD, PRO_GREEN, PRO_GREEN_LIGHT, GREY } from "./theme";
+import { ReportData } from "./types.js";
+import { renderContentHtml } from "./reportTemplate.js";
+import { renderCoverHtml } from "./coverTemplate.js";
+import { PLAT_GOLD, PRO_GREEN, PRO_GREEN_LIGHT, GREY } from "./theme.js";
 
 const A4_MARGIN = { top: "30mm", bottom: "20mm", left: "22mm", right: "22mm" };
 
