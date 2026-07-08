@@ -60,6 +60,13 @@ function usePendingOrder(): PendingOrder | null {
   return order;
 }
 
+// Setelah Snap bilang sukses/pending, JANGAN langsung pindah ke Workspace —
+// webhook Midtrans (notification-handler) baru mengonfirmasi status async,
+// bisa telat beberapa detik. Tahap ini menunggu konfirmasi itu sambil
+// menampilkan pesan berjalan, supaya pelanggan merasa sistem sedang bekerja,
+// bukan merasa halamannya macet. Lihat AUDIT-THE-HIVE-2026-07-09.md (T2).
+type ConfirmStage = "polling" | "pendingTimeout" | "expired" | "failed";
+
 function PaymentPage({ plan }: { plan: PlanId }) {
   const { t } = useLanguage();
   const { user, session } = useAuth();
@@ -69,6 +76,8 @@ function PaymentPage({ plan }: { plan: PlanId }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [confirming, setConfirming] = useState<ConfirmStage | null>(null);
+  const [confirmMsgIndex, setConfirmMsgIndex] = useState(0);
 
   // businessProfileId didapat dari /api/promote-draft, dipanggil otomatis
   // begitu user login DAN ada draftId dari wizard yang tersimpan. Sebelum
@@ -120,6 +129,72 @@ function PaymentPage({ plan }: { plan: PlanId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, session?.access_token, order?.draftId, businessProfileId]);
 
+  // Menunggu webhook notification-handler benar-benar mengonfirmasi status
+  // transaksi (settlement/expire/deny/cancel) sebelum pindah ke Workspace.
+  // Pesan berputar tiap ~2.2 detik supaya terasa "sedang berjalan", polling
+  // status tiap ~2.5 detik lewat action getLatestPayment (backend, sudah
+  // dipakai juga oleh Workspace untuk kasus upgrade dari dalam Workspace).
+  function beginConfirmation() {
+    if (!businessProfileId || !session?.access_token) {
+      // Tidak seharusnya terjadi (tombol bayar butuh keduanya), tapi kalau
+      // sampai terjadi, jangan biarkan pelanggan macet — lanjut saja.
+      hardNavigate("workspace");
+      return;
+    }
+
+    setConfirming("polling");
+    setConfirmMsgIndex(0);
+
+    const msgInterval = setInterval(() => {
+      setConfirmMsgIndex((i) => (i + 1) % 4);
+    }, 2200);
+
+    let attempts = 0;
+    const maxAttempts = 6;
+    const pollInterval = setInterval(async () => {
+      attempts += 1;
+      try {
+        const response = await fetch("/api/workspace", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ action: "getLatestPayment", businessProfileId }),
+        });
+        const json = await response.json();
+        const status = json.payment?.status;
+
+        if (status === "settlement") {
+          clearInterval(pollInterval);
+          clearInterval(msgInterval);
+          hardNavigate("workspace");
+          return;
+        }
+        if (status === "expired") {
+          clearInterval(pollInterval);
+          clearInterval(msgInterval);
+          setConfirming("expired");
+          return;
+        }
+        if (status === "failed") {
+          clearInterval(pollInterval);
+          clearInterval(msgInterval);
+          setConfirming("failed");
+          return;
+        }
+      } catch (err) {
+        console.error("beginConfirmation poll error:", err);
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(pollInterval);
+        clearInterval(msgInterval);
+        setConfirming("pendingTimeout");
+      }
+    }, 2500);
+  }
+
   async function handleBayar() {
     if (!order || !session?.access_token || !businessProfileId) return;
     setIsProcessing(true);
@@ -150,10 +225,10 @@ function PaymentPage({ plan }: { plan: PlanId }) {
 
       window.snap.pay(data.token, {
         onSuccess: function () {
-          hardNavigate("workspace");
+          beginConfirmation();
         },
         onPending: function () {
-          hardNavigate("workspace");
+          beginConfirmation();
         },
         onError: function () {
           setPaymentError(t.paymentPage.paymentErrorGeneric);
@@ -168,6 +243,76 @@ function PaymentPage({ plan }: { plan: PlanId }) {
       setPaymentError(t.paymentPage.paymentErrorNetwork);
       setIsProcessing(false);
     }
+  }
+
+  if (confirming) {
+    const confirmMessages = [
+      t.paymentPage.confirmingMsg1,
+      t.paymentPage.confirmingMsg2,
+      t.paymentPage.confirmingMsg3,
+      t.paymentPage.confirmingMsg4,
+    ];
+
+    return (
+      <section className="mx-auto max-w-lg px-6 py-20">
+        <div className={`rounded-2xl border ${info.accent} bg-surface p-8 text-center`}>
+          {confirming === "polling" && (
+            <>
+              <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <p className="text-sm font-semibold text-neutral-200">{confirmMessages[confirmMsgIndex]}</p>
+            </>
+          )}
+
+          {confirming === "pendingTimeout" && (
+            <>
+              <div className="mb-3 text-2xl">⏳</div>
+              <h2 className="mb-2 text-lg font-extrabold text-white">{t.paymentPage.confirmingPendingTitle}</h2>
+              <p className="mb-6 text-sm leading-relaxed text-neutral-300">{t.paymentPage.confirmingPendingDesc}</p>
+              <button
+                onClick={() => hardNavigate("workspace")}
+                className={`w-full rounded-xl ${info.accentBg} py-3 text-sm font-bold text-white hover:opacity-90`}
+              >
+                {t.paymentPage.confirmingContinueButton}
+              </button>
+            </>
+          )}
+
+          {confirming === "expired" && (
+            <>
+              <div className="mb-3 text-2xl">⚠️</div>
+              <h2 className="mb-2 text-lg font-extrabold text-white">{t.paymentPage.confirmingExpiredTitle}</h2>
+              <p className="mb-6 text-sm leading-relaxed text-neutral-300">{t.paymentPage.confirmingExpiredDesc}</p>
+              <button
+                onClick={() => {
+                  setConfirming(null);
+                  setIsProcessing(false);
+                }}
+                className={`w-full rounded-xl ${info.accentBg} py-3 text-sm font-bold text-white hover:opacity-90`}
+              >
+                {t.paymentPage.confirmingRetryButton}
+              </button>
+            </>
+          )}
+
+          {confirming === "failed" && (
+            <>
+              <div className="mb-3 text-2xl">⚠️</div>
+              <h2 className="mb-2 text-lg font-extrabold text-white">{t.paymentPage.confirmingFailedTitle}</h2>
+              <p className="mb-6 text-sm leading-relaxed text-neutral-300">{t.paymentPage.confirmingFailedDesc}</p>
+              <button
+                onClick={() => {
+                  setConfirming(null);
+                  setIsProcessing(false);
+                }}
+                className={`w-full rounded-xl ${info.accentBg} py-3 text-sm font-bold text-white hover:opacity-90`}
+              >
+                {t.paymentPage.confirmingRetryButton}
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+    );
   }
 
   return (
