@@ -83,7 +83,7 @@ function UpgradeModal({ businessProfileId, businessName, onClose, onUpgraded }: 
 
   return (
     <div onClick={handleOverlayClick} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
-      <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-black/95 p-6 backdrop-blur-md sm:p-8">
+      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-black/95 p-6 backdrop-blur-md sm:p-8">
         {!processingPlan && (
           <button onClick={onClose} className="absolute right-4 top-4 text-neutral-400 hover:text-white">
             ✕

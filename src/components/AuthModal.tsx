@@ -40,7 +40,7 @@ export default function AuthModal({ onClose }: AuthModalProps) {
       onClick={handleOverlayClick}
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
     >
-      <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-black/95 p-8 backdrop-blur-md">
+      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-black/95 p-8 backdrop-blur-md">
         <button
           onClick={onClose}
           aria-label={t.authModal.closeLabel}
