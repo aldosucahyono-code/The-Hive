@@ -144,7 +144,7 @@ function TentangKami() {
   const p = t.aboutPage;
 
   return (
-    <section className="py-16" id="tentang-kami">
+    <section className="scroll-mt-[130px] py-16 md:scroll-mt-[96px]" id="tentang-kami">
       <div className="mx-auto max-w-6xl px-6">
         {/* ---------- Hero ---------- */}
         <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2">

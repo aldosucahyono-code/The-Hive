@@ -11,7 +11,7 @@ function Features({ animate }: FeaturesProps) {
   const fade = (delay: string) => (animate ? `animate-fade-up [animation-delay:${delay}]` : "");
 
   return (
-    <section className="py-16" id="fitur">
+    <section className="scroll-mt-[130px] py-16 md:scroll-mt-[96px]" id="fitur">
       <div className="mx-auto max-w-6xl px-6">
 
         <div className={"mx-auto mb-10 max-w-xl text-center " + fade("0ms")}>

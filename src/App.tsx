@@ -53,12 +53,42 @@ function App() {
 
     let attempts = 0;
     let frameId: number;
+    let resizeObserver: ResizeObserver | undefined;
+    let failsafeTimeoutId: number | undefined;
+
+    // Catatan penting: navigasi antar-section SELALU lewat hardNavigate
+    // (full page reload, lihat utils/navigate.ts), jadi "scroll ke section"
+    // ini sebenarnya "pulihkan posisi setelah reload" — bukan smooth-scroll
+    // in-page biasa. html{scroll-behavior:smooth} (index.css) membuat
+    // scrollIntoView() dianimasikan; kalau gambar di atas target (mascot
+    // Beemo, ikon fitur, dst) masih memuat SAAT animasi berjalan, tinggi
+    // dokumen berubah di tengah jalan dan hasilnya scroll bisa mendarat
+    // meleset (pernah teramati: overshoot sampai lewat section tujuan).
+    // Fix: paksa instant (lompat langsung, tidak lomba dengan animasi),
+    // lalu re-align setiap kali tinggi body BENAR-BENAR berubah (via
+    // ResizeObserver) — bukan menebak durasi delay.
+    function alignToTarget() {
+      const target = document.getElementById(hash);
+      if (target) target.scrollIntoView({ behavior: "instant", block: "start" });
+    }
 
     function tryScroll() {
       const target = document.getElementById(hash);
 
       if (target) {
-        target.scrollIntoView();
+        alignToTarget();
+
+        if (typeof ResizeObserver !== "undefined") {
+          let settleTimer: number;
+          resizeObserver = new ResizeObserver(() => {
+            alignToTarget();
+            window.clearTimeout(settleTimer);
+            settleTimer = window.setTimeout(() => resizeObserver?.disconnect(), 400);
+          });
+          resizeObserver.observe(document.body);
+          // Failsafe — jangan amati tanpa batas kalau tidak pernah "diam".
+          failsafeTimeoutId = window.setTimeout(() => resizeObserver?.disconnect(), 3000);
+        }
         return;
       }
 
@@ -70,7 +100,11 @@ function App() {
 
     frameId = requestAnimationFrame(tryScroll);
 
-    return () => cancelAnimationFrame(frameId);
+    return () => {
+      cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      if (failsafeTimeoutId) window.clearTimeout(failsafeTimeoutId);
+    };
   }, [start, rawHash]);
 
   // Halaman khusus (legal, ulasan internal, referensi) tampil MENGGANTIKAN

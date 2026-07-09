@@ -10,7 +10,7 @@ function Pricing({ onStart, animate }: PricingProps) {
   const fade = (delay: string) => (animate ? `animate-fade-up [animation-delay:${delay}]` : "");
 
   return (
-    <section className="py-16" id="paket">
+    <section className="scroll-mt-[130px] py-16 md:scroll-mt-[96px]" id="paket">
       <div className="mx-auto max-w-5xl px-6">
         <div className={"mb-10 text-center " + fade("0ms")}>
           <span className="mb-4 inline-block rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold text-primary">
