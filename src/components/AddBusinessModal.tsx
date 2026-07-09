@@ -151,7 +151,7 @@ function AddBusinessModal({ onClose, onCreated }: AddBusinessModalProps) {
 
     const wizardData = {
       jenisAnalisis,
-      nama: session.user?.email?.split("@")[0] || "Pemilik Bisnis",
+      nama: session.user?.email?.split("@")[0] || t.addBusinessModal.defaultOwnerName,
       namaBisnis,
       jenisBisnis,
       lokasi,

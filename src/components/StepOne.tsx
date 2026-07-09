@@ -75,7 +75,7 @@ function StepOne({ data, updateField, next }: StepOneProps) {
         <label className="mb-2 block text-sm">
           {t.stepOne.namaLabel} <span className="text-primary">*</span>
           {touched.nama && !namaValid && (
-            <span className="ml-2 text-amber-400" title="Hanya huruf, minimal 3 karakter, tidak boleh huruf berulang/asal">⚠</span>
+            <span className="ml-2 text-amber-400" title={t.stepOne.namaWarningTitle}>⚠</span>
           )}
         </label>
         <input
@@ -93,7 +93,7 @@ function StepOne({ data, updateField, next }: StepOneProps) {
         <label className="mb-2 block text-sm">
           {t.stepOne.emailLabel} <span className="text-primary">*</span>
           {touched.email && !emailValid && (
-            <span className="ml-2 text-amber-400" title="Masukkan format email yang benar">⚠</span>
+            <span className="ml-2 text-amber-400" title={t.stepOne.emailWarningTitle}>⚠</span>
           )}
         </label>
         <input
@@ -111,7 +111,7 @@ function StepOne({ data, updateField, next }: StepOneProps) {
         <label className="mb-2 block text-sm">
           {t.stepOne.profesiLabel} <span className="text-primary">*</span>
           {touched.profesi && !profesiValid && (
-            <span className="ml-2 text-amber-400" title="Hanya huruf, minimal 3 karakter, tidak boleh mengandung profesi ilegal/negatif">⚠</span>
+            <span className="ml-2 text-amber-400" title={t.stepOne.profesiWarningTitle}>⚠</span>
           )}
         </label>
         <input
@@ -129,7 +129,7 @@ function StepOne({ data, updateField, next }: StepOneProps) {
         <label className="mb-2 block text-sm">
           {t.stepOne.namaBisnisLabel} <span className="text-primary">*</span>
           {touched.namaBisnis && !namaBisnisValid && (
-            <span className="ml-2 text-amber-400" title="Wajib diisi dengan nama yang wajar">⚠</span>
+            <span className="ml-2 text-amber-400" title={t.stepOne.namaBisnisWarningTitle}>⚠</span>
           )}
         </label>
         <input
@@ -146,7 +146,7 @@ function StepOne({ data, updateField, next }: StepOneProps) {
         <label className="mb-2 block text-sm">
           {t.stepOne.jenisBisnisLabel} <span className="text-primary">*</span>
           {touched.jenisBisnis && !jenisBisnisValid && (
-            <span className="ml-2 text-amber-400" title="Hanya huruf, minimal 3 karakter, tidak boleh huruf berulang/asal">⚠</span>
+            <span className="ml-2 text-amber-400" title={t.stepOne.jenisBisnisWarningTitle}>⚠</span>
           )}
         </label>
         <input

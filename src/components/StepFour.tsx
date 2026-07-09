@@ -45,7 +45,7 @@ function StepFour({ data, updateField, next, back }: StepFourProps) {
         <label className="mb-2 block text-sm">
           {t.stepFour.title} <span className="text-primary">*</span>
           {touched && !ceritaValid && (
-            <span className="ml-2 text-amber-400" title="Ceritakan lebih lengkap, minimal beberapa kalimat">⚠</span>
+            <span className="ml-2 text-amber-400" title={t.stepFour.warningTitle}>⚠</span>
           )}
         </label>
         <p className="mb-3 text-sm leading-relaxed text-neutral-300">{t.stepFour.intro}</p>

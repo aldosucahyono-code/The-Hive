@@ -60,7 +60,7 @@ function StepThree({ data, updateField, next, back }: StepThreeProps) {
         <label className="mb-2 block text-sm">
           {tantanganLabel} <span className="text-primary">*</span>
           {touched.tantangan && !tantanganValid && (
-            <span className="ml-2 text-amber-400" title="Minimal 7 karakter, 2 kata, tidak boleh asal/berulang">⚠</span>
+            <span className="ml-2 text-amber-400" title={t.stepThree.warningTitle}>⚠</span>
           )}
         </label>
         <textarea
@@ -78,7 +78,7 @@ function StepThree({ data, updateField, next, back }: StepThreeProps) {
         <label className="mb-2 block text-sm">
           {t.stepThree.targetLabel} <span className="text-primary">*</span>
           {touched.target && !targetValid && (
-            <span className="ml-2 text-amber-400" title="Minimal 7 karakter, 2 kata, tidak boleh asal/berulang">⚠</span>
+            <span className="ml-2 text-amber-400" title={t.stepThree.warningTitle}>⚠</span>
           )}
         </label>
         <textarea

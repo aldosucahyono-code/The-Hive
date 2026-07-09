@@ -142,7 +142,7 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
         <label className="mb-2 block text-sm">
           {isBaru ? t.stepTwo.lokasiLabelNew : t.stepTwo.lokasiLabelRunning} <span className="text-primary">*</span>
           {touched.lokasi && !lokasiValid && (
-            <span className="ml-2 text-amber-400" title="Minimal 2 kata, tidak boleh asal/berulang">⚠</span>
+            <span className="ml-2 text-amber-400" title={t.stepTwo.lokasiWarningTitle}>⚠</span>
           )}
         </label>
         <input
@@ -162,7 +162,7 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
             <label className="mb-2 block text-sm">
               {t.stepTwo.targetPelangganLabel} <span className="text-primary">*</span>
               {touched.targetPelanggan && !targetPelangganValid && (
-                <span className="ml-2 text-amber-400" title="Minimal 2 kata, jangan asal ketik">⚠</span>
+                <span className="ml-2 text-amber-400" title={t.stepTwo.targetPelangganWarningTitle}>⚠</span>
               )}
             </label>
             <textarea
@@ -180,7 +180,7 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
             <label className="mb-2 block text-sm">
               {t.stepTwo.rencanaLaunchingLabel} <span className="text-primary">*</span>
               {touched.rencanaLaunching && !rencanaLaunchingValid && (
-                <span className="ml-2 text-amber-400" title="Tidak boleh tanggal yang sudah lewat">⚠</span>
+                <span className="ml-2 text-amber-400" title={t.stepTwo.rencanaLaunchingWarningTitle}>⚠</span>
               )}
             </label>
             <input
@@ -199,7 +199,7 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
           <label className="mb-2 block text-sm">
             {t.stepTwo.sejakKapanLabel} <span className="text-primary">*</span>
             {touched.sejakKapan && !sejakKapanValid && (
-              <span className="ml-2 text-amber-400" title="Tidak boleh tanggal di masa depan">⚠</span>
+              <span className="ml-2 text-amber-400" title={t.stepTwo.sejakKapanWarningTitle}>⚠</span>
             )}
           </label>
           <input
@@ -218,7 +218,7 @@ function StepTwo({ data, updateField, next, back }: StepTwoProps) {
         <label className="mb-2 block text-sm">
           {isBaru ? t.stepTwo.modalAwalLabel : t.stepTwo.omsetLabel} <span className="text-primary">*</span>
           {touched.omsetBulanan && !omsetValid && (
-            <span className="ml-2 text-amber-400" title="Isi dengan angka">⚠</span>
+            <span className="ml-2 text-amber-400" title={t.stepTwo.omsetWarningTitle}>⚠</span>
           )}
         </label>
         <input

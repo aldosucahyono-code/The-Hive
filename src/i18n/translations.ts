@@ -43,6 +43,9 @@ const id = {
     greeting: "Halo, saya Beemo.",
     subtitleNew: "Menganalisis rencana bisnis baru Anda.",
     subtitleRunning: "Menganalisis bisnis Anda yang sudah berjalan.",
+    previewErrorGeneric: "Gagal membuat preview.",
+    previewErrorTimeout: "Analisis memakan waktu terlalu lama. Coba lagi.",
+    previewErrorNetwork: "Terjadi kesalahan jaringan. Coba lagi.",
   },
 
   stepOne: {
@@ -50,17 +53,22 @@ const id = {
     namaLabel: "Nama Anda",
     namaPlaceholder: "Contoh : Michael Aldo",
     namaHelper: "Hanya huruf, minimal 3 karakter, tanpa angka/simbol/huruf berulang.",
+    namaWarningTitle: "Hanya huruf, minimal 3 karakter, tidak boleh huruf berulang/asal",
     emailLabel: "Email Anda",
     emailPlaceholder: "Contoh : nama@email.com",
     emailHelper: "Bukti pembayaran Anda akan dikirim ke email ini.",
+    emailWarningTitle: "Masukkan format email yang benar",
     profesiLabel: "Profesi Anda",
     profesiPlaceholder: "Founder, Owner, Manager...",
     profesiHelper: "Hanya huruf, minimal 3 karakter, tidak boleh profesi ilegal/negatif (mis. pencuri, hacker).",
+    profesiWarningTitle: "Hanya huruf, minimal 3 karakter, tidak boleh mengandung profesi ilegal/negatif",
     namaBisnisLabel: "Nama Bisnis/Brand Anda",
     namaBisnisPlaceholder: "Contoh : King Rawon & King Juice Premium",
+    namaBisnisWarningTitle: "Wajib diisi dengan nama yang wajar",
     jenisBisnisLabel: "Jenis Bisnis Anda",
     jenisBisnisPlaceholder: "Coffee Shop, Kontraktor, Retail...",
     jenisBisnisHelper: "Hanya huruf, minimal 3 karakter, tanpa angka/simbol/huruf berulang.",
+    jenisBisnisWarningTitle: "Hanya huruf, minimal 3 karakter, tidak boleh huruf berulang/asal",
     formError: "Periksa kembali kolom yang ditandai ⚠ sebelum lanjut.",
   },
 
@@ -70,19 +78,24 @@ const id = {
     lokasiLabelRunning: "Lokasi Bisnis Anda",
     lokasiPlaceholder: "Contoh : Sukun, Kota Malang",
     lokasiHelper: "Sertakan kecamatan/kota (minimal 2 kata), jangan disingkat/asal ketik.",
+    lokasiWarningTitle: "Minimal 2 kata, tidak boleh asal/berulang",
     targetPelangganLabel: "Target Pelanggan Anda",
     targetPelangganPlaceholder: "Contoh : Mahasiswa dan pekerja muda usia 18-30 tahun di sekitar kampus...",
     targetPelangganHelper: "Ceritakan siapa calon pelanggan utama Anda.",
+    targetPelangganWarningTitle: "Minimal 2 kata, jangan asal ketik",
     rencanaLaunchingLabel: "Rencana Kapan Launching",
     rencanaLaunchingHelper:
       "Perkiraan saja tidak apa-apa — ini membantu kami menyusun apa saja yang perlu disiapkan sebelum hari peluncuran.",
+    rencanaLaunchingWarningTitle: "Tidak boleh tanggal yang sudah lewat",
     sejakKapanLabel: "Sejak Kapan Bisnis Berjalan",
     sejakKapanHelper: "Pilih tanggal mulai bisnis Anda beroperasi (tidak boleh tanggal yang belum terjadi).",
+    sejakKapanWarningTitle: "Tidak boleh tanggal di masa depan",
     modalAwalLabel: "Estimasi Modal Awal",
     omsetLabel: "Rata-rata Omset Bulanan Saat Ini",
     omsetPlaceholderNew: "Contoh : Rp10.000.000,-",
     omsetPlaceholderRunning: "Contoh : Rp15.000.000,-",
     omsetHelper: "Cukup ketik angkanya, format Rupiah otomatis menyesuaikan.",
+    omsetWarningTitle: "Isi dengan angka",
     formError: "Periksa kembali kolom yang ditandai ⚠ sebelum lanjut.",
   },
 
@@ -95,6 +108,7 @@ const id = {
     tantanganPlaceholderRunning:
       "Contoh : Penjualan menurun karena kualitas produk tidak konsisten sejak bulan kedua buka...",
     helper: "Ceritakan sedetail mungkin (minimal 2 kata), jangan asal ketik.",
+    warningTitle: "Minimal 7 karakter, 2 kata, tidak boleh asal/berulang",
     targetLabel: "Target / Harapan Bisnis Anda",
     targetPlaceholderNew:
       "Contoh : Ingin buka dan langsung ramai pelanggan dalam 3 bulan pertama, balik modal dalam setahun...",
@@ -110,6 +124,7 @@ const id = {
       "Ceritakan kondisi Anda saat ini, impian terbesar yang ingin dicapai, dan bagaimana Anda memandang bisnis. Dari cerita Anda, saya akan membantu menyusun strategi yang paling sesuai untuk mencapai tujuan tersebut.",
     placeholder: "Tulis dengan bahasa Anda sendiri, sesantai mengobrol dengan konsultan yang Anda percaya...",
     helper: "Semakin jujur dan detail cerita Anda, semakin tepat sasaran strategi yang bisa kami susun.",
+    warningTitle: "Ceritakan lebih lengkap, minimal beberapa kalimat",
     formError: "Cerita Anda masih terlalu singkat — coba ceritakan lebih lengkap sebelum lanjut.",
   },
 
@@ -759,6 +774,7 @@ const id = {
 
   addBusinessModal: {
     closeLabel: "Tutup",
+    defaultOwnerName: "Pemilik Bisnis",
     title: "Tambah Bisnis Baru",
     subtitle: "Setiap bisnis punya Workspace, riwayat analisa, dan status akses sendiri-sendiri.",
     chooseTitle: "Bisnis ini seperti apa?",
@@ -808,6 +824,25 @@ const id = {
     genericError: "Gagal menyimpan update bisnis",
     networkError: "Gagal terhubung ke server. Periksa koneksi internetmu.",
   },
+
+  feedbackPage: {
+    internalLabel: "Halaman Internal",
+    title: "Beri Masukan untuk Kami",
+    descPrefix: "Ulasan ini ",
+    descBold: "tidak ditampilkan ke publik",
+    descSuffix: " — hanya digunakan untuk perbaikan produk secara langsung.",
+    namaLabel: "Nama (opsional)",
+    namaPlaceholder: "Nama Anda",
+    kontakLabel: "Email/WhatsApp (opsional, kalau ingin ditanggapi)",
+    kontakPlaceholder: "email@contoh.com atau nomor WhatsApp",
+    ratingLabel: "Seberapa puas Anda dengan hasil analisisnya?",
+    pesanLabel: "Masukan Anda",
+    pesanPlaceholder: "Ceritakan pengalaman Anda, apa yang kurang, atau saran perbaikan...",
+    sentMessage: "Email masukan sedang disiapkan di aplikasi email Anda — silakan kirim dari sana.",
+    submitButton: "Kirim Masukan",
+    emailSubject: "Masukan untuk THE HIVE",
+    notFilled: "(tidak diisi)",
+  },
 };
 
 export type Translations = typeof id;
@@ -847,6 +882,9 @@ const en: Translations = {
     greeting: "Hi, I'm Beemo.",
     subtitleNew: "Analyzing your new business plan.",
     subtitleRunning: "Analyzing your running business.",
+    previewErrorGeneric: "Failed to generate preview.",
+    previewErrorTimeout: "Analysis took too long. Please try again.",
+    previewErrorNetwork: "A network error occurred. Please try again.",
   },
 
   stepOne: {
@@ -854,17 +892,22 @@ const en: Translations = {
     namaLabel: "Your Name",
     namaPlaceholder: "e.g. Michael Aldo",
     namaHelper: "Letters only, minimum 3 characters, no numbers/symbols/repeated letters.",
+    namaWarningTitle: "Letters only, minimum 3 characters, no repeated/careless letters",
     emailLabel: "Your Email",
     emailPlaceholder: "e.g. name@email.com",
     emailHelper: "Your payment receipt will be sent to this email.",
+    emailWarningTitle: "Enter a valid email format",
     profesiLabel: "Your Profession",
     profesiPlaceholder: "Founder, Owner, Manager...",
     profesiHelper: "Letters only, minimum 3 characters, no illegal/negative professions (e.g. thief, hacker).",
+    profesiWarningTitle: "Letters only, minimum 3 characters, no illegal/negative professions",
     namaBisnisLabel: "Your Business/Brand Name",
     namaBisnisPlaceholder: "e.g. King Rawon & King Juice Premium",
+    namaBisnisWarningTitle: "Must be filled with a reasonable name",
     jenisBisnisLabel: "Your Business Type",
     jenisBisnisPlaceholder: "Coffee Shop, Contractor, Retail...",
     jenisBisnisHelper: "Letters only, minimum 3 characters, no numbers/symbols/repeated letters.",
+    jenisBisnisWarningTitle: "Letters only, minimum 3 characters, no repeated/careless letters",
     formError: "Please check the fields marked ⚠ before continuing.",
   },
 
@@ -874,19 +917,24 @@ const en: Translations = {
     lokasiLabelRunning: "Your Business Location",
     lokasiPlaceholder: "e.g. Sukun, Malang City",
     lokasiHelper: "Include the district/city (minimum 2 words), don't abbreviate or type carelessly.",
+    lokasiWarningTitle: "Minimum 2 words, no careless/repeated input",
     targetPelangganLabel: "Your Target Customers",
     targetPelangganPlaceholder: "e.g. College students and young workers aged 18-30 near campus...",
     targetPelangganHelper: "Tell us who your main prospective customers are.",
+    targetPelangganWarningTitle: "Minimum 2 words, don't type carelessly",
     rencanaLaunchingLabel: "Planned Launch Date",
     rencanaLaunchingHelper:
       "An estimate is fine — this helps us map out what needs preparing before launch day.",
+    rencanaLaunchingWarningTitle: "Cannot be a date in the past",
     sejakKapanLabel: "Operating Since",
     sejakKapanHelper: "Pick the date your business started operating (cannot be a future date).",
+    sejakKapanWarningTitle: "Cannot be a future date",
     modalAwalLabel: "Estimated Starting Capital",
     omsetLabel: "Average Monthly Revenue",
     omsetPlaceholderNew: "e.g. Rp10,000,000",
     omsetPlaceholderRunning: "e.g. Rp15,000,000",
     omsetHelper: "Just type the number, the currency format adjusts automatically.",
+    omsetWarningTitle: "Fill in with numbers",
     formError: "Please check the fields marked ⚠ before continuing.",
   },
 
@@ -899,6 +947,7 @@ const en: Translations = {
     tantanganPlaceholderRunning:
       "e.g. Sales have declined due to inconsistent product quality since the second month of opening...",
     helper: "Describe it in as much detail as you can (at least 2 words), don't type carelessly.",
+    warningTitle: "Minimum 7 characters, 2 words, no careless/repeated input",
     targetLabel: "Your Business Target / Hopes",
     targetPlaceholderNew:
       "e.g. Want to open and immediately attract customers within the first 3 months, break even within a year...",
@@ -914,6 +963,7 @@ const en: Translations = {
       "Tell us about your current situation, the biggest dream you want to achieve, and how you see business. From your story, I'll help craft the strategy that fits your goals best.",
     placeholder: "Write in your own words, as relaxed as chatting with a consultant you trust...",
     helper: "The more honest and detailed your story, the more targeted the strategy we can build.",
+    warningTitle: "Tell us more, at least a few sentences",
     formError: "Your story is still a bit short — tell us more before continuing.",
   },
 
@@ -1563,6 +1613,7 @@ const en: Translations = {
 
   addBusinessModal: {
     closeLabel: "Close",
+    defaultOwnerName: "Business Owner",
     title: "Add New Business",
     subtitle: "Each business has its own Workspace, analysis history, and access status.",
     chooseTitle: "What's this business like?",
@@ -1611,6 +1662,25 @@ const en: Translations = {
     formError: "Please check the incomplete fields.",
     genericError: "Failed to save business update",
     networkError: "Failed to connect to the server. Check your internet connection.",
+  },
+
+  feedbackPage: {
+    internalLabel: "Internal Page",
+    title: "Give Us Feedback",
+    descPrefix: "This feedback is ",
+    descBold: "not shown publicly",
+    descSuffix: " — it's used only to improve the product directly.",
+    namaLabel: "Name (optional)",
+    namaPlaceholder: "Your name",
+    kontakLabel: "Email/WhatsApp (optional, if you'd like a reply)",
+    kontakPlaceholder: "email@example.com or WhatsApp number",
+    ratingLabel: "How satisfied are you with the analysis result?",
+    pesanLabel: "Your Feedback",
+    pesanPlaceholder: "Tell us about your experience, what's missing, or suggestions for improvement...",
+    sentMessage: "Your feedback email is ready in your email app — please send it from there.",
+    submitButton: "Send Feedback",
+    emailSubject: "Feedback for THE HIVE",
+    notFilled: "(not filled)",
   },
 };
 

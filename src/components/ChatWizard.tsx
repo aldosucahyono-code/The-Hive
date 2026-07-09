@@ -47,7 +47,7 @@ const initialData: WizardData = {
 // Step 6: loading AI
 // Step 7: hasil preview
 function ChatWizard() {
-  const { lang } = useLanguage();
+  const { lang, t } = useLanguage();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<WizardData>(initialData);
   const [startTime] = useState(() => Date.now());
@@ -87,7 +87,7 @@ function ChatWizard() {
       });
       const json = await response.json();
       if (!response.ok) {
-        setPreviewError(json.error || "Gagal membuat preview.");
+        setPreviewError(json.error || t.chatWizard.previewErrorGeneric);
         setPreviewData(null);
       } else {
         setPreviewData(json.preview as PreviewData);
@@ -95,9 +95,9 @@ function ChatWizard() {
     } catch (err) {
       console.error("runPreviewAnalysis error:", err);
       if (err instanceof Error && err.name === "AbortError") {
-        setPreviewError("Analisis memakan waktu terlalu lama. Coba lagi.");
+        setPreviewError(t.chatWizard.previewErrorTimeout);
       } else {
-        setPreviewError("Terjadi kesalahan jaringan. Coba lagi.");
+        setPreviewError(t.chatWizard.previewErrorNetwork);
       }
       setPreviewData(null);
     } finally {

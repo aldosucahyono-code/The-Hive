@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 function FeedbackPage() {
+  const { t } = useLanguage();
   const [nama, setNama] = useState("");
   const [kontak, setKontak] = useState("");
   const [pesan, setPesan] = useState("");
@@ -13,9 +15,9 @@ function FeedbackPage() {
     // CATATAN TEKNIS: karena belum ada backend/database, kirim lewat email
     // client bawaan (mailto) untuk sementara. Begitu backend siap, ganti
     // ini dengan panggilan API yang menyimpan ke database.
-    const subject = encodeURIComponent("Masukan untuk THE HIVE");
+    const subject = encodeURIComponent(t.feedbackPage.emailSubject);
     const body = encodeURIComponent(
-      `Nama: ${nama || "(tidak diisi)"}\nKontak: ${kontak || "(tidak diisi)"}\nRating: ${rating || "-"}/5\n\nPesan:\n${pesan}`
+      `Nama: ${nama || t.feedbackPage.notFilled}\nKontak: ${kontak || t.feedbackPage.notFilled}\nRating: ${rating || "-"}/5\n\nPesan:\n${pesan}`
     );
     window.location.href = `mailto:masukan@thehive.id?subject=${subject}&body=${body}`;
     setSent(true);
@@ -25,40 +27,41 @@ function FeedbackPage() {
     <section className="mx-auto max-w-xl px-6 py-16">
 
       <div className="mb-8 text-center">
-        <span className="text-xs font-bold uppercase tracking-widest text-primary">Halaman Internal</span>
-        <h1 className="mt-2 text-2xl font-extrabold">Beri Masukan untuk Kami</h1>
+        <span className="text-xs font-bold uppercase tracking-widest text-primary">{t.feedbackPage.internalLabel}</span>
+        <h1 className="mt-2 text-2xl font-extrabold">{t.feedbackPage.title}</h1>
         <p className="mt-2 text-sm text-neutral-400">
-          Ulasan ini <strong className="text-white">tidak ditampilkan ke publik</strong> — hanya
-          digunakan untuk perbaikan produk secara langsung.
+          {t.feedbackPage.descPrefix}
+          <strong className="text-white">{t.feedbackPage.descBold}</strong>
+          {t.feedbackPage.descSuffix}
         </p>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-surface p-6 sm:p-8">
 
         <div className="mb-5">
-          <label className="mb-2 block text-sm">Nama (opsional)</label>
+          <label className="mb-2 block text-sm">{t.feedbackPage.namaLabel}</label>
           <input
             type="text"
             value={nama}
             onChange={(e) => setNama(e.target.value)}
             className="w-full rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary"
-            placeholder="Nama Anda"
+            placeholder={t.feedbackPage.namaPlaceholder}
           />
         </div>
 
         <div className="mb-5">
-          <label className="mb-2 block text-sm">Email/WhatsApp (opsional, kalau ingin ditanggapi)</label>
+          <label className="mb-2 block text-sm">{t.feedbackPage.kontakLabel}</label>
           <input
             type="text"
             value={kontak}
             onChange={(e) => setKontak(e.target.value)}
             className="w-full rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary"
-            placeholder="email@contoh.com atau nomor WhatsApp"
+            placeholder={t.feedbackPage.kontakPlaceholder}
           />
         </div>
 
         <div className="mb-5">
-          <label className="mb-2 block text-sm">Seberapa puas Anda dengan hasil analisisnya?</label>
+          <label className="mb-2 block text-sm">{t.feedbackPage.ratingLabel}</label>
           <div className="flex gap-2">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
@@ -73,19 +76,19 @@ function FeedbackPage() {
         </div>
 
         <div className="mb-6">
-          <label className="mb-2 block text-sm">Masukan Anda <span className="text-primary">*</span></label>
+          <label className="mb-2 block text-sm">{t.feedbackPage.pesanLabel} <span className="text-primary">*</span></label>
           <textarea
             rows={5}
             value={pesan}
             onChange={(e) => setPesan(e.target.value)}
             className="w-full resize-none rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary"
-            placeholder="Ceritakan pengalaman Anda, apa yang kurang, atau saran perbaikan..."
+            placeholder={t.feedbackPage.pesanPlaceholder}
           />
         </div>
 
         {sent && (
           <p className="mb-4 text-sm text-amber-300">
-            Email masukan sedang disiapkan di aplikasi email Anda — silakan kirim dari sana.
+            {t.feedbackPage.sentMessage}
           </p>
         )}
 
@@ -93,7 +96,7 @@ function FeedbackPage() {
           onClick={handleSubmit}
           className="w-full rounded-xl bg-primary py-4 text-base font-bold text-black transition-transform hover:-translate-y-0.5"
         >
-          Kirim Masukan
+          {t.feedbackPage.submitButton}
         </button>
 
       </div>
