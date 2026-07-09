@@ -774,17 +774,29 @@ function GrowthPanel({
                       : difficulty === "platinum"
                         ? t.workspace.difficultyPlatinum
                         : null;
+              const businessValue = lang === "id" ? (a.businessValueId as string | null) : (a.businessValueEn as string | null);
               return (
-                <div key={a.code as string} className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-white">{lang === "id" ? (a.titleId as string) : (a.titleEn as string)}</p>
+                <div
+                  key={a.code as string}
+                  className="rounded-xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-primary/20"
+                >
+                  <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                      <span aria-hidden="true">🏆</span>
+                      {lang === "id" ? (a.titleId as string) : (a.titleEn as string)}
+                    </p>
                     {difficultyLabel && (
-                      <span className="text-xs font-medium text-neutral-500">{difficultyLabel}</span>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-neutral-400">
+                        {difficultyLabel}
+                      </span>
                     )}
                   </div>
-                  <p className="mb-1 text-sm text-neutral-400">
+                  <p className="mb-2 text-sm text-neutral-400">
                     {lang === "id" ? (a.descriptionId as string) : (a.descriptionEn as string)}
                   </p>
+                  {businessValue && (
+                    <p className="mb-2 text-sm italic text-primary/80">{businessValue}</p>
+                  )}
                   <p className="text-xs text-neutral-500">
                     {new Date(a.unlockedAt as string).toLocaleDateString(LOCALE_MAP[lang], {
                       day: "numeric",
@@ -811,10 +823,15 @@ function GrowthPanel({
           <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.growthNextMilestoneNone}</p>
         ) : (
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-            <p className="text-sm font-semibold text-white">
-              {lang === "id"
-                ? (achievements.nextMilestone.titleId as string)
-                : (achievements.nextMilestone.titleEn as string)}
+            <p className="text-sm font-semibold leading-relaxed text-white">
+              {fillTemplate(t.workspace.growthNextMilestoneTemplate, {
+                remaining: achievements.nextMilestone.remaining as number,
+                unit: lang === "id" ? (achievements.nextMilestone.unitId as string) : (achievements.nextMilestone.unitEn as string),
+                title:
+                  lang === "id"
+                    ? (achievements.nextMilestone.titleId as string)
+                    : (achievements.nextMilestone.titleEn as string),
+              })}
             </p>
           </div>
         )}

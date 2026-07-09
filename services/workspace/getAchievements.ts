@@ -21,6 +21,8 @@ type AchievementDefinitionJoin = {
   title_en: string;
   short_description_id: string;
   short_description_en: string;
+  business_value_id: string | null;
+  business_value_en: string | null;
 };
 
 type UnlockedRow = {
@@ -55,7 +57,7 @@ export async function getAchievements(userId: string, payload: Record<string, un
   const { data: unlockedRows, error } = await supabase
     .from("business_achievements")
     .select(
-      "unlocked_at, achievement_definitions(code, category, difficulty, title_id, title_en, short_description_id, short_description_en)"
+      "unlocked_at, achievement_definitions(code, category, difficulty, title_id, title_en, short_description_id, short_description_en, business_value_id, business_value_en)"
     )
     .eq("business_profile_id", businessProfileId)
     .order("unlocked_at", { ascending: false });
@@ -77,6 +79,8 @@ export async function getAchievements(userId: string, payload: Record<string, un
         titleEn: def.title_en,
         descriptionId: def.short_description_id,
         descriptionEn: def.short_description_en,
+        businessValueId: def.business_value_id,
+        businessValueEn: def.business_value_en,
         unlockedAt: row.unlocked_at,
       };
     })

@@ -54,6 +54,29 @@ function priorityRank(priority: string | null | undefined): number {
   return PRIORITY_RANK[priority ?? "normal"] ?? PRIORITY_RANK.normal;
 }
 
+// Label satuan untuk Next Milestone (Product Owner feedback: kalimat "tinggal
+// X lagi" harus konkret, bukan cuma judul polos). Ini murni pemetaan tampilan
+// dari condition_type yang SUDAH ada — bukan data/logika baru, dan tidak
+// mengubah kriteria unlock apapun.
+const UNIT_LABELS: Record<string, { id: string; en: string }> = {
+  business_updates_count: { id: "Business Update", en: "Business Update" },
+  business_updates_streak_weeks: { id: "minggu", en: "week" },
+  business_health_score: { id: "poin", en: "point" },
+  sales_score: { id: "poin", en: "point" },
+  finance_score: { id: "poin", en: "point" },
+  customer_score: { id: "poin", en: "point" },
+  marketing_score: { id: "poin", en: "point" },
+  operations_score: { id: "poin", en: "point" },
+  brand_score: { id: "poin", en: "point" },
+  journey_growth: { id: "%", en: "%" },
+  period_growth: { id: "%", en: "%" },
+  member_since_days: { id: "hari", en: "day" },
+};
+
+function unitLabelFor(conditionType: string): { id: string; en: string } {
+  return UNIT_LABELS[conditionType] ?? { id: "poin", en: "point" };
+}
+
 type Definition = {
   id: string;
   code: string;
@@ -84,6 +107,9 @@ export type NextMilestone = {
   threshold: number;
   remainingRatio: number;
   priority: string;
+  remaining: number;
+  unitId: string;
+  unitEn: string;
 } | null;
 
 export async function evaluateAchievements(
@@ -160,6 +186,7 @@ export async function evaluateAchievements(
     if (isBetter) {
       bestPriorityRank = rank;
       bestRemainingRatio = remainingRatio;
+      const unit = unitLabelFor(def.condition_type);
       nextMilestone = {
         code: def.code,
         titleId: def.title_id,
@@ -168,6 +195,9 @@ export async function evaluateAchievements(
         threshold: result.threshold,
         remainingRatio,
         priority: def.priority,
+        remaining: Math.max(0, Math.round(result.threshold - result.currentValue)),
+        unitId: unit.id,
+        unitEn: unit.en,
       };
     }
   }
