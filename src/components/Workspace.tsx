@@ -845,16 +845,16 @@ function GrowthPanel({
  * §4.2 dokumen arsitektur). Warna & kalimat dipilih dari `pulseLevel`, satu-
  * satunya "opini" yang ditambahkan adalah ambang kapan sesuatu dianggap
  * stabil/perlu perhatian — bukan angka yang dikarang. */
-function pulseVisual(level: string): { emoji: string; classes: string } {
+function pulseVisual(level: string): { emoji: string; pillClasses: string } {
   switch (level) {
     case "stable":
-      return { emoji: "🟢", classes: "border-green-500/30 bg-green-500/10 text-green-300" };
+      return { emoji: "🟢", pillClasses: "bg-green-500/10 text-green-300" };
     case "attention":
-      return { emoji: "🟡", classes: "border-amber-500/30 bg-amber-500/10 text-amber-300" };
+      return { emoji: "🟡", pillClasses: "bg-amber-500/10 text-amber-300" };
     case "action_required":
-      return { emoji: "🔴", classes: "border-red-500/30 bg-red-500/10 text-red-300" };
+      return { emoji: "🔴", pillClasses: "bg-red-500/10 text-red-300" };
     default:
-      return { emoji: "🟡", classes: "border-amber-500/30 bg-amber-500/10 text-amber-300" };
+      return { emoji: "🟡", pillClasses: "bg-amber-500/10 text-amber-300" };
   }
 }
 
@@ -892,9 +892,17 @@ function TodayPanel({
   onNavigateToInsights: () => void;
 }) {
   if (snapshotLoading || !snapshot) {
+    // Loading skeleton, bukan teks "Memuat data..." polos — supaya transisi
+    // ke konten asli terasa hidup (micro-interaction), bukan kedip mendadak.
     return (
-      <div className="rounded-2xl border border-white/10 bg-surface p-10 text-center">
-        <p className="text-neutral-400">{t.workspace.loadingDataLabel}</p>
+      <div className="animate-pulse space-y-6" aria-label={t.workspace.loadingDataLabel}>
+        <div className="space-y-3">
+          <div className="h-5 w-28 rounded-full bg-white/10" />
+          <div className="h-10 w-3/4 rounded-lg bg-white/10 sm:w-1/2" />
+          <div className="h-4 w-2/3 rounded-lg bg-white/5" />
+        </div>
+        <div className="h-28 rounded-2xl bg-white/5" />
+        <div className="h-16 rounded-2xl bg-white/5" />
       </div>
     );
   }
@@ -950,99 +958,115 @@ function TodayPanel({
   }
 
   const isPreparation = snapshot.stageGroup === "preparation";
+  const lastUpdateText =
+    snapshot.daysSinceUpdate === null
+      ? t.workspace.todayQuickStatsNever
+      : snapshot.daysSinceUpdate === 0
+        ? lang === "id"
+          ? "Hari ini"
+          : "Today"
+        : fillTemplate(t.workspace.todayDaysAgo, { days: snapshot.daysSinceUpdate });
 
   return (
-    <div className="space-y-6">
-      {/* Headline besar, bukan angka — pengganti header "Halo, {nama}" polos
-          yang sudah tampil di atas (eyebrow+greeting section), supaya tidak
-          dobel. Headline di sini spesifik menjawab "bagaimana bisnis hari ini". */}
-      <h1 className="text-2xl font-extrabold text-white sm:text-3xl">{pulseHeadline}</h1>
-
-      {/* Business Pulse — paling besar, paling atas. Satu kalimat, bukan chart. */}
-      <div className={`rounded-2xl border p-6 ${pulse.classes}`}>
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">{pulse.emoji}</span>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest opacity-80">{t.workspace.todayPulseLabel}</p>
-            <p className="text-xl font-extrabold">{pulseLabel}</p>
-          </div>
-        </div>
+    <div className="space-y-10">
+      {/* Briefing pagi — Hero + Business Pulse melebur jadi satu identitas
+          halaman, BUKAN dua card terpisah. Sengaja tanpa border/box di sini:
+          ini bukan panel data, ini kalimat pembuka dari "konsultan". Pill
+          kecil di atas headline membawa warna/status, headline besar adalah
+          elemen paling dominan di seluruh halaman (arahan Product Owner). */}
+      <div className="space-y-4">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-widest ${pulse.pillClasses}`}
+        >
+          <span>{pulse.emoji}</span>
+          <span>{pulseLabel}</span>
+        </span>
+        <h1 className="text-3xl font-black leading-[1.1] tracking-tight text-white sm:text-4xl md:text-5xl">
+          {pulseHeadline}
+        </h1>
         {snapshot.pulseReasons.length > 0 && (
-          <ul className="mt-4 space-y-1.5">
-            {snapshot.pulseReasons.map((r, i) => (
-              <li key={i} className="text-sm leading-relaxed opacity-90">
-                • {reasonText(r)}
-              </li>
-            ))}
-          </ul>
+          <p className="max-w-2xl text-base leading-relaxed text-neutral-400 sm:text-lg">
+            {snapshot.pulseReasons.map((r) => reasonText(r)).join(" · ")}
+          </p>
         )}
       </div>
 
       {isPreparation ? (
-        <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
-          <p className="text-lg font-bold text-neutral-100">{focusText()}</p>
-          <p className="mt-2 text-sm text-neutral-500">{t.workspace.todayPreparationEmptyDesc}</p>
+        <div className="flex flex-col items-center gap-4 py-6 text-center sm:py-10">
+          <span className="text-5xl">🌱</span>
+          <p className="max-w-md text-xl font-bold leading-snug text-neutral-100">{focusText()}</p>
+          <p className="max-w-sm text-sm text-neutral-500">{t.workspace.todayPreparationEmptyDesc}</p>
           <button
             onClick={onOpenUpdateModal}
-            className="mt-5 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black hover:opacity-90"
+            className="mt-2 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black transition-transform duration-200 hover:scale-[1.03] hover:opacity-90"
           >
             {t.workspace.updateBusinessButton}
           </button>
         </div>
       ) : (
         <>
-          {/* Fokus Hari Ini — lebih besar dari quick stats, ini yang harus
-              paling menarik perhatian (visual hierarchy per arahan Product Owner). */}
-          <div className="rounded-2xl border border-primary/30 bg-primary/10 p-6">
+          {/* Fokus Hari Ini — jantung halaman, paling dominan setelah Pulse.
+              Accent bar di kiri (bukan kotak penuh bergaris) supaya terasa
+              seperti sorotan, bukan card statistik lain di antara card lain. */}
+          <div className="rounded-2xl border-l-4 border-primary bg-primary/[0.07] px-6 py-7 sm:px-8 sm:py-8">
             <p className="text-xs font-bold uppercase tracking-widest text-primary">{t.workspace.todayFocusLabel}</p>
-            <p className="mt-2 text-lg font-bold leading-relaxed text-white">{focusText()}</p>
+            <p className="mt-3 text-xl font-bold leading-snug text-white sm:text-2xl">{focusText()}</p>
           </div>
 
-          {/* Quick stats — pendukung, sengaja lebih kecil dari Pulse/Focus */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-surface p-4">
-              <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsScore}</p>
-              <p className="mt-1 text-2xl font-black text-white">{snapshot.score ?? "—"}</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-surface p-4">
-              <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsJourney}</p>
-              <p className={`mt-1 text-2xl font-black ${(snapshot.journeyDelta ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
-                {snapshot.journeyDelta !== null ? `${snapshot.journeyDelta > 0 ? "+" : ""}${snapshot.journeyDelta}` : "—"}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-surface p-4">
-              <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsLastUpdate}</p>
-              <p className="mt-1 text-lg font-bold text-white">
-                {snapshot.daysSinceUpdate === null
-                  ? t.workspace.todayQuickStatsNever
-                  : snapshot.daysSinceUpdate === 0
-                    ? (lang === "id" ? "Hari ini" : "Today")
-                    : fillTemplate(t.workspace.todayDaysAgo, { days: snapshot.daysSinceUpdate })}
-              </p>
-            </div>
-          </div>
-
-          {/* Yang berubah — presentasi ulang getHealthTrend, bukan hitungan baru */}
-          <div className="rounded-2xl border border-white/10 bg-surface p-5">
-            <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.todayWhatChangedTitle}</h3>
+          {/* Yang berubah — indikator arah (▲▼●), bukan angka telanjang di
+              dalam kotak-kotak. Baris tipis dipisah garis lembut, bukan
+              card demi card. */}
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-neutral-400">{t.workspace.todayWhatChangedTitle}</h3>
             {!snapshot.whatChanged || snapshot.whatChanged.length === 0 ? (
               <p className="text-sm text-neutral-500">{t.workspace.todayWhatChangedEmpty}</p>
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {snapshot.whatChanged.map((c) => (
-                  <div key={c.dimension} className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
-                    <p className="text-xs text-neutral-400">{DIMENSION_LABELS[c.dimension]?.[lang] || c.dimension}</p>
-                    <p className={`text-lg font-bold ${c.delta >= 0 ? "text-green-400" : "text-red-400"}`}>
-                      {c.delta > 0 ? "+" : ""}
-                      {c.delta}
-                    </p>
-                  </div>
-                ))}
+              <div className="divide-y divide-white/5">
+                {snapshot.whatChanged.map((c) => {
+                  const isUp = c.delta > 0;
+                  const isDown = c.delta < 0;
+                  return (
+                    <div
+                      key={c.dimension}
+                      className="flex items-center justify-between py-3 transition-colors duration-200 hover:bg-white/[0.02]"
+                    >
+                      <span className="text-sm text-neutral-300">{DIMENSION_LABELS[c.dimension]?.[lang] || c.dimension}</span>
+                      <span
+                        className={`flex items-center gap-1.5 text-sm font-bold ${
+                          isUp ? "text-green-400" : isDown ? "text-red-400" : "text-neutral-500"
+                        }`}
+                      >
+                        <span aria-hidden="true">{isUp ? "▲" : isDown ? "▼" : "●"}</span>
+                        {Math.abs(c.delta)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          <button onClick={onNavigateToInsights} className="text-sm font-semibold text-primary hover:opacity-80">
+          {/* Quick stats — sekadar info sekilas, sengaja tidak berbobot
+              visual (bukan kotak besar angka hitam seperti versi sebelumnya). */}
+          <div className="flex flex-wrap gap-x-8 gap-y-2 border-t border-white/5 pt-5 text-sm text-neutral-500">
+            <span>
+              {t.workspace.todayQuickStatsScore}: <span className="font-semibold text-neutral-300">{snapshot.score ?? "—"}</span>
+            </span>
+            <span>
+              {t.workspace.todayQuickStatsJourney}:{" "}
+              <span className={`font-semibold ${(snapshot.journeyDelta ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {snapshot.journeyDelta !== null ? `${snapshot.journeyDelta > 0 ? "+" : ""}${snapshot.journeyDelta}` : "—"}
+              </span>
+            </span>
+            <span>
+              {t.workspace.todayQuickStatsLastUpdate}: <span className="font-semibold text-neutral-300">{lastUpdateText}</span>
+            </span>
+          </div>
+
+          <button
+            onClick={onNavigateToInsights}
+            className="text-sm font-semibold text-primary transition-opacity duration-200 hover:opacity-70"
+          >
             {t.workspace.todayExploreMore}
           </button>
         </>
