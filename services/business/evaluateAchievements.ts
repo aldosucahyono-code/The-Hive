@@ -38,6 +38,22 @@ const HEALTH_DIMENSION_CONDITION_TYPES: Record<string, string> = {
 // is_hidden=true di katalog (lihat migrations/2026-07-09_achievement_engine.sql).
 const UNSUPPORTED_CONDITION_TYPES = new Set(["target_completion", "manual", "future"]);
 
+// Priority (Product Owner review v3, §3 proposal) — dipakai HANYA untuk
+// memilih Next Milestone, tidak mengubah kriteria unlock apapun. Angka lebih
+// kecil = lebih diprioritaskan. Achievement priority tinggi (mis. "critical")
+// diutamakan sebagai Next Milestone dibanding achievement priority rendah
+// meski remaining ratio-nya lebih kecil.
+const PRIORITY_RANK: Record<string, number> = {
+  critical: 0,
+  important: 1,
+  normal: 2,
+  motivational: 3,
+};
+
+function priorityRank(priority: string | null | undefined): number {
+  return PRIORITY_RANK[priority ?? "normal"] ?? PRIORITY_RANK.normal;
+}
+
 type Definition = {
   id: string;
   code: string;
@@ -47,6 +63,7 @@ type Definition = {
   celebration_message_en: string | null;
   condition_type: string;
   condition_config: Record<string, unknown>;
+  priority: string;
 };
 
 type CheckResult = { met: boolean; currentValue: number; threshold: number };
@@ -66,6 +83,7 @@ export type NextMilestone = {
   currentValue: number;
   threshold: number;
   remainingRatio: number;
+  priority: string;
 } | null;
 
 export async function evaluateAchievements(
@@ -75,7 +93,7 @@ export async function evaluateAchievements(
   const { data: definitions } = await supabase
     .from("achievement_definitions")
     .select(
-      "id, code, title_id, title_en, celebration_message_id, celebration_message_en, condition_type, condition_config"
+      "id, code, title_id, title_en, celebration_message_id, celebration_message_en, condition_type, condition_config, priority"
     )
     .eq("is_active", true)
     .eq("is_hidden", false);
@@ -123,17 +141,25 @@ export async function evaluateAchievements(
     }
   }
 
-  // Next Milestone: dari achievement yang BELUM terbuka, ambil satu dengan
-  // sisa proporsional terkecil (paling dekat) — bukan sisa absolut, supaya
-  // achievement dengan satuan berbeda (jumlah update vs poin skor vs persen)
-  // bisa dibandingkan secara adil.
+  // Next Milestone: dari achievement yang BELUM terbuka, pilih dulu
+  // berdasarkan priority (Product Owner review v3), baru remaining ratio
+  // sebagai tie-breaker — bukan sisa absolut, supaya achievement dengan
+  // satuan berbeda (jumlah update vs poin skor vs persen) bisa dibandingkan
+  // secara adil. Priority lebih tinggi menang meski ratio-nya lebih besar,
+  // mis. achievement "critical" tersisa 10% diutamakan dibanding achievement
+  // "normal" yang tersisa 5%.
   let nextMilestone: NextMilestone = null;
-  let smallestRemainingRatio = Infinity;
+  let bestPriorityRank = Infinity;
+  let bestRemainingRatio = Infinity;
   for (const { def, result } of lockedCandidates) {
     if (result.threshold <= 0) continue;
     const remainingRatio = Math.max(0, (result.threshold - result.currentValue) / result.threshold);
-    if (remainingRatio < smallestRemainingRatio) {
-      smallestRemainingRatio = remainingRatio;
+    const rank = priorityRank(def.priority);
+    const isBetter =
+      rank < bestPriorityRank || (rank === bestPriorityRank && remainingRatio < bestRemainingRatio);
+    if (isBetter) {
+      bestPriorityRank = rank;
+      bestRemainingRatio = remainingRatio;
       nextMilestone = {
         code: def.code,
         titleId: def.title_id,
@@ -141,6 +167,7 @@ export async function evaluateAchievements(
         currentValue: result.currentValue,
         threshold: result.threshold,
         remainingRatio,
+        priority: def.priority,
       };
     }
   }

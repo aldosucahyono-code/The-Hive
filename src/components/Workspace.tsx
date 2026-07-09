@@ -507,6 +507,94 @@ type HealthTrend = {
   biggestMoverDimension: string | null;
 };
 
+type TimelineEntry =
+  | { kind: "update"; date: string; update: Record<string, unknown> }
+  | { kind: "achievement"; date: string; achievement: Record<string, unknown> };
+
+/** Growth Timeline — menggabungkan riwayat Business Update (sumber yang sama
+ * dengan toggle "Riwayat Update Bisnis" di bawah halaman) dengan momen
+ * Achievement terbuka, diurutkan kronologis, supaya Timeline benar-benar
+ * menceritakan perjalanan bisnis (Product Owner review v3 §5) — bukan cuma
+ * daftar Business Update. Murni menggabung & mengurutkan data yang sudah
+ * ada, tidak ada perhitungan baru. */
+function GrowthTimeline({
+  t,
+  lang,
+  updates,
+  updatesLoading,
+  unlockedAchievements,
+  achievementsLoading,
+}: {
+  t: Translations;
+  lang: "id" | "en";
+  updates: Array<Record<string, unknown>>;
+  updatesLoading: boolean;
+  unlockedAchievements: Array<Record<string, unknown>>;
+  achievementsLoading: boolean;
+}) {
+  if (updatesLoading || achievementsLoading) {
+    return <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>;
+  }
+
+  const entries: TimelineEntry[] = [
+    ...updates.map((u): TimelineEntry => ({ kind: "update", date: u.created_at as string, update: u })),
+    ...unlockedAchievements.map(
+      (a): TimelineEntry => ({ kind: "achievement", date: a.unlockedAt as string, achievement: a })
+    ),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  if (entries.length === 0) {
+    return <p className="text-sm text-neutral-500">{t.workspace.updateHistoryEmpty}</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {entries.map((entry) => {
+        if (entry.kind === "update") {
+          const u = entry.update;
+          return (
+            <div key={`update-${u.id as string}`} className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-neutral-500">
+                  {new Date(u.created_at as string).toLocaleDateString(LOCALE_MAP[lang], {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
+                <span className="rounded-full border border-white/15 px-2.5 py-0.5 text-xs font-semibold text-neutral-300">
+                  {u.kondisi_penjualan === "naik" ? "📈" : u.kondisi_penjualan === "turun" ? "📉" : "➡️"}
+                </span>
+              </div>
+              <p className="text-sm text-neutral-300">{u.content as string}</p>
+            </div>
+          );
+        }
+        const a = entry.achievement;
+        return (
+          <div key={`achievement-${a.code as string}`} className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-neutral-500">
+                {new Date(a.unlockedAt as string).toLocaleDateString(LOCALE_MAP[lang], {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+              <span className="rounded-full border border-primary/30 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                🏆
+              </span>
+            </div>
+            <p className="text-sm font-semibold text-white">
+              {lang === "id" ? (a.titleId as string) : (a.titleEn as string)}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Growth (Tahap 2.3.1) — TIDAK menghitung apapun sendiri. Menu ini murni
  * membaca hasil Business Engine yang sudah ada: progress_snapshots (lewat
  * getProgress, sudah dipakai TargetPanel), business_health historis (lewat
@@ -643,35 +731,23 @@ function GrowthPanel({
         )}
       </div>
 
-      {/* Growth Timeline — riwayat Business Update, sumber yang sama dengan
-          toggle "Riwayat Update Bisnis" di bawah halaman. */}
+      {/* Growth Timeline — menggabungkan riwayat Business Update (sumber
+          yang sama dengan toggle "Riwayat Update Bisnis" di bawah halaman)
+          dengan momen Achievement terbuka, diurutkan kronologis, supaya
+          Timeline benar-benar menceritakan perjalanan bisnis (Product Owner
+          review v3 §5) — bukan cuma daftar Business Update. Murni
+          menggabung & mengurutkan data yang sudah ada, tidak ada perhitungan
+          baru. */}
       <div className="rounded-2xl border border-white/10 bg-surface p-5">
         <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthTimelineTitle}</h3>
-        {updatesLoading ? (
-          <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
-        ) : updates.length === 0 ? (
-          <p className="text-sm text-neutral-500">{t.workspace.updateHistoryEmpty}</p>
-        ) : (
-          <div className="space-y-3">
-            {updates.map((u) => (
-              <div key={u.id as string} className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-neutral-500">
-                    {new Date(u.created_at as string).toLocaleDateString(LOCALE_MAP[lang], {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </p>
-                  <span className="rounded-full border border-white/15 px-2.5 py-0.5 text-xs font-semibold text-neutral-300">
-                    {u.kondisi_penjualan === "naik" ? "📈" : u.kondisi_penjualan === "turun" ? "📉" : "➡️"}
-                  </span>
-                </div>
-                <p className="text-sm text-neutral-300">{u.content as string}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        <GrowthTimeline
+          t={t}
+          lang={lang}
+          updates={updates}
+          updatesLoading={updatesLoading}
+          unlockedAchievements={achievements.unlocked}
+          achievementsLoading={achievementsLoading}
+        />
       </div>
 
       {/* Achievements — murni baca dari business_achievements (lihat

@@ -1,8 +1,11 @@
 # Achievement Engine — Architecture Proposal (Tahap 2.4)
 
-Status: **DISETUJUI (v2, setelah penyempurnaan Product Owner) — implementasi berjalan mengikuti dokumen ini.**
+Status: **DISETUJUI (v3, setelah penyempurnaan Product Owner) — implementasi berjalan mengikuti dokumen ini.**
 
-Riwayat: v1 disetujui secara prinsip, lalu disempurnakan (kategori lebih granular, difficulty tier, Next Milestone, metadata siap-AI, dan keputusan eksplisit soal Target Terstruktur & Login Rutin). Dokumen ini adalah versi final yang dipakai untuk implementasi.
+Riwayat:
+- v1 disetujui secara prinsip.
+- v2: kategori lebih granular, difficulty tier, Next Milestone, metadata siap-AI, keputusan eksplisit soal Target Terstruktur & Login Rutin.
+- v3 (dokumen ini): setiap achievement punya *business value* eksplisit, `priority` (dipakai mulai sekarang untuk memilih Next Milestone), Growth Timeline sekarang menggabungkan Business Update dan momen Achievement terbuka, metadata AI diperluas dengan `recommended_action_key`, serta catatan eksplisit soal kesiapan Super Admin, Analitik, dan Future Architecture untuk repeatable achievement. Migrasi tambahan: `migrations/2026-07-09_achievement_engine_refinements.sql` (dijalankan setelah migrasi pertama).
 
 ---
 
@@ -18,7 +21,7 @@ Manfaat bagi THE HIVE: retensi — pelanggan yang merasa progressnya diakui lebi
 
 ## 2. Struktur Database (Additive-Only)
 
-Dua tabel baru. Tidak ada `ALTER`, `DROP`, `RENAME`, atau perubahan apapun pada tabel yang sudah ada. SQL lengkap ada di `migrations/2026-07-09_achievement_engine.sql` — belum dieksekusi, menunggu kamu jalankan sendiri di Supabase (sesuai kesepakatan additive-only kita).
+Dua tabel baru. Tidak ada `ALTER`, `DROP`, `RENAME`, atau perubahan apapun pada tabel Business Engine yang sudah ada. SQL lengkap ada di `migrations/2026-07-09_achievement_engine.sql` (tabel + seed awal) dan `migrations/2026-07-09_achievement_engine_refinements.sql` (kolom tambahan v3 di bawah + seed data-nya) — keduanya menunggu kamu jalankan sendiri di Supabase, migrasi kedua setelah migrasi pertama (sesuai kesepakatan additive-only kita; migrasi kedua hanya menambah kolom baru ke tabel yang KITA buat sendiri di migrasi pertama, bukan tabel lama).
 
 ### `achievement_definitions` (katalog — data referensi, bukan data pelanggan)
 
@@ -34,6 +37,9 @@ Dua tabel baru. Tidak ada `ALTER`, `DROP`, `RENAME`, atau perubahan apapun pada 
 | `celebration_message_id`, `celebration_message_en` | text, nullable | kalimat apresiasi siap-pakai saat achievement baru terbuka (data, bukan AI generatif) |
 | `coach_message_id`, `coach_message_en` | text, nullable | kalimat motivasi singkat yang bisa dipakai AI Engine nanti sebagai referensi nada |
 | `recommendation_key` | text, nullable | kunci referensi untuk AI Engine nanti menghubungkan achievement ke rekomendasi konten tertentu — belum dipakai sekarang |
+| `business_value_id`, `business_value_en` *(v3)* | text, nullable | alasan bisnis mengapa achievement ini penting — bukan sekadar judul/deskripsi, tapi konteks: "kenapa ini berarti bagi bisnis Anda". Belum ditampilkan di Workspace sekarang; disiapkan supaya AI Engine nanti selalu punya sumber motivasi yang konsisten, bukan mengarang alasan sendiri. Contoh: `first_update` → "Anda telah memulai kebiasaan mengevaluasi bisnis secara rutin." |
+| `priority` *(v3)* | enum | `critical`, `important`, `normal`, `motivational` — **dipakai mulai sekarang** (lihat §3, Next Milestone) untuk memilih achievement mana yang paling layak ditampilkan sebagai target berikutnya, bukan sekadar yang paling dekat |
+| `recommended_action_key` *(v3)* | text, nullable | kunci referensi (bukan teks jadi) untuk AI Engine nanti menghubungkan achievement ke langkah bisnis berikutnya yang disarankan, mis. `health_above_80` → `focus_sales_customer_retention`. Belum dipakai kode manapun sekarang |
 | `condition_type` | enum | lihat §3 |
 | `condition_config` | jsonb | parameter untuk `condition_type`, mis. `{"threshold": 80}` |
 | `sort_order` | int | urutan tampil |
@@ -56,6 +62,10 @@ Dua tabel baru. Tidak ada `ALTER`, `DROP`, `RENAME`, atau perubahan apapun pada 
 | — | UNIQUE (`business_profile_id`, `achievement_definition_id`) | mencegah unlock ganda |
 
 Tidak ada kolom yang menyimpan skor yang *dihitung ulang* — tabel ini murni mencatat **keputusan** (unlocked, kapan, karena apa), bukan **perhitungan** baru.
+
+### Future Architecture *(v3)* — Repeatable Achievement, belum dibangun
+
+`business_achievements` **tetap** hanya satu baris per achievement (`UNIQUE(business_profile_id, achievement_definition_id)`, tidak diubah). Kalau suatu hari dibutuhkan achievement yang bisa diraih berkali-kali (mis. "30 hari konsisten" → "90 hari" → "365 hari" sebagai milestone berulang, bukan sekadar tingkatan berbeda), implementasinya lewat **tabel history terpisah** (mis. `business_achievement_unlocks_history`), bukan mengubah struktur `business_achievements`. Dicatat sebagai arah masa depan — tidak dibangun sekarang, tidak ada di migrasi v3.
 
 ---
 
@@ -93,34 +103,36 @@ Achievement selalu ada di ujung rantai, tidak pernah di awal atau di tengah.
 
 Kedua titik pemanggilan idempoten (dijaga `UNIQUE` constraint) dan menjalankan fungsi evaluator yang sama persis: `evaluateAchievements(businessProfileId, triggerSource)`.
 
-### Next Milestone
+### Next Milestone *(v3 — priority-aware)*
 
-Setiap evaluasi checker mengembalikan bukan cuma `met: boolean`, tapi juga `currentValue` dan `threshold`. Untuk achievement yang **belum** terbuka, engine menghitung `remainingRatio = (threshold - currentValue) / threshold` untuk semua definisi aktif yang belum unlock, lalu mengambil satu dengan rasio tersisa terkecil (paling dekat) sebagai "Next Milestone" — inilah yang memungkinkan Workspace menampilkan "Tinggal 1 Business Update lagi" atau "Tinggal 5 poin lagi" tanpa achievement itu sendiri perlu terbuka dulu.
+Setiap evaluasi checker mengembalikan bukan cuma `met: boolean`, tapi juga `currentValue` dan `threshold`. Untuk achievement yang **belum** terbuka, engine menghitung `remainingRatio = (threshold - currentValue) / threshold` untuk semua definisi aktif yang belum unlock.
+
+Sejak v3, pemilihan Next Milestone **tidak lagi murni** berdasarkan `remainingRatio` terkecil. Engine memilih dulu berdasarkan `priority` (`critical` > `important` > `normal` > `motivational`), baru `remainingRatio` sebagai tie-breaker di dalam priority yang sama. Ini sesuai arahan Product Owner: achievement `critical` yang tersisa 10% tetap diutamakan dibanding achievement `normal` yang tersisa 5%, karena secara bisnis lebih layak jadi target berikutnya. Belum ada UI kompleks (progress bar/skor) — struktur data (`priority` di setiap kandidat) sudah siap dipakai algoritma pemilihan maupun AI Engine nanti.
 
 ### Respons ke frontend
 
 - `submitBusinessUpdate` menyertakan `newlyUnlocked: [{code, titleId, titleEn, celebrationMessageId, celebrationMessageEn}]` kalau ada achievement baru terbuka saat itu juga — dipakai Workspace untuk notifikasi kecil yang langsung terasa terkait aksi yang baru dilakukan.
-- `getAchievements` mengembalikan `{ unlocked: [...achievement + unlockedAt], nextMilestone: {code, title, currentValue, threshold, remainingRatio} | null }`.
+- `getAchievements` mengembalikan `{ unlocked: [...achievement + unlockedAt], nextMilestone: {code, titleId, titleEn, currentValue, threshold, remainingRatio, priority} | null }`.
 
 ---
 
 ## 4. Kategori & Daftar Achievement Awal
 
-| Achievement | category | difficulty | condition_type | Status |
-|---|---|---|---|---|
-| Business Update Pertama | business_growth | bronze | `business_updates_count` (1) | ✅ |
-| Konsisten 4 Minggu Berturut-turut | business_consistency | silver | `business_updates_streak_weeks` (4) | ✅ |
-| Journey Meningkat 20% | business_growth | gold | `journey_growth` (20%) | ✅ |
-| Momentum Mingguan | business_growth | silver | `period_growth` (10%) | ✅ |
-| Business Health di Atas 80 | business_health | gold | `business_health_score` (80) | ✅ |
-| Sales Bertumbuh (Sales ≥ 80) | sales | silver | `sales_score` (80) | ✅ |
-| Finance Sehat (Finance ≥ 80) | finance | silver | `finance_score` (80) | ✅ |
-| Pelanggan Bertambah (Customer ≥ 80) | customer | silver | `customer_score` (80) | ✅ |
-| 30 Hari Bersama THE HIVE | milestone | bronze | `member_since_days` (30) | ✅ |
-| Target Omzet Tercapai | milestone | platinum | `target_completion` | ⏸️ planned |
-| *(reserved untuk marketing/operations/brand — ditambah begitu ada sinyal data untuk dimensi itu, sama seperti catatan di `recalculateHealth.ts`)* | marketing/operations/brand | — | `marketing_score` / `operations_score` / `brand_score` | ⏸️ planned, `is_hidden` sampai ada sinyal nyata |
+| Achievement | category | difficulty | priority *(v3)* | condition_type | Status |
+|---|---|---|---|---|---|
+| Business Update Pertama | business_growth | bronze | critical | `business_updates_count` (1) | ✅ |
+| Konsisten 4 Minggu Berturut-turut | business_consistency | silver | important | `business_updates_streak_weeks` (4) | ✅ |
+| Journey Meningkat 20% | business_growth | gold | important | `journey_growth` (20%) | ✅ |
+| Momentum Mingguan | business_growth | silver | normal | `period_growth` (10%) | ✅ |
+| Business Health di Atas 80 | business_health | gold | critical | `business_health_score` (80) | ✅ |
+| Sales Bertumbuh (Sales ≥ 80) | sales | silver | normal | `sales_score` (80) | ✅ |
+| Finance Sehat (Finance ≥ 80) | finance | silver | important | `finance_score` (80) | ✅ |
+| Pelanggan Bertambah (Customer ≥ 80) | customer | silver | normal | `customer_score` (80) | ✅ |
+| 30 Hari Bersama THE HIVE | milestone | bronze | motivational | `member_since_days` (30) | ✅ |
+| Target Omzet Tercapai | milestone | platinum | critical | `target_completion` | ⏸️ planned |
+| *(reserved untuk marketing/operations/brand — ditambah begitu ada sinyal data untuk dimensi itu, sama seperti catatan di `recalculateHealth.ts`)* | marketing/operations/brand | — | — | `marketing_score` / `operations_score` / `brand_score` | ⏸️ planned, `is_hidden` sampai ada sinyal nyata |
 
-Daftar ini hidup di data (`achievement_definitions`), bukan di kode — menambah achievement baru dengan `condition_type` yang sudah ada tidak butuh deploy, cukup `INSERT` baris baru.
+Daftar ini hidup di data (`achievement_definitions`), bukan di kode — menambah achievement baru dengan `condition_type` yang sudah ada tidak butuh deploy, cukup `INSERT` baris baru. `priority` masing-masing ditetapkan berdasarkan seberapa penting achievement itu secara bisnis (mis. Business Update Pertama dan Business Health > 80 = `critical` karena keduanya fondasi; 30 Hari Bersama THE HIVE = `motivational` karena murni apresiasi loyalitas, bukan indikator kesehatan bisnis).
 
 **Login Rutin — keputusan final: ditunda, tidak dibangun sekarang.** Tidak akan ada tabel `session_logs`/`visit_logs` dibuat hanya untuk satu achievement ini. Achievement kategori keterlibatan aplikasi (bukan keterlibatan bisnis) akan dipertimbangkan lagi saat Platform Analytics/Employee Platform benar-benar dibangun, dengan tabel yang memang bermanfaat untuk banyak fitur sekaligus — bukan tabel tunggal untuk satu badge.
 
@@ -133,12 +145,14 @@ Achievement **tidak** menjadi menu baru. Ia menjadi bagian dari tab Growth, yang
 ```
 1. Journey Progress     — perjalanan sejak pertama bergabung
 2. Period Progress      — minggu ini vs minggu lalu
-3. Business Timeline    — riwayat Business Update
+3. Business Timeline    — riwayat Business Update + momen Achievement terbuka
 4. Achievements         — pencapaian yang sudah diraih
-5. Next Milestone       — pencapaian berikutnya yang paling dekat
+5. Next Milestone       — pencapaian berikutnya yang paling layak (priority-aware)
 ```
 
-Alur naratifnya: *saya berkembang → saya melihat progres → saya melihat riwayat → saya melihat pencapaian → saya tahu target berikutnya.*
+Alur naratifnya: *saya berkembang → saya melihat progres → saya melihat riwayat perjalanan (termasuk momen saya diapresiasi) → saya melihat pencapaian → saya tahu target berikutnya.*
+
+**Business Timeline *(v3)*:** sekarang menggabungkan `business_updates` dan `business_achievements` (unlock event), diurutkan kronologis berdasarkan tanggal, supaya Timeline benar-benar menceritakan perjalanan bisnis pelanggan — bukan cuma daftar Business Update yang terpisah dari momen ia diapresiasi. Murni menggabung & mengurutkan data yang sudah ada (masing-masing dari `getProgress`/`listUpdates` dan `getAchievements`), tidak ada tabel atau perhitungan baru. Kartu Business Update dan kartu Achievement dibedakan lewat gaya visual (border warna netral vs warna primer + ikon 🏆), bukan lewat mekanisme data terpisah.
 
 Gaya tampilan: kartu sederhana, elegan, profesional. Judul, deskripsi singkat, tanggal unlock, label tier (Bronze/Silver/Gold/Platinum) ditulis sebagai teks kecil — bukan ikon berkilau atau badge bergaya game. Next Milestone tampil sebagai satu baris motivasi singkat, bukan progress bar mencolok, mis. "🎯 Tinggal 1 Business Update lagi untuk membuka *Konsisten 4 Minggu Berturut-turut*."
 
@@ -146,19 +160,41 @@ Gaya tampilan: kartu sederhana, elegan, profesional. Judul, deskripsi singkat, t
 
 ## 6. Integrasi AI Engine (masa depan, belum dibangun)
 
-Kontrak yang perlu dipegang nanti: AI Engine **membaca** `business_achievements` (join `achievement_definitions` untuk `celebration_message_*`/`coach_message_*`/`recommendation_key`) sebagai bagian dari konteks yang diberikan ke Claude API — bukan menghitung ulang, bukan memutuskan achievement apa yang terbuka.
+Kontrak yang perlu dipegang nanti: AI Engine **membaca** `business_achievements` (join `achievement_definitions` untuk `celebration_message_*`/`coach_message_*`/`recommendation_key`/`business_value_*`/`recommended_action_key`/`priority`) sebagai bagian dari konteks yang diberikan ke Claude API — bukan menghitung ulang, bukan memutuskan achievement apa yang terbuka.
 
-Contoh: Beemo menyusun narasi laporan, menerima daftar achievement yang terbuka dalam rentang waktu relevan sebagai konteks, lalu menulis kalimat apresiasi berdasarkan `coach_message_id`/`coach_message_en` sebagai referensi nada — seperti contoh yang kamu berikan ("Selamat! Hari ini Anda berhasil membuka Achievement Business Consistency..."). Tidak ada perubahan skema yang dibutuhkan untuk ini nanti — kolom-kolom AI-ready sudah disiapkan sejak sekarang di `achievement_definitions`.
+Contoh: Beemo menyusun narasi laporan, menerima daftar achievement yang terbuka dalam rentang waktu relevan sebagai konteks, lalu menulis kalimat apresiasi berdasarkan `coach_message_id`/`coach_message_en` sebagai referensi nada, memakai `business_value_id`/`business_value_en` supaya alasan "kenapa ini penting" selalu konsisten (bukan dikarang ulang setiap kali), lalu menutup dengan saran langkah berikutnya berdasarkan `recommended_action_key` (mis. `first_update` → "Mulai ukur perkembangan bisnis setiap minggu"; `health_above_80` → "Mulai fokus meningkatkan Sales dan Customer Retention") — seperti contoh yang kamu berikan ("Selamat! Hari ini Anda berhasil membuka Achievement Business Consistency..."). Saat harus memilih achievement mana yang paling layak dibacakan dari beberapa yang terbuka sekaligus, AI Engine bisa memakai `priority` sebagai sinyal urutan, sama seperti Next Milestone. Tidak ada perubahan skema yang dibutuhkan untuk ini nanti — semua kolom AI-ready (termasuk yang baru di v3) sudah disiapkan sejak sekarang di `achievement_definitions`, belum ada satupun yang dipakai kode manapun.
 
 ---
 
 ## 7. Kesiapan untuk Role Masa Depan (Super Admin, CS, Marketing, Employee Platform)
 
 - Semua tabel di-scope lewat `business_profile_id`, konsisten dengan seluruh Business Engine.
-- `achievement_definitions` sebagai katalog terpisah dari kode berarti Super Admin Platform nanti bisa mengelola achievement (tambah, nonaktifkan, ubah teks/tier) lewat panel admin tanpa deploy kode baru.
+- `achievement_definitions` sebagai katalog terpisah dari kode berarti Super Admin Platform nanti bisa mengelola achievement (aktifkan/nonaktifkan, urutkan, ubah judul/deskripsi/`business_value_*`) lewat panel admin tanpa deploy kode baru.
+- **Tidak ada satupun teks Achievement yang hardcoded di React** *(v3, ditegaskan)*: judul, deskripsi, business value, dan seluruh teks lain dibaca dari `achievement_definitions` lewat `getAchievements` — komponen Workspace (`GrowthPanel`, `GrowthTimeline`) hanya merender apa yang dikembalikan API, tidak pernah menyimpan string achievement di kode. Ini sudah berlaku sejak implementasi awal (v2), ditegaskan lagi di sini karena jadi prasyarat langsung Super Admin Platform bisa mengelola achievement tanpa deploy.
 - `unlocked_by: 'manual'` sudah disiapkan sekarang supaya Super Admin nanti bisa memberikan achievement khusus tanpa perlu mengubah struktur tabel.
 - Tidak ada logika Achievement yang tertanam di komponen UI — semuanya lewat service layer (`services/business/evaluateAchievements.ts`, `services/workspace/getAchievements.ts`), pola yang sama seperti Business Engine, sehingga platform lain nanti bisa memanggil service yang sama.
 - Kategori (`marketing`, `operations`, `brand` sudah ada di enum sejak awal) memberi ruang achievement baru begitu dimensi itu punya sinyal data nyata, tanpa perlu migrasi skema lagi.
+
+---
+
+## 8. Kesiapan Analitik *(v3, belum dibangun dashboard-nya)*
+
+Sejak awal, struktur `business_achievements` sudah mendukung analitik platform tanpa tabel tambahan — jumlah dan persentase pelanggan yang meraih tiap achievement bisa dihitung langsung:
+
+```sql
+select achievement_definition_id, count(*) as unlock_count
+from business_achievements
+group by achievement_definition_id;
+-- persentase = unlock_count / total business_profiles aktif
+```
+
+Belum ada dashboard yang meminta ini sekarang — dicatat sebagai kesiapan struktural untuk Super Admin/Analytics Platform nanti, bukan pekerjaan yang dikerjakan di tahap ini.
+
+---
+
+## 9. Prinsip yang Tidak Berubah — Bukan Gamifikasi
+
+Ditegaskan kembali (Product Owner review v3): Achievement **tidak** memakai XP, Level, Coin, atau Poin, dan tidak akan pernah memakainya. THE HIVE adalah Business Operating System, bukan platform game. Achievement hanyalah bentuk apresiasi atas perkembangan bisnis pelanggan — semua elemen baru di v3 (`priority`, `business_value_*`, `recommended_action_key`) tetap melayani prinsip ini: membuat apresiasi itu lebih bermakna dan lebih siap dibacakan AI dengan konsisten, bukan menambah lapisan gamifikasi.
 
 ---
 
@@ -187,4 +223,4 @@ Business Engine nanti membaca `business_goals` dengan cara yang sama seperti tab
 
 ## Ringkasan Status
 
-Disetujui untuk implementasi sekarang: §2–§5 (skema, evaluator, katalog awal, tampilan Growth). Ditunda dengan jelas (bukan dilupakan): `target_completion` (Lampiran A), `manual` (menunggu Super Admin Platform), Login Rutin (menunggu Platform Analytics). Migrasi SQL: `migrations/2026-07-09_achievement_engine.sql`, dijalankan oleh Product Owner sendiri di Supabase — bukan oleh Claude.
+Disetujui untuk implementasi sekarang: §2–§6 (skema termasuk kolom v3, evaluator dengan Next Milestone priority-aware, katalog awal + priority, tampilan Growth dengan Timeline gabungan). Ditunda dengan jelas (bukan dilupakan): `target_completion` (Lampiran A), `manual` (menunggu Super Admin Platform), Login Rutin (menunggu Platform Analytics), repeatable achievement history table (§2, Future Architecture), dashboard analitik (§8, query pattern sudah didokumentasikan). Migrasi SQL: `migrations/2026-07-09_achievement_engine.sql` lalu `migrations/2026-07-09_achievement_engine_refinements.sql`, keduanya dijalankan oleh Product Owner sendiri di Supabase — bukan oleh Claude, dalam urutan tersebut.
