@@ -29,6 +29,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "../business/create.js";
 import { getBusinessHealth } from "../workspace/getBusinessHealth.js";
 import { getProgress } from "../workspace/getProgress.js";
+import { getAchievements } from "../workspace/getAchievements.js";
 import { determineStageInternal } from "../stage/determineStage.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -49,6 +50,15 @@ export type TodaySnapshotPayload = {
   focusKey: string | null;
   focusParams?: Record<string, string | number>;
   whatChanged: Array<{ dimension: string; delta: number }> | null;
+  biggestMover: { dimension: string; delta: number } | null;
+  nextMilestone: {
+    titleId: string;
+    titleEn: string;
+    remaining: number;
+    unitId: string;
+    unitEn: string;
+  } | null;
+  reminders: Array<{ type: "business_update_overdue" | "achievement_near"; params?: Record<string, string | number> }>;
 };
 
 function daysBetween(iso: string, now: Date): number {
@@ -60,15 +70,30 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
   const stage = await determineStageInternal(businessProfileId);
 
   // Reuse service Business Engine yang SUDAH ADA — tidak menghitung ulang.
-  const [healthRes, progressRes] = await Promise.all([
+  // getAchievements ikut dipanggil di sini (bukan cuma dari tab Growth) —
+  // ini AMAN karena evaluateAchievements() di baliknya sudah idempotent &
+  // di-cache per pemanggilan (lihat ACHIEVEMENT-ENGINE-FINAL.md §3), jadi
+  // tidak menduplikasi logic, hanya menambah satu titik pemanggilan baru.
+  const [healthRes, progressRes, achievementsRes] = await Promise.all([
     getBusinessHealth(userId, { businessProfileId }),
     getProgress(userId, { businessProfileId }),
+    getAchievements(userId, { businessProfileId }),
   ]);
 
   const health = healthRes.body as { dimensions: Record<string, number> | null; overall: number | null };
   const progress = progressRes.body as {
     journey: { delta: number } | null;
     period: { delta: number } | null;
+  };
+  const achievementsBody = achievementsRes.body as {
+    nextMilestone: {
+      titleId: string;
+      titleEn: string;
+      remaining: number;
+      unitId: string;
+      unitEn: string;
+      remainingRatio: number;
+    } | null;
   };
 
   const { data: latestUpdate } = await supabase
@@ -151,6 +176,37 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
     }
   }
 
+  // "Yang paling berpengaruh" — dimensi dengan |delta| terbesar dari
+  // whatChanged yang SUDAH dihitung di atas. Tidak ada query/hitungan baru,
+  // murni memilih 1 entri dari array yang sudah ada.
+  let biggestMover: { dimension: string; delta: number } | null = null;
+  if (whatChanged && whatChanged.length > 0) {
+    biggestMover = whatChanged.reduce((a, b) => (Math.abs(b.delta) > Math.abs(a.delta) ? b : a));
+  }
+
+  const nextMilestone = achievementsBody.nextMilestone
+    ? {
+        titleId: achievementsBody.nextMilestone.titleId,
+        titleEn: achievementsBody.nextMilestone.titleEn,
+        remaining: achievementsBody.nextMilestone.remaining,
+        unitId: achievementsBody.nextMilestone.unitId,
+        unitEn: achievementsBody.nextMilestone.unitEn,
+      }
+    : null;
+
+  // Reminder — turunan langsung dari sinyal yang sudah dihitung di atas
+  // (bukan query baru), disusun sebagai daftar supaya UI tinggal me-render.
+  const reminders: TodaySnapshotPayload["reminders"] = [];
+  if (stage.stageGroup === "running" && daysSinceUpdate !== null && daysSinceUpdate > 7) {
+    reminders.push({ type: "business_update_overdue", params: { days: daysSinceUpdate } });
+  }
+  if (achievementsBody.nextMilestone && achievementsBody.nextMilestone.remainingRatio < 0.25) {
+    // Sengaja TANPA params bahasa di sini — angka & unit-nya dibaca ulang
+    // dari field `nextMilestone` di payload ini juga (bilingual, unitId/unitEn),
+    // supaya tidak ada teks yang "dibekukan" ke satu bahasa saat snapshot dibuat.
+    reminders.push({ type: "achievement_near" });
+  }
+
   return {
     stageGroup: stage.stageGroup,
     stageSource: stage.source,
@@ -164,6 +220,9 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
     focusKey,
     focusParams,
     whatChanged,
+    biggestMover,
+    nextMilestone,
+    reminders,
   };
 }
 

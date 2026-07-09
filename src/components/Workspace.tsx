@@ -868,7 +868,30 @@ type TodaySnapshotPayload = {
   focusKey: string | null;
   focusParams?: Record<string, string | number>;
   whatChanged: Array<{ dimension: string; delta: number }> | null;
+  biggestMover: { dimension: string; delta: number } | null;
+  nextMilestone: { titleId: string; titleEn: string; remaining: number; unitId: string; unitEn: string } | null;
+  reminders: Array<{ type: "business_update_overdue" | "achievement_near"; params?: Record<string, string | number> }>;
 };
+
+const PREPARATION_CHECKLIST_KEYS = ["prep1", "prep2", "prep3", "prep4", "prep5", "prep6"] as const;
+const RUNNING_CHECKLIST_KEYS = ["run1", "run2", "run3", "run4", "run5"] as const;
+
+function checklistLabel(t: Translations, key: string): string {
+  const map: Record<string, string> = {
+    prep1: t.workspace.todayChecklistPrep1,
+    prep2: t.workspace.todayChecklistPrep2,
+    prep3: t.workspace.todayChecklistPrep3,
+    prep4: t.workspace.todayChecklistPrep4,
+    prep5: t.workspace.todayChecklistPrep5,
+    prep6: t.workspace.todayChecklistPrep6,
+    run1: t.workspace.todayChecklistRun1,
+    run2: t.workspace.todayChecklistRun2,
+    run3: t.workspace.todayChecklistRun3,
+    run4: t.workspace.todayChecklistRun4,
+    run5: t.workspace.todayChecklistRun5,
+  };
+  return map[key] || key;
+}
 
 /** TODAY — halaman utama Business Command Center (Fase 1). Tidak menghitung
  * apapun sendiri: seluruh angka datang dari today_snapshot (Today Engine),
@@ -891,6 +914,22 @@ function TodayPanel({
   onOpenUpdateModal: () => void;
   onNavigateToInsights: () => void;
 }) {
+  // Checklist & tombol "Tandai Selesai" di sini SENGAJA hanya state lokal
+  // (per sesi, hilang saat reload) — belum ada tabel checklist tersimpan
+  // (itu Fase 2 "Mission Today" di roadmap). Diberi catatan kecil di UI
+  // supaya jujur ke pengguna, bukan berpura-pura sudah persisten.
+  const [missionDone, setMissionDone] = useState(false);
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+
+  function toggleChecklistItem(key: string) {
+    setCheckedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   if (snapshotLoading || !snapshot) {
     // Loading skeleton, bukan teks "Memuat data..." polos — supaya transisi
     // ke konten asli terasa hidup (micro-interaction), bukan kedip mendadak.
@@ -967,6 +1006,17 @@ function TodayPanel({
           : "Today"
         : fillTemplate(t.workspace.todayDaysAgo, { days: snapshot.daysSinceUpdate });
 
+  const checklistKeys = isPreparation ? PREPARATION_CHECKLIST_KEYS : RUNNING_CHECKLIST_KEYS;
+  const checklistDoneCount = checklistKeys.filter((k) => checkedItems.has(k)).length;
+
+  const nextMilestoneText = snapshot.nextMilestone
+    ? fillTemplate(t.workspace.growthNextMilestoneTemplate, {
+        remaining: snapshot.nextMilestone.remaining,
+        unit: lang === "id" ? snapshot.nextMilestone.unitId : snapshot.nextMilestone.unitEn,
+        title: lang === "id" ? snapshot.nextMilestone.titleId : snapshot.nextMilestone.titleEn,
+      })
+    : t.workspace.growthNextMilestoneNone;
+
   return (
     <div className="space-y-10">
       {/* Briefing pagi — Hero + Business Pulse melebur jadi satu identitas
@@ -991,77 +1041,134 @@ function TodayPanel({
         )}
       </div>
 
-      {isPreparation ? (
-        <div className="flex flex-col items-center gap-4 py-6 text-center sm:py-10">
-          <span className="text-5xl">🌱</span>
-          <p className="max-w-md text-xl font-bold leading-snug text-neutral-100">{focusText()}</p>
-          <p className="max-w-sm text-sm text-neutral-500">{t.workspace.todayPreparationEmptyDesc}</p>
-          <button
-            onClick={onOpenUpdateModal}
-            className="mt-2 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black transition-transform duration-200 hover:scale-[1.03] hover:opacity-90"
-          >
-            {t.workspace.updateBusinessButton}
-          </button>
+      {/* Metrik sekilas — HANYA muncul kalau bisnis sudah berjalan (ada
+          Business Score/Journey untuk ditampilkan). Sengaja kartu kecil,
+          bukan kotak angka besar — pendukung, bukan pusat perhatian. */}
+      {!isPreparation && (
+        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          <div className="rounded-xl bg-white/[0.03] px-4 py-3">
+            <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsScore}</p>
+            <p className="mt-1 text-lg font-bold text-neutral-200 sm:text-xl">{snapshot.score ?? "—"}</p>
+          </div>
+          <div className="rounded-xl bg-white/[0.03] px-4 py-3">
+            <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsJourney}</p>
+            <p className={`mt-1 text-lg font-bold sm:text-xl ${(snapshot.journeyDelta ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+              {snapshot.journeyDelta !== null ? `${snapshot.journeyDelta > 0 ? "+" : ""}${snapshot.journeyDelta}` : "—"}
+            </p>
+          </div>
+          <div className="rounded-xl bg-white/[0.03] px-4 py-3">
+            <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsLastUpdate}</p>
+            <p className="mt-1 text-lg font-bold text-neutral-200 sm:text-xl">{lastUpdateText}</p>
+          </div>
         </div>
-      ) : (
-        <>
+      )}
+
+      {/* Dua kolom di layar lebar: kiri = pekerjaan hari ini (Fokus +
+          Checklist + Yang Berubah), kanan = konteks pendukung (Yang Paling
+          Berpengaruh, Menuju Pencapaian, Pengingat). Satu kolom di mobile. */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-10">
+        <div className="space-y-8 lg:col-span-2">
           {/* Fokus Hari Ini — jantung halaman, paling dominan setelah Pulse.
               Accent bar di kiri (bukan kotak penuh bergaris) supaya terasa
               seperti sorotan, bukan card statistik lain di antara card lain. */}
           <div className="rounded-2xl border-l-4 border-primary bg-primary/[0.07] px-6 py-7 sm:px-8 sm:py-8">
             <p className="text-xs font-bold uppercase tracking-widest text-primary">{t.workspace.todayFocusLabel}</p>
-            <p className="mt-3 text-xl font-bold leading-snug text-white sm:text-2xl">{focusText()}</p>
-          </div>
-
-          {/* Yang berubah — indikator arah (▲▼●), bukan angka telanjang di
-              dalam kotak-kotak. Baris tipis dipisah garis lembut, bukan
-              card demi card. */}
-          <div>
-            <h3 className="mb-3 text-sm font-semibold text-neutral-400">{t.workspace.todayWhatChangedTitle}</h3>
-            {!snapshot.whatChanged || snapshot.whatChanged.length === 0 ? (
-              <p className="text-sm text-neutral-500">{t.workspace.todayWhatChangedEmpty}</p>
+            <p className={`mt-3 text-xl font-bold leading-snug sm:text-2xl ${missionDone ? "text-neutral-500 line-through" : "text-white"}`}>
+              {focusText()}
+            </p>
+            {isPreparation ? (
+              <button
+                onClick={onOpenUpdateModal}
+                className="mt-5 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black transition-transform duration-200 hover:scale-[1.03] hover:opacity-90"
+              >
+                {t.workspace.updateBusinessButton}
+              </button>
             ) : (
-              <div className="divide-y divide-white/5">
-                {snapshot.whatChanged.map((c) => {
-                  const isUp = c.delta > 0;
-                  const isDown = c.delta < 0;
-                  return (
-                    <div
-                      key={c.dimension}
-                      className="flex items-center justify-between py-3 transition-colors duration-200 hover:bg-white/[0.02]"
-                    >
-                      <span className="text-sm text-neutral-300">{DIMENSION_LABELS[c.dimension]?.[lang] || c.dimension}</span>
-                      <span
-                        className={`flex items-center gap-1.5 text-sm font-bold ${
-                          isUp ? "text-green-400" : isDown ? "text-red-400" : "text-neutral-500"
-                        }`}
-                      >
-                        <span aria-hidden="true">{isUp ? "▲" : isDown ? "▼" : "●"}</span>
-                        {Math.abs(c.delta)}
-                      </span>
-                    </div>
-                  );
-                })}
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={onOpenUpdateModal}
+                  disabled={missionDone}
+                  className="rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black transition-transform duration-200 hover:scale-[1.03] hover:opacity-90 disabled:opacity-40 disabled:hover:scale-100"
+                >
+                  {t.workspace.todayMissionStartButton}
+                </button>
+                <button
+                  onClick={() => setMissionDone((v) => !v)}
+                  className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/40 hover:text-white"
+                >
+                  {t.workspace.todayMissionDoneButton}
+                </button>
               </div>
             )}
+            {missionDone && <p className="mt-3 text-xs text-neutral-500">{t.workspace.todayMissionDoneNote}</p>}
           </div>
 
-          {/* Quick stats — sekadar info sekilas, sengaja tidak berbobot
-              visual (bukan kotak besar angka hitam seperti versi sebelumnya). */}
-          <div className="flex flex-wrap gap-x-8 gap-y-2 border-t border-white/5 pt-5 text-sm text-neutral-500">
-            <span>
-              {t.workspace.todayQuickStatsScore}: <span className="font-semibold text-neutral-300">{snapshot.score ?? "—"}</span>
-            </span>
-            <span>
-              {t.workspace.todayQuickStatsJourney}:{" "}
-              <span className={`font-semibold ${(snapshot.journeyDelta ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
-                {snapshot.journeyDelta !== null ? `${snapshot.journeyDelta > 0 ? "+" : ""}${snapshot.journeyDelta}` : "—"}
+          {/* Checklist — state lokal per sesi (belum persisten, lihat catatan
+              di atas komponen). Selalu ada, baik fase persiapan maupun
+              berjalan, supaya halaman tidak pernah terasa kosong. */}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-neutral-400">{t.workspace.todayChecklistTitle}</h3>
+              <span className="text-xs text-neutral-500">
+                {fillTemplate(t.workspace.todayChecklistCount, { done: checklistDoneCount, total: checklistKeys.length })}
               </span>
-            </span>
-            <span>
-              {t.workspace.todayQuickStatsLastUpdate}: <span className="font-semibold text-neutral-300">{lastUpdateText}</span>
-            </span>
+            </div>
+            <div className="space-y-1">
+              {checklistKeys.map((key) => {
+                const done = checkedItems.has(key);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => toggleChecklistItem(key)}
+                    className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors duration-200 hover:bg-white/[0.03]"
+                  >
+                    <span
+                      className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border text-xs transition-colors duration-200 ${
+                        done ? "border-primary bg-primary text-black" : "border-white/20 text-transparent"
+                      }`}
+                    >
+                      ✓
+                    </span>
+                    <span className={`text-sm ${done ? "text-neutral-500 line-through" : "text-neutral-200"}`}>
+                      {checklistLabel(t, key)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 px-2 text-xs text-neutral-600">{t.workspace.todayChecklistSessionNote}</p>
           </div>
+
+          {/* Yang berubah — indikator arah (▲▼●) dalam kartu kecil, HANYA
+              untuk bisnis yang sudah berjalan (butuh minimal 2 periode data). */}
+          {!isPreparation && (
+            <div>
+              <h3 className="mb-3 text-sm font-semibold text-neutral-400">{t.workspace.todayWhatChangedTitle}</h3>
+              {!snapshot.whatChanged || snapshot.whatChanged.length === 0 ? (
+                <p className="text-sm text-neutral-500">{t.workspace.todayWhatChangedEmpty}</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {snapshot.whatChanged.map((c) => {
+                    const isUp = c.delta > 0;
+                    const isDown = c.delta < 0;
+                    return (
+                      <div key={c.dimension} className="rounded-xl bg-white/[0.03] px-4 py-3 transition-colors duration-200 hover:bg-white/[0.05]">
+                        <p className="text-xs text-neutral-500">{DIMENSION_LABELS[c.dimension]?.[lang] || c.dimension}</p>
+                        <p
+                          className={`mt-1 flex items-center gap-1 text-base font-bold ${
+                            isUp ? "text-green-400" : isDown ? "text-red-400" : "text-neutral-500"
+                          }`}
+                        >
+                          <span aria-hidden="true">{isUp ? "▲" : isDown ? "▼" : "●"}</span>
+                          {Math.abs(c.delta)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <button
             onClick={onNavigateToInsights}
@@ -1069,8 +1176,56 @@ function TodayPanel({
           >
             {t.workspace.todayExploreMore}
           </button>
-        </>
-      )}
+        </div>
+
+        {/* Kolom kanan — konteks pendukung. Tidak ada di fase persiapan
+            (belum ada Business Health/Achievement untuk dijelaskan). */}
+        {!isPreparation && (
+          <div className="space-y-6">
+            {snapshot.biggestMover && (
+              <div className="rounded-2xl bg-white/[0.03] p-5">
+                <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">{t.workspace.todayBiggestMoverTitle}</p>
+                <p className="mt-2 text-sm leading-relaxed text-neutral-200">
+                  {fillTemplate(t.workspace.todayBiggestMoverTemplate, {
+                    dimension: DIMENSION_LABELS[snapshot.biggestMover.dimension]?.[lang] || snapshot.biggestMover.dimension,
+                  })}
+                </p>
+              </div>
+            )}
+
+            <div className="rounded-2xl bg-white/[0.03] p-5">
+              <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">{t.workspace.growthNextMilestoneTitle}</p>
+              <p className="mt-2 text-sm leading-relaxed text-neutral-200">{nextMilestoneText}</p>
+            </div>
+
+            <div className="rounded-2xl bg-white/[0.03] p-5">
+              <p className="mb-3 text-xs font-bold uppercase tracking-widest text-neutral-400">{t.workspace.todayRemindersTitle}</p>
+              {snapshot.reminders.length === 0 ? (
+                <p className="text-sm text-neutral-500">{t.workspace.todayRemindersEmpty}</p>
+              ) : (
+                <ul className="space-y-3">
+                  {snapshot.reminders.map((r, i) => (
+                    <li key={i} className="flex items-start justify-between gap-2">
+                      <span className="text-sm leading-relaxed text-neutral-300">
+                        {r.type === "business_update_overdue"
+                          ? fillTemplate(t.workspace.todayReasonUpdateOverdue, r.params || {})
+                          : nextMilestoneText}
+                      </span>
+                      <span
+                        className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                          r.type === "business_update_overdue" ? "bg-red-500/15 text-red-300" : "bg-primary/15 text-primary"
+                        }`}
+                      >
+                        {r.type === "business_update_overdue" ? t.workspace.todayReminderBadgeSoon : t.workspace.todayReminderBadgeClose}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
