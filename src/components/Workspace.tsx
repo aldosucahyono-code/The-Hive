@@ -523,6 +523,8 @@ function GrowthPanel({
   healthTrend,
   updates,
   updatesLoading,
+  achievements,
+  achievementsLoading,
 }: {
   tier: Tier;
   t: Translations;
@@ -536,6 +538,11 @@ function GrowthPanel({
   healthTrend: HealthTrend;
   updates: Array<Record<string, unknown>>;
   updatesLoading: boolean;
+  achievements: {
+    unlocked: Array<Record<string, unknown>>;
+    nextMilestone: Record<string, unknown> | null;
+  };
+  achievementsLoading: boolean;
 }) {
   if (tier === "free") {
     return (
@@ -666,6 +673,76 @@ function GrowthPanel({
           </div>
         )}
       </div>
+
+      {/* Achievements — murni baca dari business_achievements (lihat
+          services/workspace/getAchievements.ts). Tidak ada badge/skor game —
+          hanya judul, deskripsi singkat, dan tanggal terbuka, supaya terasa
+          elegan dan profesional, bukan gamifikasi. */}
+      <div className="rounded-2xl border border-white/10 bg-surface p-5">
+        <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthAchievementsTitle}</h3>
+        {achievementsLoading ? (
+          <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
+        ) : achievements.unlocked.length === 0 ? (
+          <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.growthAchievementsEmptyDesc}</p>
+        ) : (
+          <div className="space-y-3">
+            {achievements.unlocked.map((a) => {
+              const difficulty = a.difficulty as string | undefined;
+              const difficultyLabel =
+                difficulty === "bronze"
+                  ? t.workspace.difficultyBronze
+                  : difficulty === "silver"
+                    ? t.workspace.difficultySilver
+                    : difficulty === "gold"
+                      ? t.workspace.difficultyGold
+                      : difficulty === "platinum"
+                        ? t.workspace.difficultyPlatinum
+                        : null;
+              return (
+                <div key={a.code as string} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-white">{lang === "id" ? (a.titleId as string) : (a.titleEn as string)}</p>
+                    {difficultyLabel && (
+                      <span className="text-xs font-medium text-neutral-500">{difficultyLabel}</span>
+                    )}
+                  </div>
+                  <p className="mb-1 text-sm text-neutral-400">
+                    {lang === "id" ? (a.descriptionId as string) : (a.descriptionEn as string)}
+                  </p>
+                  <p className="text-xs text-neutral-500">
+                    {new Date(a.unlockedAt as string).toLocaleDateString(LOCALE_MAP[lang], {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Next Milestone — satu kalimat motivasi, dipilih dari achievement
+          yang belum terbuka dengan remainingRatio terkecil (lihat
+          evaluateAchievements.ts). Tidak menampilkan progress bar/angka
+          teknis supaya tetap terasa memotivasi, bukan seperti dashboard game. */}
+      <div className="rounded-2xl border border-white/10 bg-surface p-5">
+        <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthNextMilestoneTitle}</h3>
+        {achievementsLoading ? (
+          <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
+        ) : !achievements.nextMilestone ? (
+          <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.growthNextMilestoneNone}</p>
+        ) : (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <p className="text-sm font-semibold text-white">
+              {lang === "id"
+                ? (achievements.nextMilestone.titleId as string)
+                : (achievements.nextMilestone.titleEn as string)}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -691,6 +768,12 @@ function Workspace() {
     periodByDimension: null,
     biggestMoverDimension: null,
   });
+  const [achievements, setAchievements] = useState<{
+    unlocked: Array<Record<string, unknown>>;
+    nextMilestone: Record<string, unknown> | null;
+  }>({ unlocked: [], nextMilestone: null });
+  const [achievementsLoading, setAchievementsLoading] = useState(false);
+  const [newlyUnlocked, setNewlyUnlocked] = useState<Array<Record<string, unknown>>>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
   const [showAddBusiness, setShowAddBusiness] = useState(false);
@@ -1122,7 +1205,34 @@ function Workspace() {
     if (next) await loadUpdateHistory();
   }
 
-  function handleUpdateSaved() {
+  // Achievement Engine (Tahap 2.4) — murni baca, tidak menghitung apapun di
+  // frontend. getAchievements juga men-trigger evaluateAchievements() sekali
+  // di server (lihat services/workspace/getAchievements.ts) supaya
+  // achievement berbasis waktu murni (member_since_days) tertangkap begitu
+  // Growth tab dibuka, bukan cuma saat submit Business Update.
+  async function loadAchievements() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setAchievementsLoading(true);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "getAchievements", businessProfileId: activeBusinessId }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setAchievements({ unlocked: json.unlocked || [], nextMilestone: json.nextMilestone || null });
+      }
+    } catch (err) {
+      console.error("getAchievements error:", err);
+    }
+    setAchievementsLoading(false);
+  }
+
+  function handleUpdateSaved(newlyUnlockedFromSave?: Array<Record<string, unknown>>) {
     setShowBusinessUpdate(false);
     // Business Update baru saja memicu Business Health + Progress Engine
     // di server (lihat submitUpdate.ts) — refreshKey memuat ulang health/
@@ -1130,14 +1240,23 @@ function Workspace() {
     // Growth langsung menampilkan angka terbaru, bukan data basi.
     setRefreshKey((k) => k + 1);
     if (showUpdateHistory || activeMenu === "growth") loadUpdateHistory();
+    if (newlyUnlockedFromSave && newlyUnlockedFromSave.length > 0) {
+      setNewlyUnlocked(newlyUnlockedFromSave);
+    }
+    loadAchievements();
   }
 
   // Growth Timeline butuh riwayat Business Update — muat sekali saat menu
   // Growth pertama kali dibuka (kalau belum pernah dimuat lewat toggle di
-  // bawah halaman), bukan di setiap render.
+  // bawah halaman), bukan di setiap render. Achievements & Next Milestone
+  // dimuat ulang SETIAP kali Growth dibuka (bukan cuma sekali) supaya
+  // achievement berbasis waktu murni (member_since_days) ikut tertangkap.
   useEffect(() => {
-    if (activeMenu === "growth" && !showUpdateHistory && updateHistory.length === 0 && !updateHistoryLoading) {
-      loadUpdateHistory();
+    if (activeMenu === "growth") {
+      if (!showUpdateHistory && updateHistory.length === 0 && !updateHistoryLoading) {
+        loadUpdateHistory();
+      }
+      loadAchievements();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenu]);
@@ -1339,6 +1458,8 @@ function Workspace() {
               healthTrend={healthTrend}
               updates={updateHistory}
               updatesLoading={updateHistoryLoading}
+              achievements={achievements}
+              achievementsLoading={achievementsLoading}
             />
           ) : activeMenu === "chat" ? (
             activeBusinessId && (
@@ -1489,6 +1610,35 @@ function Workspace() {
           onClose={() => setShowBusinessUpdate(false)}
           onSaved={handleUpdateSaved}
         />
+      )}
+
+      {newlyUnlocked.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-[110] max-w-sm space-y-2">
+          {newlyUnlocked.map((a) => {
+            const message =
+              lang === "id"
+                ? (a.celebrationMessageId as string | null) || (a.titleId as string)
+                : (a.celebrationMessageEn as string | null) || (a.titleEn as string);
+            return (
+              <div
+                key={a.code as string}
+                className="flex items-start justify-between gap-3 rounded-xl border border-primary/30 bg-black/95 p-4 shadow-lg backdrop-blur-md"
+              >
+                <div>
+                  <p className="mb-0.5 text-xs font-bold uppercase text-primary">{t.workspace.achievementUnlockedToast}</p>
+                  <p className="text-sm text-neutral-200">{message}</p>
+                </div>
+                <button
+                  onClick={() => setNewlyUnlocked((prev) => prev.filter((u) => u.code !== a.code))}
+                  aria-label={t.workspace.achievementUnlockedDismiss}
+                  className="text-neutral-500 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {showUpgradeModal && activeBusinessId && (

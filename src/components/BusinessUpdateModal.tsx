@@ -6,7 +6,7 @@ import { isValidFreeText } from "../utils/validation";
 type BusinessUpdateModalProps = {
   businessProfileId: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (newlyUnlocked?: Array<Record<string, unknown>>) => void;
 };
 
 type Kondisi = "naik" | "tetap" | "turun";
@@ -138,7 +138,7 @@ function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUp
       setSuccess(true);
       setSubmitting(false);
       setTimeout(() => {
-        onSaved();
+        onSaved(json.newlyUnlocked);
       }, 1200);
     } catch (err) {
       console.error("submitUpdate error:", err);

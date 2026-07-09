@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "../business/create.js";
 import { recalculateBusinessHealth } from "../business/recalculateHealth.js";
 import { recalculateProgress } from "../business/recalculateProgress.js";
+import { evaluateAchievements, type NewlyUnlocked } from "../business/evaluateAchievements.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -88,14 +89,22 @@ export async function submitBusinessUpdate(userId: string, payload: Record<strin
   }
 
   // Business Engine: hitung ulang Business Health, lalu Progress
-  // (Journey/Period) berdasarkan skor yang baru dihitung. Kegagalan di sini
+  // (Journey/Period), lalu Achievement — urutan ini TIDAK BOLEH dibalik
+  // (lihat ACHIEVEMENT-ENGINE-PROPOSAL.md §3: Business Update -> Business
+  // Health -> Progress Engine -> Achievement Engine). Kegagalan di sini
   // TIDAK membatalkan penyimpanan update — cukup dicatat di log server.
+  let newlyUnlocked: NewlyUnlocked[] = [];
   try {
     const overallScore = await recalculateBusinessHealth(businessProfileId);
     await recalculateProgress(businessProfileId, overallScore);
+    const achievementResult = await evaluateAchievements(businessProfileId, "submitBusinessUpdate");
+    newlyUnlocked = achievementResult.newlyUnlocked;
   } catch (err) {
     console.error("Business Engine recalculation error:", err);
   }
 
-  return { status: 200, body: { updateId: update.id, createdAt: update.created_at } };
+  return {
+    status: 200,
+    body: { updateId: update.id, createdAt: update.created_at, newlyUnlocked },
+  };
 }
