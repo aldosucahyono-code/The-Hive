@@ -858,6 +858,8 @@ function pulseVisual(level: string): { emoji: string; pillClasses: string } {
   }
 }
 
+type RuleItem = { key: string; params?: Record<string, string | number> };
+
 type TodaySnapshotPayload = {
   stageGroup: "preparation" | "running";
   pulseLevel: "preparation" | "stable" | "attention" | "action_required";
@@ -865,12 +867,11 @@ type TodaySnapshotPayload = {
   score: number | null;
   journeyDelta: number | null;
   daysSinceUpdate: number | null;
-  focusKey: string | null;
-  focusParams?: Record<string, string | number>;
+  priorities: RuleItem[];
+  topRisk: RuleItem | null;
+  opportunity: RuleItem | null;
   whatChanged: Array<{ dimension: string; delta: number }> | null;
-  biggestMover: { dimension: string; delta: number } | null;
   nextMilestone: { titleId: string; titleEn: string; remaining: number; unitId: string; unitEn: string } | null;
-  reminders: Array<{ type: "business_update_overdue" | "achievement_near"; params?: Record<string, string | number> }>;
 };
 
 const PREPARATION_CHECKLIST_KEYS = ["prep1", "prep2", "prep3", "prep4", "prep5", "prep6"] as const;
@@ -978,22 +979,62 @@ function TodayPanel({
     return reason.params ? fillTemplate(template, reason.params) : template;
   }
 
-  function focusText(): string {
-    const focusKey = snapshot?.focusKey;
-    if (!focusKey) return "";
-    const params = { ...snapshot?.focusParams };
-    if (focusKey === "focusWeakDimension" && params.dimension) {
+  const nextMilestoneText = snapshot?.nextMilestone
+    ? fillTemplate(t.workspace.growthNextMilestoneTemplate, {
+        remaining: snapshot.nextMilestone.remaining,
+        unit: lang === "id" ? snapshot.nextMilestone.unitId : snapshot.nextMilestone.unitEn,
+        title: lang === "id" ? snapshot.nextMilestone.titleId : snapshot.nextMilestone.titleEn,
+      })
+    : t.workspace.growthNextMilestoneNone;
+
+  // Prioritas — semua rule-based dari Today Engine (§ komentar di
+  // computeSnapshot.ts). "achievementNudge" sengaja ambil teksnya dari
+  // nextMilestoneText yang sudah dihitung di atas, bukan dari params sendiri,
+  // supaya tidak ada data achievement yang diduplikasi/tidak sinkron.
+  function priorityText(item: { key: string; params?: Record<string, string | number> }): string {
+    if (item.key === "achievementNudge") return nextMilestoneText;
+    const params = { ...item.params };
+    if (item.key === "focusWeakDimension" && params.dimension) {
       params.dimension = DIMENSION_LABELS[params.dimension as string]?.[lang] || (params.dimension as string);
     }
     const template =
-      focusKey === "startFirstUpdate"
+      item.key === "startFirstUpdate"
         ? t.workspace.todayFocusStartFirstUpdate
-        : focusKey === "fillBusinessUpdate"
+        : item.key === "fillBusinessUpdate"
           ? t.workspace.todayFocusFillBusinessUpdate
-          : focusKey === "focusWeakDimension"
+          : item.key === "focusWeakDimension"
             ? t.workspace.todayFocusWeakDimension
             : t.workspace.todayFocusKeepGoing;
     return fillTemplate(template, params);
+  }
+
+  function riskText(item: { key: string; params?: Record<string, string | number> } | null): string {
+    if (!item) return t.workspace.todayRiskNone;
+    const params = { ...item.params };
+    if (item.key === "riskWeakDimension" && params.dimension) {
+      params.dimension = DIMENSION_LABELS[params.dimension as string]?.[lang] || (params.dimension as string);
+    }
+    const template =
+      item.key === "riskUpdateOverdue"
+        ? t.workspace.todayRiskUpdateOverdue
+        : item.key === "riskScoreDown"
+          ? t.workspace.todayRiskScoreDown
+          : t.workspace.todayRiskWeakDimension;
+    return fillTemplate(template, params);
+  }
+
+  function opportunityText(item: { key: string } | null): string | null {
+    if (!item) return null;
+    const map: Record<string, string> = {
+      opportunityMarketing: t.workspace.opportunityMarketing,
+      opportunitySales: t.workspace.opportunitySales,
+      opportunityFinance: t.workspace.opportunityFinance,
+      opportunityCustomer: t.workspace.opportunityCustomer,
+      opportunityOperations: t.workspace.opportunityOperations,
+      opportunityBrand: t.workspace.opportunityBrand,
+      opportunityGeneric: t.workspace.opportunityGeneric,
+    };
+    return map[item.key] || null;
   }
 
   const isPreparation = snapshot.stageGroup === "preparation";
@@ -1009,28 +1050,26 @@ function TodayPanel({
   const checklistKeys = isPreparation ? PREPARATION_CHECKLIST_KEYS : RUNNING_CHECKLIST_KEYS;
   const checklistDoneCount = checklistKeys.filter((k) => checkedItems.has(k)).length;
 
-  const nextMilestoneText = snapshot.nextMilestone
-    ? fillTemplate(t.workspace.growthNextMilestoneTemplate, {
-        remaining: snapshot.nextMilestone.remaining,
-        unit: lang === "id" ? snapshot.nextMilestone.unitId : snapshot.nextMilestone.unitEn,
-        title: lang === "id" ? snapshot.nextMilestone.titleId : snapshot.nextMilestone.titleEn,
-      })
-    : t.workspace.growthNextMilestoneNone;
+  // Prioritas fase persiapan bukan dari Today Engine (yang cuma tahu
+  // "startFirstUpdate") — checklist itemnya SENDIRI yang jadi daftar
+  // prioritas, supaya tidak ada 2 sumber "apa yang harus dikerjakan" yang
+  // tumpang tindih untuk pelanggan baru.
+  const priorityLines: string[] = isPreparation
+    ? checklistKeys.slice(0, 3).map((k) => checklistLabel(t, k))
+    : snapshot.priorities.map((p) => priorityText(p));
 
   return (
-    <div className="space-y-10">
-      {/* Briefing pagi — Hero + Business Pulse melebur jadi satu identitas
-          halaman, BUKAN dua card terpisah. Sengaja tanpa border/box di sini:
-          ini bukan panel data, ini kalimat pembuka dari "konsultan". Pill
-          kecil di atas headline membawa warna/status, headline besar adalah
-          elemen paling dominan di seluruh halaman (arahan Product Owner). */}
-      <div className="space-y-4">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-widest ${pulse.pillClasses}`}
-        >
-          <span>{pulse.emoji}</span>
-          <span>{pulseLabel}</span>
-        </span>
+    <div className="space-y-12">
+      {/* Satu alur vertikal, bukan grid card — setiap bagian dipisah garis
+          tipis (bukan kotak), mengikuti urutan cara pemilik usaha berpikir:
+          Apa kondisi saya? -> Apa prioritas saya? -> Apa yang berubah? ->
+          langkah berikutnya. (arahan Product Owner: "Workspace bukan tempat
+          membaca, Workspace adalah tempat bekerja".) */}
+      <div className="space-y-4 border-b border-white/10 pb-10">
+        <div className="flex items-center gap-3">
+          <span className="text-4xl">{pulse.emoji}</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-neutral-500">{pulseLabel}</span>
+        </div>
         <h1 className="text-3xl font-black leading-[1.1] tracking-tight text-white sm:text-4xl md:text-5xl">
           {pulseHeadline}
         </h1>
@@ -1041,135 +1080,149 @@ function TodayPanel({
         )}
       </div>
 
-      {/* Metrik sekilas — HANYA muncul kalau bisnis sudah berjalan (ada
-          Business Score/Journey untuk ditampilkan). Sengaja kartu kecil,
-          bukan kotak angka besar — pendukung, bukan pusat perhatian. */}
+      {/* Prioritas — inti halaman. Angka besar, bukan card, dipisah garis
+          tipis, persis alur yang diminta: bukan kumpulan kotak berbobot
+          sama, tapi daftar keputusan yang harus diambil hari ini. */}
+      <div className="border-b border-white/10 pb-10">
+        <h2 className="mb-6 text-sm font-bold uppercase tracking-widest text-neutral-500">
+          {t.workspace.todayPrioritiesTitle}
+        </h2>
+        <div className="divide-y divide-white/5">
+          {priorityLines.map((line, i) => (
+            <div key={i} className="flex items-start gap-5 py-5">
+              <span className="text-3xl font-black text-primary/50 sm:text-4xl">{i + 1}</span>
+              <p className="pt-1 text-lg font-bold leading-snug text-white sm:text-xl">{line}</p>
+            </div>
+          ))}
+        </div>
+        {!isPreparation && (
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <button
+              onClick={onOpenUpdateModal}
+              disabled={missionDone}
+              className="rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black transition-transform duration-200 hover:scale-[1.03] hover:opacity-90 disabled:opacity-40 disabled:hover:scale-100"
+            >
+              {t.workspace.todayMissionStartButton}
+            </button>
+            <button
+              onClick={() => setMissionDone((v) => !v)}
+              className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/40 hover:text-white"
+            >
+              {t.workspace.todayMissionDoneButton}
+            </button>
+          </div>
+        )}
+        {isPreparation && (
+          <button
+            onClick={onOpenUpdateModal}
+            className="mt-6 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black transition-transform duration-200 hover:scale-[1.03] hover:opacity-90"
+          >
+            {t.workspace.updateBusinessButton}
+          </button>
+        )}
+        {missionDone && <p className="mt-3 text-xs text-neutral-500">{t.workspace.todayMissionDoneNote}</p>}
+      </div>
+
+      {/* Risiko & Peluang — dua jawaban singkat berdampingan, bukan kartu
+          tebal. Rule Engine murni: risiko dari ambang skor/keterlambatan
+          update, peluang dari lookup tetap dimensi terlemah (lihat
+          computeSnapshot.ts) -- BUKAN AI. */}
       {!isPreparation && (
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
-          <div className="rounded-xl bg-white/[0.03] px-4 py-3">
-            <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsScore}</p>
-            <p className="mt-1 text-lg font-bold text-neutral-200 sm:text-xl">{snapshot.score ?? "—"}</p>
+        <div className="grid grid-cols-1 gap-8 border-b border-white/10 pb-10 sm:grid-cols-2">
+          <div>
+            <h2 className="mb-2 text-sm font-bold uppercase tracking-widest text-neutral-500">{t.workspace.todayRiskTitle}</h2>
+            <p className="text-base leading-relaxed text-neutral-200">{riskText(snapshot.topRisk)}</p>
           </div>
-          <div className="rounded-xl bg-white/[0.03] px-4 py-3">
-            <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsJourney}</p>
-            <p className={`mt-1 text-lg font-bold sm:text-xl ${(snapshot.journeyDelta ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
-              {snapshot.journeyDelta !== null ? `${snapshot.journeyDelta > 0 ? "+" : ""}${snapshot.journeyDelta}` : "—"}
+          <div>
+            <h2 className="mb-2 text-sm font-bold uppercase tracking-widest text-neutral-500">{t.workspace.todayOpportunityTitle}</h2>
+            <p className="text-base leading-relaxed text-neutral-200">
+              {opportunityText(snapshot.opportunity) || t.workspace.opportunityGeneric}
             </p>
-          </div>
-          <div className="rounded-xl bg-white/[0.03] px-4 py-3">
-            <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsLastUpdate}</p>
-            <p className="mt-1 text-lg font-bold text-neutral-200 sm:text-xl">{lastUpdateText}</p>
           </div>
         </div>
       )}
 
-      {/* Dua kolom di layar lebar: kiri = pekerjaan hari ini (Fokus +
-          Checklist + Yang Berubah), kanan = konteks pendukung (Yang Paling
-          Berpengaruh, Menuju Pencapaian, Pengingat). Satu kolom di mobile. */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-10">
-        <div className="space-y-8 lg:col-span-2">
-          {/* Fokus Hari Ini — jantung halaman, paling dominan setelah Pulse.
-              Accent bar di kiri (bukan kotak penuh bergaris) supaya terasa
-              seperti sorotan, bukan card statistik lain di antara card lain. */}
-          <div className="rounded-2xl border-l-4 border-primary bg-primary/[0.07] px-6 py-7 sm:px-8 sm:py-8">
-            <p className="text-xs font-bold uppercase tracking-widest text-primary">{t.workspace.todayFocusLabel}</p>
-            <p className={`mt-3 text-xl font-bold leading-snug sm:text-2xl ${missionDone ? "text-neutral-500 line-through" : "text-white"}`}>
-              {focusText()}
-            </p>
-            {isPreparation ? (
-              <button
-                onClick={onOpenUpdateModal}
-                className="mt-5 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black transition-transform duration-200 hover:scale-[1.03] hover:opacity-90"
-              >
-                {t.workspace.updateBusinessButton}
-              </button>
-            ) : (
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <button
-                  onClick={onOpenUpdateModal}
-                  disabled={missionDone}
-                  className="rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black transition-transform duration-200 hover:scale-[1.03] hover:opacity-90 disabled:opacity-40 disabled:hover:scale-100"
-                >
-                  {t.workspace.todayMissionStartButton}
-                </button>
-                <button
-                  onClick={() => setMissionDone((v) => !v)}
-                  className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/40 hover:text-white"
-                >
-                  {t.workspace.todayMissionDoneButton}
-                </button>
-              </div>
-            )}
-            {missionDone && <p className="mt-3 text-xs text-neutral-500">{t.workspace.todayMissionDoneNote}</p>}
-          </div>
-
-          {/* Checklist — state lokal per sesi (belum persisten, lihat catatan
-              di atas komponen). Selalu ada, baik fase persiapan maupun
-              berjalan, supaya halaman tidak pernah terasa kosong. */}
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-neutral-400">{t.workspace.todayChecklistTitle}</h3>
-              <span className="text-xs text-neutral-500">
-                {fillTemplate(t.workspace.todayChecklistCount, { done: checklistDoneCount, total: checklistKeys.length })}
-              </span>
-            </div>
-            <div className="space-y-1">
-              {checklistKeys.map((key) => {
-                const done = checkedItems.has(key);
+      {/* Yang berubah — baris tipis dengan panah arah, TANPA kotak/background.
+          Ini murni presentasi ulang getHealthTrend, bukan hitungan baru. */}
+      {!isPreparation && (
+        <div className="border-b border-white/10 pb-10">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-widest text-neutral-500">{t.workspace.todayWhatChangedTitle}</h2>
+          {!snapshot.whatChanged || snapshot.whatChanged.length === 0 ? (
+            <p className="text-sm text-neutral-500">{t.workspace.todayWhatChangedEmpty}</p>
+          ) : (
+            <div className="flex flex-wrap gap-x-10 gap-y-4">
+              {snapshot.whatChanged.map((c) => {
+                const isUp = c.delta > 0;
+                const isDown = c.delta < 0;
                 return (
-                  <button
-                    key={key}
-                    onClick={() => toggleChecklistItem(key)}
-                    className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors duration-200 hover:bg-white/[0.03]"
-                  >
+                  <div key={c.dimension} className="flex items-baseline gap-2">
+                    <span className="text-sm text-neutral-500">{DIMENSION_LABELS[c.dimension]?.[lang] || c.dimension}</span>
                     <span
-                      className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border text-xs transition-colors duration-200 ${
-                        done ? "border-primary bg-primary text-black" : "border-white/20 text-transparent"
+                      className={`flex items-center gap-1 text-lg font-bold ${
+                        isUp ? "text-green-400" : isDown ? "text-red-400" : "text-neutral-500"
                       }`}
                     >
-                      ✓
+                      <span aria-hidden="true">{isUp ? "▲" : isDown ? "▼" : "●"}</span>
+                      {Math.abs(c.delta)}
                     </span>
-                    <span className={`text-sm ${done ? "text-neutral-500 line-through" : "text-neutral-200"}`}>
-                      {checklistLabel(t, key)}
-                    </span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
-            <p className="mt-2 px-2 text-xs text-neutral-600">{t.workspace.todayChecklistSessionNote}</p>
-          </div>
-
-          {/* Yang berubah — indikator arah (▲▼●) dalam kartu kecil, HANYA
-              untuk bisnis yang sudah berjalan (butuh minimal 2 periode data). */}
-          {!isPreparation && (
-            <div>
-              <h3 className="mb-3 text-sm font-semibold text-neutral-400">{t.workspace.todayWhatChangedTitle}</h3>
-              {!snapshot.whatChanged || snapshot.whatChanged.length === 0 ? (
-                <p className="text-sm text-neutral-500">{t.workspace.todayWhatChangedEmpty}</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {snapshot.whatChanged.map((c) => {
-                    const isUp = c.delta > 0;
-                    const isDown = c.delta < 0;
-                    return (
-                      <div key={c.dimension} className="rounded-xl bg-white/[0.03] px-4 py-3 transition-colors duration-200 hover:bg-white/[0.05]">
-                        <p className="text-xs text-neutral-500">{DIMENSION_LABELS[c.dimension]?.[lang] || c.dimension}</p>
-                        <p
-                          className={`mt-1 flex items-center gap-1 text-base font-bold ${
-                            isUp ? "text-green-400" : isDown ? "text-red-400" : "text-neutral-500"
-                          }`}
-                        >
-                          <span aria-hidden="true">{isUp ? "▲" : isDown ? "▼" : "●"}</span>
-                          {Math.abs(c.delta)}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
           )}
+        </div>
+      )}
 
+      {/* Checklist — demoted, kecil, teks saja (bukan lagi bagian utama
+          setelah Prioritas mengambil alih peran itu di atas). */}
+      <div className="border-b border-white/10 pb-10">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-600">{t.workspace.todayChecklistTitle}</h2>
+          <span className="text-xs text-neutral-600">
+            {fillTemplate(t.workspace.todayChecklistCount, { done: checklistDoneCount, total: checklistKeys.length })}
+          </span>
+        </div>
+        <div className="space-y-0.5">
+          {checklistKeys.map((key) => {
+            const done = checkedItems.has(key);
+            return (
+              <button
+                key={key}
+                onClick={() => toggleChecklistItem(key)}
+                className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors duration-200 hover:bg-white/[0.03]"
+              >
+                <span
+                  className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border text-[10px] transition-colors duration-200 ${
+                    done ? "border-primary bg-primary text-black" : "border-white/20 text-transparent"
+                  }`}
+                >
+                  ✓
+                </span>
+                <span className={`text-sm ${done ? "text-neutral-600 line-through" : "text-neutral-400"}`}>
+                  {checklistLabel(t, key)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 px-2 text-xs text-neutral-700">{t.workspace.todayChecklistSessionNote}</p>
+      </div>
+
+      {/* Quick stats — cuma caption satu baris, paling kecil di halaman. */}
+      {!isPreparation && (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-neutral-600">
+            <span>
+              {t.workspace.todayQuickStatsScore} {snapshot.score ?? "—"}
+            </span>
+            <span>
+              {t.workspace.todayQuickStatsJourney}{" "}
+              {snapshot.journeyDelta !== null ? `${snapshot.journeyDelta > 0 ? "+" : ""}${snapshot.journeyDelta}` : "—"}
+            </span>
+            <span>
+              {t.workspace.todayQuickStatsLastUpdate} {lastUpdateText}
+            </span>
+          </div>
           <button
             onClick={onNavigateToInsights}
             className="text-sm font-semibold text-primary transition-opacity duration-200 hover:opacity-70"
@@ -1177,55 +1230,7 @@ function TodayPanel({
             {t.workspace.todayExploreMore}
           </button>
         </div>
-
-        {/* Kolom kanan — konteks pendukung. Tidak ada di fase persiapan
-            (belum ada Business Health/Achievement untuk dijelaskan). */}
-        {!isPreparation && (
-          <div className="space-y-6">
-            {snapshot.biggestMover && (
-              <div className="rounded-2xl bg-white/[0.03] p-5">
-                <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">{t.workspace.todayBiggestMoverTitle}</p>
-                <p className="mt-2 text-sm leading-relaxed text-neutral-200">
-                  {fillTemplate(t.workspace.todayBiggestMoverTemplate, {
-                    dimension: DIMENSION_LABELS[snapshot.biggestMover.dimension]?.[lang] || snapshot.biggestMover.dimension,
-                  })}
-                </p>
-              </div>
-            )}
-
-            <div className="rounded-2xl bg-white/[0.03] p-5">
-              <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">{t.workspace.growthNextMilestoneTitle}</p>
-              <p className="mt-2 text-sm leading-relaxed text-neutral-200">{nextMilestoneText}</p>
-            </div>
-
-            <div className="rounded-2xl bg-white/[0.03] p-5">
-              <p className="mb-3 text-xs font-bold uppercase tracking-widest text-neutral-400">{t.workspace.todayRemindersTitle}</p>
-              {snapshot.reminders.length === 0 ? (
-                <p className="text-sm text-neutral-500">{t.workspace.todayRemindersEmpty}</p>
-              ) : (
-                <ul className="space-y-3">
-                  {snapshot.reminders.map((r, i) => (
-                    <li key={i} className="flex items-start justify-between gap-2">
-                      <span className="text-sm leading-relaxed text-neutral-300">
-                        {r.type === "business_update_overdue"
-                          ? fillTemplate(t.workspace.todayReasonUpdateOverdue, r.params || {})
-                          : nextMilestoneText}
-                      </span>
-                      <span
-                        className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                          r.type === "business_update_overdue" ? "bg-red-500/15 text-red-300" : "bg-primary/15 text-primary"
-                        }`}
-                      >
-                        {r.type === "business_update_overdue" ? t.workspace.todayReminderBadgeSoon : t.workspace.todayReminderBadgeClose}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

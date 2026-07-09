@@ -37,6 +37,23 @@ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SE
 type PulseLevel = "preparation" | "stable" | "attention" | "action_required";
 type PulseReason = { key: string; params?: Record<string, string | number> };
 
+type RuleItem = { key: string; params?: Record<string, string | number> };
+
+// Rule Engine untuk "Peluang Terbaik" — TIDAK PAKAI AI. Ini murni lookup
+// tetap: dimensi Business Health terlemah -> 1 saran tindakan yang relevan
+// untuk dimensi itu. Sama semangatnya dengan UNIT_LABELS di
+// evaluateAchievements.ts — tabel referensi statis, bukan opini yang
+// dikarang saat runtime. Kalau saran ini dirasa kurang tepat, PERBAIKI
+// isi tabelnya (§ dokumen arsitektur), bukan diganti jadi panggilan AI.
+const DIMENSION_OPPORTUNITY_KEY: Record<string, string> = {
+  marketing: "opportunityMarketing",
+  sales: "opportunitySales",
+  finance: "opportunityFinance",
+  customer: "opportunityCustomer",
+  operations: "opportunityOperations",
+  brand: "opportunityBrand",
+};
+
 export type TodaySnapshotPayload = {
   stageGroup: "preparation" | "running";
   stageSource: "auto" | "manual_override";
@@ -47,10 +64,12 @@ export type TodaySnapshotPayload = {
   periodDelta: number | null;
   daysSinceUpdate: number | null;
   lastUpdateAt: string | null;
-  focusKey: string | null;
-  focusParams?: Record<string, string | number>;
+  // Sampai 3 item, diurutkan berdasarkan urgensi — semua rule-based dari
+  // Business Engine (data freshness, dimensi terlemah, kedekatan achievement).
+  priorities: RuleItem[];
+  topRisk: RuleItem | null;
+  opportunity: RuleItem | null;
   whatChanged: Array<{ dimension: string; delta: number }> | null;
-  biggestMover: { dimension: string; delta: number } | null;
   nextMilestone: {
     titleId: string;
     titleEn: string;
@@ -58,7 +77,6 @@ export type TodaySnapshotPayload = {
     unitId: string;
     unitEn: string;
   } | null;
-  reminders: Array<{ type: "business_update_overdue" | "achievement_near"; params?: Record<string, string | number> }>;
 };
 
 function daysBetween(iso: string, now: Date): number {
@@ -132,23 +150,60 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
     }
   }
 
-  // --- Focus Hari Ini: deterministik, TANPA AI (Fase 1) ---
-  let focusKey: string | null = null;
-  let focusParams: Record<string, string | number> | undefined;
+  // --- Prioritas / Risiko / Peluang: Rule Engine, TANPA AI ---
+  // Semua di bawah ini diturunkan dari angka yang sudah dihitung Business
+  // Engine (health, progress, achievement) lewat aturan tetap (if/else),
+  // BUKAN dari Claude API. Ini menjawab arahan Product Owner: "Opportunity
+  // tidak harus AI. Opportunity bisa dibuat dari Business Engine."
+  const weakestEntry = health.dimensions
+    ? Object.entries(health.dimensions).reduce((a, b) => (b[1] < a[1] ? b : a), Object.entries(health.dimensions)[0])
+    : null;
+
+  const priorities: RuleItem[] = [];
+  let topRisk: RuleItem | null = null;
+  let opportunity: RuleItem | null = null;
 
   if (stage.stageGroup === "preparation") {
-    focusKey = "startFirstUpdate";
-  } else if (daysSinceUpdate === null || daysSinceUpdate > 7) {
-    focusKey = "fillBusinessUpdate";
-  } else if (health.dimensions) {
-    const entries = Object.entries(health.dimensions);
-    if (entries.length > 0) {
-      const weakest = entries.reduce((a, b) => (b[1] < a[1] ? b : a));
-      focusKey = "focusWeakDimension";
-      focusParams = { dimension: weakest[0], score: weakest[1] };
+    // Fase persiapan: satu-satunya prioritas nyata adalah mulai mengisi
+    // Business Update pertama — checklist detail persiapan dirender
+    // terpisah di UI dari template statis (bukan dari Today Engine).
+    priorities.push({ key: "startFirstUpdate" });
+  } else {
+    if (daysSinceUpdate === null || daysSinceUpdate > 7) {
+      priorities.push({ key: "fillBusinessUpdate", params: { days: daysSinceUpdate ?? 0 } });
+    }
+    if (weakestEntry) {
+      priorities.push({ key: "focusWeakDimension", params: { dimension: weakestEntry[0], score: weakestEntry[1] } });
+    }
+    if (achievementsBody.nextMilestone && achievementsBody.nextMilestone.remainingRatio < 0.3) {
+      priorities.push({
+        key: "achievementNudge",
+        params: {
+          remaining: achievementsBody.nextMilestone.remaining,
+          titleId: achievementsBody.nextMilestone.titleId,
+          titleEn: achievementsBody.nextMilestone.titleEn,
+        },
+      });
+    }
+    if (priorities.length === 0) priorities.push({ key: "keepGoing" });
+
+    // Risiko terbesar — SATU sinyal negatif paling mendesak, urutan tetap:
+    // data basi > skor turun > dimensi sangat rendah. Kalau tidak ada yang
+    // cocok, jujur tidak ada risiko besar terdeteksi (tidak dipaksakan).
+    if (daysSinceUpdate !== null && daysSinceUpdate > 14) {
+      topRisk = { key: "riskUpdateOverdue", params: { days: daysSinceUpdate } };
+    } else if (progress.period && progress.period.delta < 0) {
+      topRisk = { key: "riskScoreDown", params: { points: Math.abs(progress.period.delta) } };
+    } else if (weakestEntry && weakestEntry[1] < 45) {
+      topRisk = { key: "riskWeakDimension", params: { dimension: weakestEntry[0], score: weakestEntry[1] } };
+    }
+
+    // Peluang terbaik — lookup tetap dari dimensi terlemah (lihat
+    // DIMENSION_OPPORTUNITY_KEY di atas), bukan opini AI.
+    if (weakestEntry) {
+      opportunity = { key: DIMENSION_OPPORTUNITY_KEY[weakestEntry[0]] || "opportunityGeneric" };
     }
   }
-  if (!focusKey) focusKey = "keepGoing";
 
   // --- Yang berubah sejak periode lalu: presentasi ulang getHealthTrend ---
   let whatChanged: Array<{ dimension: string; delta: number }> | null = null;
@@ -176,14 +231,6 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
     }
   }
 
-  // "Yang paling berpengaruh" — dimensi dengan |delta| terbesar dari
-  // whatChanged yang SUDAH dihitung di atas. Tidak ada query/hitungan baru,
-  // murni memilih 1 entri dari array yang sudah ada.
-  let biggestMover: { dimension: string; delta: number } | null = null;
-  if (whatChanged && whatChanged.length > 0) {
-    biggestMover = whatChanged.reduce((a, b) => (Math.abs(b.delta) > Math.abs(a.delta) ? b : a));
-  }
-
   const nextMilestone = achievementsBody.nextMilestone
     ? {
         titleId: achievementsBody.nextMilestone.titleId,
@@ -193,19 +240,6 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
         unitEn: achievementsBody.nextMilestone.unitEn,
       }
     : null;
-
-  // Reminder — turunan langsung dari sinyal yang sudah dihitung di atas
-  // (bukan query baru), disusun sebagai daftar supaya UI tinggal me-render.
-  const reminders: TodaySnapshotPayload["reminders"] = [];
-  if (stage.stageGroup === "running" && daysSinceUpdate !== null && daysSinceUpdate > 7) {
-    reminders.push({ type: "business_update_overdue", params: { days: daysSinceUpdate } });
-  }
-  if (achievementsBody.nextMilestone && achievementsBody.nextMilestone.remainingRatio < 0.25) {
-    // Sengaja TANPA params bahasa di sini — angka & unit-nya dibaca ulang
-    // dari field `nextMilestone` di payload ini juga (bilingual, unitId/unitEn),
-    // supaya tidak ada teks yang "dibekukan" ke satu bahasa saat snapshot dibuat.
-    reminders.push({ type: "achievement_near" });
-  }
 
   return {
     stageGroup: stage.stageGroup,
@@ -217,12 +251,11 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
     periodDelta: progress.period?.delta ?? null,
     daysSinceUpdate,
     lastUpdateAt: (latestUpdate?.created_at as string) || null,
-    focusKey,
-    focusParams,
+    priorities,
+    topRisk,
+    opportunity,
     whatChanged,
-    biggestMover,
     nextMilestone,
-    reminders,
   };
 }
 
