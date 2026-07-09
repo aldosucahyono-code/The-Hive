@@ -500,8 +500,43 @@ function CompetitorPanel({ tier, t, onUpgradeClick }: { tier: Tier; t: Translati
   );
 }
 
-/** Growth — sama pola dengan Competitor. */
-function GrowthPanel({ tier, t, onUpgradeClick }: { tier: Tier; t: Translations; onUpgradeClick: () => void }) {
+type HealthTrendDimension = { first?: number; previous?: number; current: number; delta: number };
+type HealthTrend = {
+  journeyByDimension: Record<string, HealthTrendDimension> | null;
+  periodByDimension: Record<string, HealthTrendDimension> | null;
+  biggestMoverDimension: string | null;
+};
+
+/** Growth (Tahap 2.3.1) — TIDAK menghitung apapun sendiri. Menu ini murni
+ * membaca hasil Business Engine yang sudah ada: progress_snapshots (lewat
+ * getProgress, sudah dipakai TargetPanel), business_health historis (lewat
+ * getHealthTrend, baru — baca saja, lihat services/workspace/getHealthTrend.ts),
+ * dan business_updates (lewat listUpdates, sudah dipakai toggle riwayat di
+ * bawah halaman). Tidak ada AI di sini — itu tugas Tahap AI Engine nanti. */
+function GrowthPanel({
+  tier,
+  t,
+  lang,
+  onUpgradeClick,
+  onOpenUpdateModal,
+  progress,
+  healthTrend,
+  updates,
+  updatesLoading,
+}: {
+  tier: Tier;
+  t: Translations;
+  lang: "id" | "en";
+  onUpgradeClick: () => void;
+  onOpenUpdateModal: () => void;
+  progress: {
+    journey: { baselineScore: number; currentScore: number; delta: number } | null;
+    period: { previousScore: number; currentScore: number; delta: number } | null;
+  };
+  healthTrend: HealthTrend;
+  updates: Array<Record<string, unknown>>;
+  updatesLoading: boolean;
+}) {
   if (tier === "free") {
     return (
       <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
@@ -516,11 +551,121 @@ function GrowthPanel({ tier, t, onUpgradeClick }: { tier: Tier; t: Translations;
       </div>
     );
   }
+
+  function deltaLabel(delta: number): string {
+    const sign = delta > 0 ? "+" : "";
+    return `${sign}${delta}`;
+  }
+
+  function deltaColor(delta: number): string {
+    if (delta > 0) return "text-green-400";
+    if (delta < 0) return "text-red-400";
+    return "text-neutral-400";
+  }
+
+  if (!progress.journey) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
+        <div className="mb-3 text-2xl">🌱</div>
+        <h3 className="mb-2 text-sm font-bold text-neutral-200">{t.workspace.growthEmptyTitle}</h3>
+        <p className="mx-auto mb-5 max-w-sm text-sm leading-relaxed text-neutral-400">{t.workspace.growthEmptyDesc}</p>
+        <button
+          onClick={onOpenUpdateModal}
+          className="rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black hover:opacity-90"
+        >
+          {t.workspace.updateBusinessButton}
+        </button>
+      </div>
+    );
+  }
+
+  const periodDimensions = ["sales", "finance", "customer"] as const;
+
   return (
-    <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
-      <p className="mx-auto max-w-md text-sm leading-relaxed text-neutral-300">
-        {t.workspace.growthProPlatinumMessage}
-      </p>
+    <div className="space-y-4">
+      {/* Journey Progress — baseline (Business Update pertama) vs sekarang. */}
+      <div className="rounded-2xl border border-white/10 bg-surface p-5">
+        <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthJourneyTitle}</h3>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+          <p className="mb-1 text-xs font-bold uppercase text-neutral-400">{t.workspace.growthOverallScoreLabel}</p>
+          <p className="text-2xl font-black text-white">
+            {progress.journey.baselineScore} → {progress.journey.currentScore}
+          </p>
+          <p className={`text-sm font-semibold ${deltaColor(progress.journey.delta)}`}>
+            {deltaLabel(progress.journey.delta)} {t.workspace.pointsUnit}
+          </p>
+        </div>
+
+        {healthTrend.biggestMoverDimension && healthTrend.journeyByDimension && (
+          <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <p className="mb-1 text-xs font-bold uppercase text-primary">{t.workspace.growthBiggestMoverLabel}</p>
+            <p className="text-sm font-semibold text-white">
+              {DIMENSION_LABELS[healthTrend.biggestMoverDimension]?.[lang] || healthTrend.biggestMoverDimension}{" "}
+              <span className={deltaColor(healthTrend.journeyByDimension[healthTrend.biggestMoverDimension].delta)}>
+                ({deltaLabel(healthTrend.journeyByDimension[healthTrend.biggestMoverDimension].delta)})
+              </span>
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Period Progress — minggu lalu vs minggu ini, per dimensi. */}
+      <div className="rounded-2xl border border-white/10 bg-surface p-5">
+        <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthPeriodTitle}</h3>
+        {!progress.period || !healthTrend.periodByDimension ? (
+          <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.growthPeriodEmptyDesc}</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+              <p className="text-xs font-bold uppercase text-neutral-400">{t.workspace.growthOverallScoreLabel}</p>
+              <p className={`mt-1 text-sm font-bold ${deltaColor(progress.period.delta)}`}>
+                {deltaLabel(progress.period.delta)}
+              </p>
+            </div>
+            {periodDimensions.map((dim) => {
+              const d = healthTrend.periodByDimension?.[dim];
+              if (!d) return null;
+              return (
+                <div key={dim} className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+                  <p className="text-xs font-bold uppercase text-neutral-400">{DIMENSION_LABELS[dim]?.[lang]}</p>
+                  <p className={`mt-1 text-sm font-bold ${deltaColor(d.delta)}`}>{deltaLabel(d.delta)}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Growth Timeline — riwayat Business Update, sumber yang sama dengan
+          toggle "Riwayat Update Bisnis" di bawah halaman. */}
+      <div className="rounded-2xl border border-white/10 bg-surface p-5">
+        <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthTimelineTitle}</h3>
+        {updatesLoading ? (
+          <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
+        ) : updates.length === 0 ? (
+          <p className="text-sm text-neutral-500">{t.workspace.updateHistoryEmpty}</p>
+        ) : (
+          <div className="space-y-3">
+            {updates.map((u) => (
+              <div key={u.id as string} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-neutral-500">
+                    {new Date(u.created_at as string).toLocaleDateString(LOCALE_MAP[lang], {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </p>
+                  <span className="rounded-full border border-white/15 px-2.5 py-0.5 text-xs font-semibold text-neutral-300">
+                    {u.kondisi_penjualan === "naik" ? "📈" : u.kondisi_penjualan === "turun" ? "📉" : "➡️"}
+                  </span>
+                </div>
+                <p className="text-sm text-neutral-300">{u.content as string}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -541,6 +686,11 @@ function Workspace() {
     journey: { baselineScore: number; currentScore: number; delta: number } | null;
     period: { previousScore: number; currentScore: number; delta: number } | null;
   }>({ journey: null, period: null });
+  const [healthTrend, setHealthTrend] = useState<HealthTrend>({
+    journeyByDimension: null,
+    periodByDimension: null,
+    biggestMoverDimension: null,
+  });
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
   const [showAddBusiness, setShowAddBusiness] = useState(false);
@@ -673,7 +823,7 @@ function Workspace() {
           // sini lagi — selalu lewat action "getMembership", supaya
           // pengecekan expires_at konsisten dengan services/beemo/chat.ts
           // (satu sumber kebenaran: services/membership/getActiveMembership.ts).
-          const [healthResponse, progressResponse, membershipResponse] = await Promise.all([
+          const [healthResponse, progressResponse, membershipResponse, healthTrendResponse] = await Promise.all([
             fetch("/api/workspace", {
               method: "POST",
               headers: {
@@ -698,10 +848,19 @@ function Workspace() {
               },
               body: JSON.stringify({ action: "getMembership", businessProfileId: activeBusinessId }),
             }),
+            fetch("/api/workspace", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ action: "getHealthTrend", businessProfileId: activeBusinessId }),
+            }),
           ]);
           const healthJson = await healthResponse.json();
           const progressJson = await progressResponse.json();
           const membershipJson = await membershipResponse.json();
+          const healthTrendJson = await healthTrendResponse.json();
           if (!cancelled) {
             if (healthResponse.ok) {
               setBusinessHealth({ dimensions: healthJson.dimensions, overall: healthJson.overall });
@@ -714,9 +873,16 @@ function Workspace() {
             } else {
               console.error("Gagal memuat membership:", membershipJson.error);
             }
+            if (healthTrendResponse.ok) {
+              setHealthTrend({
+                journeyByDimension: healthTrendJson.journeyByDimension,
+                periodByDimension: healthTrendJson.periodByDimension,
+                biggestMoverDimension: healthTrendJson.biggestMoverDimension,
+              });
+            }
           }
         } catch (err) {
-          console.error("getBusinessHealth/getProgress/getMembership error:", err);
+          console.error("getBusinessHealth/getProgress/getMembership/getHealthTrend error:", err);
         }
       }
 
@@ -927,36 +1093,54 @@ function Workspace() {
     }
   }
 
+  // Dipakai berdua: toggle "Riwayat Update Bisnis" di bawah halaman DAN
+  // Growth Timeline di menu Growth — satu sumber data (listUpdates), bukan
+  // fetch terpisah untuk hal yang sama.
+  async function loadUpdateHistory() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setUpdateHistoryLoading(true);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "listUpdates", businessProfileId: activeBusinessId }),
+      });
+      const json = await response.json();
+      if (response.ok) setUpdateHistory(json.updates || []);
+    } catch (err) {
+      console.error("listUpdates error:", err);
+    }
+    setUpdateHistoryLoading(false);
+  }
+
   async function toggleUpdateHistory() {
     const next = !showUpdateHistory;
     setShowUpdateHistory(next);
-    if (next && activeBusinessId && session?.access_token) {
-      setUpdateHistoryLoading(true);
-      try {
-        const response = await fetch("/api/workspace", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ action: "listUpdates", businessProfileId: activeBusinessId }),
-        });
-        const json = await response.json();
-        if (response.ok) setUpdateHistory(json.updates || []);
-      } catch (err) {
-        console.error("listUpdates error:", err);
-      }
-      setUpdateHistoryLoading(false);
-    }
+    if (next) await loadUpdateHistory();
   }
 
   function handleUpdateSaved() {
     setShowBusinessUpdate(false);
-    if (showUpdateHistory) {
-      setShowUpdateHistory(false);
-      toggleUpdateHistory();
-    }
+    // Business Update baru saja memicu Business Health + Progress Engine
+    // di server (lihat submitUpdate.ts) — refreshKey memuat ulang health/
+    // progress/healthTrend/membership supaya Business Score, Target, dan
+    // Growth langsung menampilkan angka terbaru, bukan data basi.
+    setRefreshKey((k) => k + 1);
+    if (showUpdateHistory || activeMenu === "growth") loadUpdateHistory();
   }
+
+  // Growth Timeline butuh riwayat Business Update — muat sekali saat menu
+  // Growth pertama kali dibuka (kalau belum pernah dimuat lewat toggle di
+  // bawah halaman), bukan di setiap render.
+  useEffect(() => {
+    if (activeMenu === "growth" && !showUpdateHistory && updateHistory.length === 0 && !updateHistoryLoading) {
+      loadUpdateHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMenu]);
 
   function handleBusinessCreated(newBusinessProfileId: string) {
     setActiveBusinessId(newBusinessProfileId);
@@ -1145,7 +1329,17 @@ function Workspace() {
           ) : activeMenu === "competitor" ? (
             <CompetitorPanel tier={tier} t={t} onUpgradeClick={openUpgradeModal} />
           ) : activeMenu === "growth" ? (
-            <GrowthPanel tier={tier} t={t} onUpgradeClick={openUpgradeModal} />
+            <GrowthPanel
+              tier={tier}
+              t={t}
+              lang={lang}
+              onUpgradeClick={openUpgradeModal}
+              onOpenUpdateModal={() => setShowBusinessUpdate(true)}
+              progress={progressData}
+              healthTrend={healthTrend}
+              updates={updateHistory}
+              updatesLoading={updateHistoryLoading}
+            />
           ) : activeMenu === "chat" ? (
             activeBusinessId && (
               <ChatBeemoPanel

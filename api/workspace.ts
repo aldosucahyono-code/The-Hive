@@ -11,6 +11,7 @@ import { submitBusinessUpdate } from "../services/workspace/submitUpdate.js";
 import { listBusinessUpdates } from "../services/workspace/listUpdates.js";
 import { getBusinessHealth } from "../services/workspace/getBusinessHealth.js";
 import { getProgress } from "../services/workspace/getProgress.js";
+import { getHealthTrend } from "../services/workspace/getHealthTrend.js";
 import { getLatestPayment } from "../services/workspace/getLatestPayment.js";
 import { getMembership } from "../services/workspace/getMembership.js";
 
@@ -47,6 +48,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "getProgress":
       result = await getProgress(userId, payload);
+      break;
+    case "getHealthTrend":
+      result = await getHealthTrend(userId, payload);
       break;
     case "getLatestPayment":
       result = await getLatestPayment(userId, payload);
