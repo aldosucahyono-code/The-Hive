@@ -8,8 +8,20 @@ import ChatBeemoPanel from "./ChatBeemoPanel";
 import BusinessUpdateModal from "./BusinessUpdateModal";
 import UpgradeModal from "./UpgradeModal";
 import type { Translations } from "../i18n/translations";
+import beemoMascot from "../assets/mascot/beemo.png";
 
-type MenuKey = "today" | "history" | "score" | "report" | "target" | "competitor" | "growth" | "chat";
+type MenuKey =
+  | "today"
+  | "history"
+  | "score"
+  | "report"
+  | "target"
+  | "competitor"
+  | "growth"
+  | "chat"
+  | "settings"
+  | "businessUpdates"
+  | "decisionJournal";
 
 // --- Tipe data mengikuti skema Domain Model (Tahap 1, 1.5, 1.6) ---
 // Catatan penting: Workspace sekarang mendukung BANYAK business_profile per
@@ -79,24 +91,40 @@ function BusinessSwitcher({
   onAddNew: () => void;
   addLabel: string;
 }) {
+  const active = businesses.find((b) => b.id === activeId) || null;
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {businesses.length > 1 ? (
-        <select
-          value={activeId}
-          onChange={(e) => onSwitch(e.target.value)}
-          className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-neutral-200 focus:border-primary/50 focus:outline-none"
-        >
-          {businesses.map((b) => (
-            <option key={b.id} value={b.id} className="bg-black">
-              {b.business_name}
-            </option>
-          ))}
-        </select>
+        <div className="flex h-10 flex-shrink-0 items-center gap-2 rounded-2xl border border-white/10 bg-surface px-3">
+          <span className="text-base" aria-hidden="true">🏢</span>
+          <div className="leading-tight">
+            <select
+              value={activeId}
+              onChange={(e) => onSwitch(e.target.value)}
+              className="block rounded-md bg-transparent text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+            >
+              {businesses.map((b) => (
+                <option key={b.id} value={b.id} className="bg-black">
+                  {b.business_name}
+                </option>
+              ))}
+            </select>
+            {active?.industry && <span className="block text-[11px] text-neutral-500">{active.industry}</span>}
+          </div>
+        </div>
+      ) : active ? (
+        <div className="flex h-10 flex-shrink-0 items-center gap-2 rounded-2xl border border-white/10 bg-surface px-3">
+          <span className="text-base" aria-hidden="true">🏢</span>
+          <div className="leading-tight">
+            <span className="block text-sm font-bold text-white">{active.business_name}</span>
+            {active.industry && <span className="block text-[11px] text-neutral-500">{active.industry}</span>}
+          </div>
+        </div>
       ) : null}
       <button
         onClick={onAddNew}
-        className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-neutral-300 hover:border-primary/40 hover:text-white"
+        className="flex h-10 flex-shrink-0 items-center rounded-2xl border border-white/15 bg-white/5 px-4 text-xs font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
       >
         {addLabel}
       </button>
@@ -199,11 +227,21 @@ function HistoryList({ analyses, t, lang }: { analyses: AnalysisRow[]; t: Transl
   );
 }
 
-function ComingSoon({ label, desc }: { label: string; desc: string }) {
+/** ComingSoon — dipakai untuk menu yang labelnya sudah tampil di sidebar
+ * (mengikuti mockup, mis. Business Updates & Decision Journal) tapi
+ * fiturnya belum dibangun. Sengaja dibuat tetap terasa premium (bukan kotak
+ * kosong polos) sesuai arahan: "Jangan menghapus/menyederhanakan UI karena
+ * data belum ada — bangun struktur visual placeholder yang jelas." */
+function ComingSoon({ label, desc, badge, note }: { label: string; desc: string; badge: string; note: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-surface p-10 text-center">
-      <p className="text-lg font-bold text-neutral-200">{label}</p>
-      <p className="mt-2 text-sm text-neutral-500">{desc}</p>
+    <div className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-neutral-900 to-black p-10 text-center sm:p-16">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-3xl">🐝</div>
+      <span className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary">
+        {badge}
+      </span>
+      <p className="mt-4 text-2xl font-black text-white">{label}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-neutral-400">{desc}</p>
+      <p className="mt-4 text-xs font-semibold text-neutral-600">{note}</p>
     </div>
   );
 }
@@ -858,6 +896,38 @@ function pulseVisual(level: string): { emoji: string; pillClasses: string } {
   }
 }
 
+/** Headline/subheadline pulse & sapaan waktu — dipakai bersama oleh header
+ * (Workspace()) dan TodayPanel, supaya teks "Bisnismu berjalan baik hari
+ * ini" yang tampil di header besar sama persis dengan yang dipakai di
+ * badan halaman Today, bukan dua sumber teks yang bisa tidak sinkron. */
+function pulseHeadlineText(t: Translations, level: "preparation" | "stable" | "attention" | "action_required"): string {
+  return level === "stable"
+    ? t.workspace.todayPulseHeadlineStable
+    : level === "attention"
+      ? t.workspace.todayPulseHeadlineAttention
+      : level === "action_required"
+        ? t.workspace.todayPulseHeadlineActionRequired
+        : t.workspace.todayPulseHeadlinePreparation;
+}
+
+function pulseSubheadlineText(t: Translations, level: "preparation" | "stable" | "attention" | "action_required"): string {
+  return level === "stable"
+    ? t.workspace.todaySubheadlineStable
+    : level === "attention"
+      ? t.workspace.todaySubheadlineAttention
+      : level === "action_required"
+        ? t.workspace.todaySubheadlineActionRequired
+        : t.workspace.todaySubheadlinePreparation;
+}
+
+function greetingPrefix(t: Translations): string {
+  const hour = new Date().getHours();
+  if (hour < 11) return t.workspace.todayGreetingMorning;
+  if (hour < 15) return t.workspace.todayGreetingAfternoon;
+  if (hour < 19) return t.workspace.todayGreetingEvening;
+  return t.workspace.todayGreetingNight;
+}
+
 type RuleItem = { key: string; params?: Record<string, string | number> };
 
 type TodaySnapshotPayload = {
@@ -866,7 +936,13 @@ type TodaySnapshotPayload = {
   pulseReasons: Array<{ key: string; params?: Record<string, string | number> }>;
   score: number | null;
   journeyDelta: number | null;
+  // periodDelta & lastUpdateAt sudah lama dikirim backend (lihat
+  // services/today/computeSnapshot.ts) tapi belum tercermin di tipe FE ini —
+  // ditambahkan di sini murni supaya UI bisa memakai data yang sudah ada
+  // (trend Business Score, tanggal update persis), bukan field baru.
+  periodDelta: number | null;
   daysSinceUpdate: number | null;
+  lastUpdateAt: string | null;
   priorities: RuleItem[];
   topRisk: RuleItem | null;
   opportunity: RuleItem | null;
@@ -905,6 +981,8 @@ function TodayPanel({
   lang,
   snapshot,
   snapshotLoading,
+  snapshotError,
+  onRetrySnapshot,
   onOpenUpdateModal,
   onNavigateToInsights,
   onOpenChat,
@@ -913,6 +991,8 @@ function TodayPanel({
   lang: "id" | "en";
   snapshot: TodaySnapshotPayload | null;
   snapshotLoading: boolean;
+  snapshotError: boolean;
+  onRetrySnapshot: () => void;
   onOpenUpdateModal: () => void;
   onNavigateToInsights: () => void;
   onOpenChat: () => void;
@@ -931,6 +1011,30 @@ function TodayPanel({
       else next.add(key);
       return next;
     });
+  }
+
+  // Error state — kalau getTodaySnapshot gagal dimuat, JANGAN diam di
+  // skeleton selamanya, dan JANGAN lanjut render kartu Reminder (yang kalau
+  // dipaksa render tanpa data akan salah menampilkan badge "Aman", padahal
+  // sebenarnya gagal dimuat, bukan benar-benar aman). Tombol "Coba Lagi"
+  // hanya reload snapshot ini saja (lihat reloadTodaySnapshot di Workspace()),
+  // bukan seluruh halaman.
+  if (snapshotError && !snapshotLoading) {
+    return (
+      <div className="flex min-h-[320px] flex-col items-center justify-center rounded-3xl border border-red-500/20 bg-red-500/5 p-10 text-center">
+        <div className="mb-3 text-2xl" aria-hidden="true">⚠️</div>
+        <p className="text-base font-bold text-neutral-100">{t.workspace.todaySnapshotErrorTitle}</p>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-neutral-400">
+          {t.workspace.todaySnapshotErrorDesc}
+        </p>
+        <button
+          onClick={onRetrySnapshot}
+          className="mt-5 rounded-2xl bg-primary px-5 py-2.5 text-sm font-bold text-black transition-transform duration-200 hover:scale-[1.03] hover:opacity-90 motion-reduce:transition-none motion-reduce:hover:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+        >
+          {t.workspace.todaySnapshotRetryButton}
+        </button>
+      </div>
+    );
   }
 
   if (snapshotLoading || !snapshot) {
@@ -958,15 +1062,6 @@ function TodayPanel({
         : snapshot.pulseLevel === "action_required"
           ? t.workspace.todayPulseActionRequired
           : t.workspace.todayPulsePreparation;
-  const pulseHeadline =
-    snapshot.pulseLevel === "stable"
-      ? t.workspace.todayPulseHeadlineStable
-      : snapshot.pulseLevel === "attention"
-        ? t.workspace.todayPulseHeadlineAttention
-        : snapshot.pulseLevel === "action_required"
-          ? t.workspace.todayPulseHeadlineActionRequired
-          : t.workspace.todayPulseHeadlinePreparation;
-
   function reasonText(reason: { key: string; params?: Record<string, string | number> }): string {
     const template =
       reason.key === "neverUpdated"
@@ -1044,9 +1139,7 @@ function TodayPanel({
     snapshot.daysSinceUpdate === null
       ? t.workspace.todayQuickStatsNever
       : snapshot.daysSinceUpdate === 0
-        ? lang === "id"
-          ? "Hari ini"
-          : "Today"
+        ? t.workspace.todayLastUpdateToday
         : fillTemplate(t.workspace.todayDaysAgo, { days: snapshot.daysSinceUpdate });
 
   const checklistKeys = isPreparation ? PREPARATION_CHECKLIST_KEYS : RUNNING_CHECKLIST_KEYS;
@@ -1077,6 +1170,31 @@ function TodayPanel({
     biggestMoverInsight = nextMilestoneText;
   }
 
+  // Reminder — UI selalu punya 3 slot mengikuti struktur mockup, walau Rule
+  // Engine saat ini cuma menghasilkan maksimal 1 sinyal risiko (topRisk).
+  // Slot yang tidak ada datanya ditandai jujur sebagai kosong ("Belum ada
+  // pengingat tambahan"), BUKAN diisi pengingat karangan.
+  const reminderSlots: Array<{ text: string; badge: string; badgeColor: string; empty: boolean }> = [];
+  if (snapshot.topRisk) {
+    const badge =
+      snapshot.topRisk.key === "riskUpdateOverdue"
+        ? { label: t.workspace.todayReminderBadgeUrgent, color: "bg-red-500/15 text-red-300" }
+        : snapshot.topRisk.key === "riskScoreDown"
+          ? { label: t.workspace.todayReminderBadgeFocus, color: "bg-amber-500/15 text-amber-300" }
+          : { label: t.workspace.todayReminderBadgeWatch, color: "bg-blue-500/15 text-blue-300" };
+    reminderSlots.push({ text: riskText(snapshot.topRisk), badge: badge.label, badgeColor: badge.color, empty: false });
+  } else {
+    reminderSlots.push({
+      text: t.workspace.todayRiskNone,
+      badge: t.workspace.todayReminderBadgeSafe,
+      badgeColor: "bg-green-500/15 text-green-300",
+      empty: false,
+    });
+  }
+  while (reminderSlots.length < 3) {
+    reminderSlots.push({ text: t.workspace.todayReminderEmptySlot, badge: "", badgeColor: "", empty: true });
+  }
+
   // Journey stepper — Business Stage Engine v1 baru bisa membedakan 2 fase
   // (preparation/running), belum 8 fase penuh dari roadmap. Supaya tidak
   // mengarang tahu-persis di fase mana pengguna berada, node ke-2 dst untuk
@@ -1096,54 +1214,88 @@ function TodayPanel({
   ];
   const currentJourneyIndex = isPreparation ? 0 : 1;
 
+  // Label tanggal chart dihitung dari tanggal hari ini (7 hari terakhir),
+  // diformat lewat locale aktif (pola sama dengan formatDate) — bukan lagi
+  // string statis hardcoded, supaya selalu benar & ikut bahasa aktif.
+  const chartDateLabels = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d.toLocaleDateString(LOCALE_MAP[lang], { day: "numeric", month: "short" });
+  });
+
   return (
     <div className="space-y-8">
-      {/* Hero singkat — status hari ini dalam satu kalimat besar. */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">{pulse.emoji}</span>
-          <span className="text-xs font-bold uppercase tracking-widest text-neutral-500">{pulseLabel}</span>
-        </div>
-        <h1 className="text-2xl font-black leading-[1.15] tracking-tight text-white sm:text-3xl md:text-4xl">
-          {pulseHeadline}
-        </h1>
-      </div>
-
+      {/* Catatan: headline "Bisnismu berjalan baik hari ini" dkk sudah
+          ditampilkan di header bersama (lihat Workspace(), memakai
+          pulseHeadlineText yang sama persis), supaya tidak dobel dengan
+          badan halaman ini. */}
       {/* Baris metrik — 5 kartu ringkas berdampingan, semua angka dari
           today_snapshot yang sama, hanya disusun ulang secara visual. Target
           Bulan Ini sengaja ditampilkan sebagai placeholder kosong yang jujur
           (belum ada angka target di Business Engine), bukan dikarang. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div className="rounded-2xl border border-white/10 bg-surface p-4">
+      {/* Semua kartu metrik pakai struktur 3-baris yang sama persis (label /
+          nilai / baris sekunder yang SELALU dirender, walau kosong berupa
+          spasi) supaya tinggi & alignment vertikal identik — tidak ada
+          kartu yang "naik turun sendiri" dibanding yang lain. */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+        <div className="flex flex-col rounded-[20px] border border-white/10 bg-surface p-4" style={{ minHeight: 128 }}>
           <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.workspace.todayPulseLabel}</p>
-          <div className="mt-2 flex items-center gap-1.5">
-            <span className="text-xl">{pulse.emoji}</span>
-            <span className="text-sm font-bold text-white">{pulseLabel}</span>
+          <div className="mt-3">
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${pulse.pillClasses}`}>
+              <span aria-hidden="true">{pulse.emoji}</span> {pulseLabel}
+            </span>
           </div>
+          <p className="mt-auto pt-2 text-[11px] leading-snug text-neutral-500">
+            {snapshot.pulseReasons.length > 0
+              ? snapshot.pulseReasons.map((r) => reasonText(r)).join(" · ")
+              : pulseSubheadlineText(t, snapshot.pulseLevel)}
+          </p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-surface p-4">
+        <div className="flex flex-col rounded-[20px] border border-white/10 bg-surface p-4" style={{ minHeight: 128 }}>
           <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.workspace.todayQuickStatsScore}</p>
-          <p className="mt-2 text-2xl font-black text-white">
+          <p className="mt-3 text-2xl font-black text-white">
             {snapshot.score ?? "—"}
             <span className="text-xs font-normal text-neutral-500">/100</span>
           </p>
+          <p
+            className={`mt-auto pt-2 text-[11px] font-semibold ${
+              snapshot.periodDelta === null
+                ? "text-neutral-600"
+                : snapshot.periodDelta > 0
+                  ? "text-green-400"
+                  : snapshot.periodDelta < 0
+                    ? "text-red-400"
+                    : "text-neutral-500"
+            }`}
+          >
+            {snapshot.periodDelta !== null
+              ? fillTemplate(snapshot.periodDelta >= 0 ? t.workspace.todayReasonScoreUp : t.workspace.todayReasonScoreDown, {
+                  points: Math.abs(snapshot.periodDelta),
+                })
+              : " "}
+          </p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-surface p-4">
+        <div className="flex flex-col rounded-[20px] border border-white/10 bg-surface p-4" style={{ minHeight: 128 }}>
           <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.workspace.todayQuickStatsJourney}</p>
-          <p className="mt-2 text-2xl font-black text-white">
+          <p className="mt-3 text-2xl font-black text-white">
             {snapshot.journeyDelta !== null ? `${snapshot.journeyDelta > 0 ? "+" : ""}${snapshot.journeyDelta}` : "—"}
           </p>
-          <p className="mt-0.5 truncate text-[11px] text-neutral-500">
+          <p className="mt-auto truncate pt-2 text-[11px] text-neutral-500">
+            {snapshot.journeyDelta !== null ? t.workspace.todayJourneyPointsSuffix + " · " : ""}
             {isPreparation ? t.workspace.todayStageBadgePreparation : t.workspace.todayStageBadgeRunning}
           </p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-surface p-4">
+        <div className="flex flex-col rounded-[20px] border border-white/10 bg-surface p-4" style={{ minHeight: 128 }}>
           <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.workspace.todayMetricTargetLabel}</p>
-          <p className="mt-2 text-sm font-bold text-neutral-500">{t.workspace.todayMetricTargetEmpty}</p>
+          <p className="mt-3 text-sm font-bold text-neutral-500">{t.workspace.todayMetricTargetEmpty}</p>
+          <p className="mt-auto pt-2 text-[11px] text-neutral-600">{" "}</p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-surface p-4">
+        <div className="flex flex-col rounded-[20px] border border-white/10 bg-surface p-4" style={{ minHeight: 128 }}>
           <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.workspace.todayQuickStatsLastUpdate}</p>
-          <p className="mt-2 text-sm font-bold text-white">{lastUpdateText}</p>
+          <p className="mt-3 text-sm font-bold text-white">{lastUpdateText}</p>
+          <p className="mt-auto truncate pt-2 text-[11px] text-neutral-600">
+            {snapshot.lastUpdateAt ? formatDate(snapshot.lastUpdateAt, lang) : " "}
+          </p>
         </div>
       </div>
 
@@ -1153,68 +1305,95 @@ function TodayPanel({
         <div className="space-y-6 lg:col-span-2">
           {/* Mission Today — kartu terbesar di halaman, memuat priorities[0]
               dari Rule Engine (bukan konsep baru, cuma disorot lebih besar). */}
-          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-neutral-900 to-black p-6 shadow-[0_0_50px_-20px_rgba(0,0,0,0.7)] sm:p-8">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary">
-              🎯 {t.workspace.todayMissionBadge}
-            </span>
-            <h2 className="relative z-10 mt-4 max-w-lg text-xl font-black leading-snug text-white sm:text-2xl md:text-3xl">
-              {priorityLines[0] || t.workspace.todayFocusKeepGoing}
-            </h2>
-            {snapshot.pulseReasons.length > 0 && (
-              <p className="relative z-10 mt-2 max-w-lg text-sm leading-relaxed text-neutral-400">
-                {snapshot.pulseReasons.map((r) => reasonText(r)).join(" · ")}
-              </p>
-            )}
-            <div className="relative z-10 mt-6 flex flex-wrap items-center gap-3">
-              <button
-                onClick={onOpenUpdateModal}
-                disabled={missionDone}
-                className="rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black transition-transform duration-200 hover:scale-[1.03] hover:opacity-90 disabled:opacity-40 disabled:hover:scale-100"
-              >
-                {isPreparation ? t.workspace.updateBusinessButton : t.workspace.todayMissionStartButton}
-              </button>
-              {!isPreparation && (
-                <button
-                  onClick={() => setMissionDone((v) => !v)}
-                  className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/40 hover:text-white"
-                >
-                  {t.workspace.todayMissionDoneButton}
-                </button>
+          <div className="relative flex min-h-[380px] items-center justify-between gap-8 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-neutral-900 to-black p-8 shadow-[0_0_28px_-10px_rgba(255,152,0,0.18)] sm:p-10">
+            <div className="min-w-0 flex-1">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary">
+                🎯 {t.workspace.todayMissionBadge}
+              </span>
+              <h2 className="mt-4 text-2xl font-black leading-snug text-white sm:text-3xl md:text-4xl">
+                {priorityLines[0] || t.workspace.todayFocusKeepGoing}
+              </h2>
+              {snapshot.pulseReasons.length > 0 && (
+                <p className="mt-3 max-w-xl text-base leading-relaxed text-neutral-400">
+                  {snapshot.pulseReasons.map((r) => reasonText(r)).join(" · ")}
+                </p>
               )}
+              <div className="mt-8 flex flex-wrap items-center gap-4">
+                <button
+                  onClick={onOpenUpdateModal}
+                  disabled={missionDone}
+                  className="rounded-2xl bg-primary px-6 py-3 text-base font-bold text-black shadow-[0_0_24px_-6px_rgba(255,152,0,0.6)] transition-transform duration-200 hover:scale-[1.03] hover:opacity-90 disabled:opacity-40 disabled:hover:scale-100 motion-reduce:transition-none motion-reduce:hover:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                >
+                  {isPreparation ? t.workspace.updateBusinessButton : t.workspace.todayMissionStartButton}
+                </button>
+                {!isPreparation && (
+                  <button
+                    onClick={() => setMissionDone((v) => !v)}
+                    className="rounded-2xl border border-white/15 px-4 py-2 text-sm font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  >
+                    ✅ {t.workspace.todayMissionDoneButton}
+                  </button>
+                )}
+              </div>
+              {missionDone && <p className="mt-3 text-xs text-neutral-500">{t.workspace.todayMissionDoneNote}</p>}
             </div>
-            {missionDone && <p className="relative z-10 mt-3 text-xs text-neutral-500">{t.workspace.todayMissionDoneNote}</p>}
-            <span className="pointer-events-none absolute -bottom-6 -right-4 select-none text-[130px] leading-none opacity-[0.07]" aria-hidden="true">
-              🐝
-            </span>
+            {/* Beemo — Hero Character, bukan ikon kecil. Ukuran & posisi
+                disengaja besar & sedikit keluar ke kanan supaya jadi focal
+                point pertama sebelum tombol aksi. Glow dibuat lembut & blur
+                lebih kecil (blur-2xl, bukan blur-3xl) supaya tetap terasa
+                premium tanpa filter yang berat di perangkat menengah. */}
+            <div
+              className="relative hidden flex-shrink-0 items-center justify-center sm:flex sm:-mr-2 sm:translate-x-3"
+              style={{ width: 280, height: 300 }}
+            >
+              <div className="absolute inset-0 rounded-full bg-primary/15 blur-2xl" aria-hidden="true" />
+              <img
+                src={beemoMascot}
+                alt=""
+                className="relative z-10 h-full w-full object-contain drop-shadow-[0_6px_18px_rgba(255,152,0,0.25)]"
+              />
+              {/* Progress Hari Ini — mengisi ruang kosong di sisi kanan
+                  dengan data yang SUDAH nyata (checklist, bukan estimasi
+                  durasi/dampak yang dikarang), supaya komposisi seimbang
+                  tanpa menambah klaim baru. */}
+              <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-black/70 px-3 py-1 text-[11px] font-semibold text-neutral-200">
+                {fillTemplate(t.workspace.todayChecklistCount, { done: checklistDoneCount, total: checklistKeys.length })}
+              </div>
+            </div>
           </div>
 
           {/* Checklist + Yang Berubah berdampingan (fase persiapan hanya
               menampilkan Checklist, karena belum ada data perbandingan). */}
           <div className={`grid grid-cols-1 gap-6 ${isPreparation ? "" : "sm:grid-cols-2"}`}>
-            <div className="rounded-2xl border border-white/10 bg-surface p-6">
+            <div className="rounded-[20px] border border-white/10 bg-surface p-6">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-neutral-200">{t.workspace.todayChecklistTitle}</h3>
+                <h3 className="text-sm font-bold text-neutral-100">{t.workspace.todayChecklistTitle}</h3>
                 <span className="text-xs text-neutral-500">
                   {fillTemplate(t.workspace.todayChecklistCount, { done: checklistDoneCount, total: checklistKeys.length })}
                 </span>
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {checklistKeys.map((key) => {
                   const done = checkedItems.has(key);
                   return (
                     <button
                       key={key}
                       onClick={() => toggleChecklistItem(key)}
-                      className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors duration-200 hover:bg-white/[0.03]"
+                      role="checkbox"
+                      aria-checked={done}
+                      className="group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors duration-200 hover:bg-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     >
                       <span
-                        className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border text-[10px] transition-colors duration-200 ${
-                          done ? "border-primary bg-primary text-black" : "border-white/20 text-transparent"
+                        aria-hidden="true"
+                        className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-lg border text-[11px] transition-all duration-200 ${
+                          done
+                            ? "border-green-500 bg-green-500/20 text-green-400"
+                            : "border-white/20 text-transparent group-hover:border-primary/60 group-hover:shadow-[0_0_0_3px_rgba(255,152,0,0.15)]"
                         }`}
                       >
                         ✓
                       </span>
-                      <span className={`text-sm ${done ? "text-neutral-600 line-through" : "text-neutral-400"}`}>
+                      <span className={`text-sm ${done ? "text-neutral-600 line-through" : "text-neutral-300"}`}>
                         {checklistLabel(t, key)}
                       </span>
                     </button>
@@ -1225,13 +1404,13 @@ function TodayPanel({
             </div>
 
             {!isPreparation && (
-              <div className="rounded-2xl border border-white/10 bg-surface p-6">
+              <div className="rounded-[20px] border border-white/10 bg-surface p-6">
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-neutral-200">{t.workspace.todayWhatChangedTitle}</h3>
+                  <h3 className="text-sm font-bold text-neutral-100">{t.workspace.todayWhatChangedTitle}</h3>
                   {snapshot.whatChanged && snapshot.whatChanged.length > 0 && (
                     <button
                       onClick={onNavigateToInsights}
-                      className="text-xs font-semibold text-primary hover:opacity-70"
+                      className="rounded text-xs font-semibold text-primary hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
                     >
                       {t.workspace.todayWhatChangedSeeDetail}
                     </button>
@@ -1269,8 +1448,8 @@ function TodayPanel({
               ditampilkan sebagai kartu berperingkat, bukan lagi daftar
               vertikal bernomor besar. */}
           {!isPreparation && snapshot.priorities.length > 0 && (
-            <div className="rounded-2xl border border-white/10 bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold text-neutral-200">{t.workspace.todayPrioritiesWeekTitle}</h3>
+            <div className="rounded-[20px] border border-white/10 bg-surface p-6">
+              <h3 className="mb-4 text-sm font-bold text-neutral-100">{t.workspace.todayPrioritiesWeekTitle}</h3>
               <div className="space-y-3">
                 {snapshot.priorities.map((p, i) => {
                   const levelLabel =
@@ -1291,40 +1470,133 @@ function TodayPanel({
               </div>
             </div>
           )}
+
+          {/* Performa 7 Hari Terakhir — Today Engine belum menyimpan angka
+              harian (baru snapshot 1x/hari + 2 batch tren), jadi belum ada
+              data harian nyata untuk digambar. Sesuai arahan Design
+              Authority: tetap tampilkan struktur visual LENGKAP (dummy
+              chart), diberi badge "Preview" yang jelas supaya tidak
+              disalahartikan sebagai data asli — bukan dikarang seolah data
+              sungguhan tanpa penanda. */}
+          <div className="relative rounded-[20px] border border-white/10 bg-surface p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-neutral-100">{t.workspace.todayChartTitle}</h3>
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-neutral-400">
+                {t.workspace.todayChartPreviewBadge}
+              </span>
+            </div>
+            <div className="relative">
+              {/* Tooltip dummy — statis (bukan hover real), menandai titik
+                  terakhir supaya terasa seperti chart production, tetap
+                  jelas berlabel "Preview" di atas supaya tidak disalah
+                  artikan sebagai angka asli. */}
+              <div className="pointer-events-none absolute right-0 top-0 -translate-y-1/2 rounded-lg border border-white/10 bg-black/90 px-2.5 py-1 text-[10px] font-semibold text-white shadow-lg">
+                {t.workspace.todayChartPreviewBadge}
+              </div>
+              <svg viewBox="0 0 300 110" className="h-28 w-full" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="todayChartFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.4" />
+                    <stop offset="55%" stopColor="var(--color-primary)" stopOpacity="0.12" />
+                    <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {[20, 45, 70, 95].map((y) => (
+                  <line key={y} x1="0" y1={y} x2="300" y2={y} stroke="rgba(255,255,255,0.045)" strokeWidth="0.75" />
+                ))}
+                <polygon
+                  points="0,70 40,60 80,75 120,45 160,58 200,32 240,50 300,25 300,110 0,110"
+                  fill="url(#todayChartFill)"
+                  stroke="none"
+                />
+                <polyline
+                  points="0,70 40,60 80,75 120,45 160,58 200,32 240,50 300,25"
+                  fill="none"
+                  stroke="var(--color-primary)"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx="300" cy="25" r="4" fill="var(--color-primary)" stroke="#000" strokeWidth="1.5">
+                  <title>{t.workspace.todayChartPreviewBadge}</title>
+                </circle>
+              </svg>
+            </div>
+            <div className="mt-2 flex justify-between text-[10px] text-neutral-600">
+              {chartDateLabels.map((d, i) => (
+                <span key={i}>{d}</span>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-neutral-600">{t.workspace.todayChartPlaceholderNote}</p>
+          </div>
         </div>
 
         {/* Kolom kanan: Insight, Opportunity, Reminder — 3 konsep yang sudah
             ada (whatChanged/opportunity/topRisk), hanya dipisah jadi 3 kartu
             berbeda mengikuti tata letak mockup. Tidak ada AI baru — "Beemo"
             di sini murni persona/branding untuk hasil Rule Engine. */}
+        {/* Insight / Opportunity / Reminder — 3 kartu disengaja identik:
+            padding sama (p-6), header sama (ikon bulat 32px + judul bold),
+            CTA selalu di baris paling bawah. Hanya warna aksen yang beda
+            per kategori (primary/hijau/amber) supaya tetap bisa dibedakan
+            tanpa terasa seperti 3 desain berbeda. */}
         <div className="space-y-6">
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="text-xl" aria-hidden="true">🐝</span>
+          <div className="flex flex-col rounded-[20px] border border-primary/20 bg-primary/5 p-6">
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 p-1.5" aria-hidden="true">
+                <img src={beemoMascot} alt="" className="h-full w-full object-contain" />
+              </span>
               <h3 className="text-sm font-bold text-primary">{t.workspace.todayInsightTitle}</h3>
             </div>
             <p className="text-sm leading-relaxed text-neutral-200">{biggestMoverInsight}</p>
             <button
               onClick={onNavigateToInsights}
-              className="mt-3 text-xs font-semibold text-primary hover:opacity-70"
+              className="mt-4 rounded text-xs font-semibold text-primary hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
             >
               {t.workspace.todayInsightLink}
             </button>
           </div>
 
           {!isPreparation && (
-            <div className="rounded-2xl border border-white/10 bg-surface p-6">
-              <h3 className="mb-2 text-sm font-bold text-neutral-200">{t.workspace.todayOpportunityTitle}</h3>
+            <div className="flex flex-col rounded-[20px] border border-white/10 bg-surface p-6">
+              <div className="mb-3 flex items-center gap-2.5">
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-green-500/15 text-base" aria-hidden="true">
+                  📈
+                </span>
+                <h3 className="text-sm font-bold text-neutral-100">{t.workspace.todayOpportunityTitle}</h3>
+              </div>
               <p className="text-sm leading-relaxed text-neutral-300">
                 {opportunityText(snapshot.opportunity) || t.workspace.opportunityGeneric}
               </p>
+              <button onClick={onNavigateToInsights} className="mt-4 rounded text-xs font-semibold text-green-400 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400/70">
+                {t.workspace.todayOpportunityCta}
+              </button>
             </div>
           )}
 
           {!isPreparation && (
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
-              <h3 className="mb-2 text-sm font-bold text-amber-300">{t.workspace.todayReminderTitle}</h3>
-              <p className="text-sm leading-relaxed text-neutral-200">{riskText(snapshot.topRisk)}</p>
+            <div className="flex flex-col rounded-[20px] border border-amber-500/20 bg-amber-500/5 p-6">
+              <div className="mb-3 flex items-center gap-2.5">
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-base" aria-hidden="true">
+                  🔔
+                </span>
+                <h3 className="text-sm font-bold text-amber-300">{t.workspace.todayReminderTitle}</h3>
+              </div>
+              <div className="space-y-3">
+                {reminderSlots.map((slot, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5">
+                    <p className={`text-sm leading-snug ${slot.empty ? "text-neutral-600" : "text-neutral-200"}`}>{slot.text}</p>
+                    {slot.badge && (
+                      <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${slot.badgeColor}`}>
+                        {slot.badge}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button onClick={onNavigateToInsights} className="mt-4 rounded text-xs font-semibold text-amber-300 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/70">
+                {t.workspace.todayReminderCta}
+              </button>
             </div>
           )}
         </div>
@@ -1335,41 +1607,50 @@ function TodayPanel({
           pertama yang benar-benar pasti; sisanya ditandai "upcoming" apa
           adanya (lihat komentar currentJourneyIndex di atas) — bukan
           dikarang sudah sampai fase tertentu. */}
-      <div className="rounded-2xl border border-white/10 bg-surface p-6 sm:p-8">
-        <h3 className="mb-6 text-sm font-bold uppercase tracking-widest text-neutral-500">{t.workspace.todayJourneyStepperTitle}</h3>
-        <div className="flex flex-wrap gap-y-6 sm:flex-nowrap sm:justify-between">
+      <div className="rounded-3xl border border-white/10 bg-surface p-6 sm:p-10">
+        <h3 className="mb-8 text-sm font-bold uppercase tracking-widest text-neutral-500">{t.workspace.todayJourneyStepperTitle}</h3>
+        <div className="overflow-x-auto">
+        <div className="flex min-w-[760px] items-start">
           {JOURNEY_STAGES.map((label, i) => {
             const state = i < currentJourneyIndex ? "done" : i === currentJourneyIndex ? "current" : "upcoming";
+            const lineDone = i < currentJourneyIndex;
             return (
-              <div key={label} className="flex w-1/4 flex-col items-center gap-2 px-1 text-center sm:w-auto sm:flex-1">
-                <div
-                  className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-bold ${
-                    state === "done"
-                      ? "border-primary bg-primary text-black"
-                      : state === "current"
-                        ? "border-primary text-primary"
-                        : "border-white/15 text-neutral-600"
-                  }`}
-                >
-                  {state === "done" ? "✓" : i + 1}
+              <div key={label} className="flex flex-1 flex-col items-center px-2">
+                <div className="flex w-full items-center">
+                  <div className={`h-0.5 flex-1 ${i === 0 ? "invisible" : lineDone || state === "current" ? "bg-primary" : "bg-white/10"}`} />
+                  <div
+                    className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-shadow duration-300 ${
+                      state === "done"
+                        ? "border-green-500 bg-green-500/15 text-green-400"
+                        : state === "current"
+                          ? "border-primary bg-primary/10 text-primary shadow-[0_0_28px_6px_rgba(255,152,0,0.55)]"
+                          : "border-white/15 text-neutral-600"
+                    }`}
+                  >
+                    {state === "done" ? "✓" : i + 1}
+                  </div>
+                  <div className={`h-0.5 flex-1 ${i === JOURNEY_STAGES.length - 1 ? "invisible" : lineDone ? "bg-primary" : "bg-white/10"}`} />
                 </div>
-                <span className={`max-w-[84px] text-[11px] font-semibold leading-tight ${state === "upcoming" ? "text-neutral-600" : "text-neutral-200"}`}>
+                <span
+                  className={`mt-3 max-w-[90px] text-center text-xs font-semibold leading-tight ${state === "upcoming" ? "text-neutral-600" : "text-neutral-100"}`}
+                >
                   {label}
                 </span>
               </div>
             );
           })}
         </div>
-        <p className="mt-6 text-xs text-neutral-600">{t.workspace.todayJourneyUpcomingNote}</p>
+        </div>
+        <p className="mt-8 text-xs text-neutral-600">{t.workspace.todayJourneyUpcomingNote}</p>
       </div>
 
       {/* Tombol Chat Beemo mengambang — mengarahkan ke tab Chat yang sudah
           ada, bukan fitur baru. */}
       <button
         onClick={onOpenChat}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-bold text-black shadow-lg shadow-primary/30 transition-transform duration-200 hover:scale-105"
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-bold text-black shadow-lg shadow-primary/30 transition-transform duration-200 hover:scale-105 motion-reduce:transition-none motion-reduce:hover:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
       >
-        <span aria-hidden="true">🐝</span> {t.workspace.todayChatFloatingLabel}
+        <img src={beemoMascot} alt="" className="h-5 w-5 object-contain" aria-hidden="true" /> {t.workspace.todayChatFloatingLabel}
       </button>
     </div>
   );
@@ -1379,13 +1660,16 @@ function TodayPanel({
  * ada dependency baru ditambah). Menggantikan emoji supaya sidebar terasa
  * lebih modern/premium sesuai arahan desain, murni visual. */
 function MenuIcon({ name }: { name: MenuKey }) {
-  const common = "h-[18px] w-[18px] flex-shrink-0";
+  // Semua ikon sidebar disengaja seragam 20px dengan stroke tipis (1.6),
+  // supaya tidak ada satu ikon pun (Target/Pengaturan/Riwayat) yang terasa
+  // lebih "berat"/besar dari yang lain — fokus tetap ke isi dashboard.
+  const common = "h-5 w-5 flex-shrink-0";
   const props = {
     className: common,
     viewBox: "0 0 24 24",
     fill: "none" as const,
     stroke: "currentColor",
-    strokeWidth: 1.8,
+    strokeWidth: 1.6,
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
   };
@@ -1416,15 +1700,15 @@ function MenuIcon({ name }: { name: MenuKey }) {
     case "target":
       return (
         <svg {...props}>
-          <circle cx="12" cy="12" r="8" />
-          <circle cx="12" cy="12" r="4" />
-          <circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" />
+          <circle cx="12" cy="12" r="7.5" />
+          <circle cx="12" cy="12" r="3.75" />
+          <circle cx="12" cy="12" r="0.5" fill="currentColor" stroke="none" />
         </svg>
       );
     case "competitor":
       return (
         <svg {...props}>
-          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="8.5" />
           <path d="m14.5 9.5-2 5-5 2 2-5Z" />
         </svg>
       );
@@ -1438,7 +1722,7 @@ function MenuIcon({ name }: { name: MenuKey }) {
     case "history":
       return (
         <svg {...props}>
-          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="8.5" />
           <path d="M12 7v5l3 3" />
         </svg>
       );
@@ -1446,6 +1730,29 @@ function MenuIcon({ name }: { name: MenuKey }) {
       return (
         <svg {...props}>
           <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.9-.9L3 21l1.9-5.6a8.4 8.4 0 0 1-.9-3.9A8.5 8.5 0 1 1 21 11.5Z" />
+        </svg>
+      );
+    case "settings":
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+        </svg>
+      );
+    case "businessUpdates":
+      return (
+        <svg {...props}>
+          <path d="M3 12a9 9 0 0 1 15.5-6.3L21 8" />
+          <path d="M21 4v4h-4" />
+          <path d="M21 12a9 9 0 0 1-15.5 6.3L3 16" />
+          <path d="M3 20v-4h4" />
+        </svg>
+      );
+    case "decisionJournal":
+      return (
+        <svg {...props}>
+          <path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+          <path d="M8 8h7M8 12h7M8 16h4" />
         </svg>
       );
     default:
@@ -1481,6 +1788,10 @@ function Workspace() {
   const [achievementsLoading, setAchievementsLoading] = useState(false);
   const [todaySnapshot, setTodaySnapshot] = useState<TodaySnapshotPayload | null>(null);
   const [todaySnapshotLoading, setTodaySnapshotLoading] = useState(false);
+  // Error state Today — supaya gagal memuat snapshot tidak tampil sebagai
+  // skeleton selamanya, dan Reminder tidak salah menampilkan "Aman" padahal
+  // datanya gagal dimuat (bukan benar-benar aman). Lihat reloadTodaySnapshot.
+  const [todaySnapshotError, setTodaySnapshotError] = useState(false);
   const [newlyUnlocked, setNewlyUnlocked] = useState<Array<Record<string, unknown>>>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
@@ -1505,17 +1816,32 @@ function Workspace() {
   const [confirmingPermanentDeleteId, setConfirmingPermanentDeleteId] = useState<string | null>(null);
   const [permanentDeleting, setPermanentDeleting] = useState(false);
   const [permanentDeleteError, setPermanentDeleteError] = useState<string | null>(null);
+  // Header disederhanakan (arahan Product Principles #6/revisi #4): "Hapus
+  // Bisnis" & "Keluar" bukan aksi yang sering dipakai, jadi dipindah ke
+  // dropdown kecil di belakang tombol titik-tiga, supaya baris header utama
+  // cukup Bell/Bantuan/Switcher/Update Bisnis saja.
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
 
-  const MENU_ITEMS: { key: MenuKey; label: string }[] = [
-    { key: "today", label: t.workspace.menuToday },
-    { key: "score", label: t.workspace.menuScore },
-    { key: "report", label: t.workspace.menuReport },
-    { key: "target", label: t.workspace.menuTarget },
-    { key: "competitor", label: t.workspace.menuCompetitor },
-    { key: "growth", label: t.workspace.menuGrowth },
-    { key: "history", label: t.workspace.menuHistory },
-    { key: "chat", label: t.workspace.menuChat },
+  // Urutan & label sidebar mengikuti mockup persis: Today, Journey, Business
+  // Updates, Insights, Competitor, Decision Journal, Beemo AI muncul dengan
+  // nama yang sama seperti referensi (arahan: label sidebar HARUS sama,
+  // walau kontennya sementara masih placeholder Coming Soon untuk yang
+  // belum ada fiturnya). Tab nyata yang sudah ada tapi tidak ada di mockup
+  // (Business Score, Target, Riwayat) disisipkan di antaranya, bukan
+  // dihapus.
+  const MENU_ITEMS: { key: MenuKey; label: string; subtitle: string }[] = [
+    { key: "today", label: t.workspace.menuToday, subtitle: t.workspace.todayNavSubtitleToday },
+    { key: "growth", label: t.workspace.menuGrowth, subtitle: t.workspace.todayNavSubtitleJourney },
+    { key: "businessUpdates", label: t.workspace.menuBusinessUpdates, subtitle: t.workspace.todayNavSubtitleBusinessUpdates },
+    { key: "report", label: t.workspace.menuReport, subtitle: t.workspace.todayNavSubtitleReport },
+    { key: "score", label: t.workspace.menuScore, subtitle: t.workspace.todayNavSubtitleScore },
+    { key: "competitor", label: t.workspace.menuCompetitor, subtitle: t.workspace.todayNavSubtitleCompetitor },
+    { key: "target", label: t.workspace.menuTarget, subtitle: t.workspace.todayNavSubtitleTarget },
+    { key: "decisionJournal", label: t.workspace.menuDecisionJournal, subtitle: t.workspace.todayNavSubtitleDecisionJournal },
+    { key: "history", label: t.workspace.menuHistory, subtitle: t.workspace.todayNavSubtitleHistory },
+    { key: "chat", label: t.workspace.menuChat, subtitle: t.workspace.todayNavSubtitleChat },
   ];
+  const SETTINGS_ITEM = { key: "settings" as const, label: t.workspace.menuSettings, subtitle: t.workspace.todayNavSubtitleSettings };
 
   // Muat daftar business_profiles + Active Business Context (sekali per sesi user)
   useEffect(() => {
@@ -1684,12 +2010,15 @@ function Workspace() {
             }
             if (todayResponse.ok) {
               setTodaySnapshot(todayJson.snapshot as TodaySnapshotPayload);
+              setTodaySnapshotError(false);
             } else {
               console.error("Gagal memuat Today snapshot:", todayJson.error);
+              setTodaySnapshotError(true);
             }
           }
         } catch (err) {
           console.error("getBusinessHealth/getProgress/getMembership/getHealthTrend/getTodaySnapshot error:", err);
+          if (!cancelled) setTodaySnapshotError(true);
         } finally {
           if (!cancelled) setTodaySnapshotLoading(false);
         }
@@ -1704,6 +2033,38 @@ function Workspace() {
       cancelled = true;
     };
   }, [activeBusinessId, refreshKey]);
+
+  // Reload Today snapshot SAJA (bukan seluruh Promise.all di atas) — dipakai
+  // tombol "Coba Lagi" di kartu error Today, supaya retry ringan & cepat,
+  // tidak memicu ulang fetch getBusinessHealth/getProgress/getMembership/
+  // getHealthTrend yang sudah berhasil.
+  async function reloadTodaySnapshot() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setTodaySnapshotLoading(true);
+    setTodaySnapshotError(false);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "getTodaySnapshot", businessProfileId: activeBusinessId }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setTodaySnapshot(json.snapshot as TodaySnapshotPayload);
+      } else {
+        console.error("Gagal memuat ulang Today snapshot:", json.error);
+        setTodaySnapshotError(true);
+      }
+    } catch (err) {
+      console.error("reloadTodaySnapshot error:", err);
+      setTodaySnapshotError(true);
+    } finally {
+      setTodaySnapshotLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (checkingUpgrade && membership && membership.tier !== "free") {
@@ -2061,13 +2422,50 @@ function Workspace() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-10">
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <span className="text-xs font-bold uppercase tracking-widest text-primary">{t.workspace.eyebrow}</span>
-          <h1 className="mt-2 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl">
-            {fillTemplate(t.workspace.greetingHello, { name: activeBusiness?.business_name || user.email || "" })}
-          </h1>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-neutral-400">
+            {greetingPrefix(t)}, {activeBusiness?.business_name || user.email || ""}! 👋
+          </p>
+          {activeMenu === "today" && todaySnapshot ? (
+            <>
+              <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl">
+                {pulseHeadlineText(t, todaySnapshot.pulseLevel)}
+              </h1>
+              <p className="mt-1 text-sm text-neutral-500">{pulseSubheadlineText(t, todaySnapshot.pulseLevel)}</p>
+            </>
+          ) : (
+            <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl">
+              {fillTemplate(t.workspace.greetingHello, { name: activeBusiness?.business_name || user.email || "" })}
+            </h1>
+          )}
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Semua kontrol di baris ini pakai tinggi h-10 (40px) yang sama
+            persis supaya center-aligned secara pixel — sebelumnya bell/
+            Bantuan/switcher/tombol punya tinggi berbeda-beda (py-1.5 vs
+            py-2 vs py-2.5) yang membuat baris terasa tidak rata. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            title={t.workspace.todayNotifTooltip}
+            aria-label={t.workspace.todayNotifTooltip}
+            className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-surface text-neutral-400 transition-colors duration-200 hover:border-primary/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            {/* Badge murni visual placeholder (belum ada sistem notifikasi
+                nyata) — sesuai arahan Design Authority: boleh dipakai
+                sebagai placeholder, tanpa backend. */}
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+              1
+            </span>
+          </button>
+          <button
+            title={t.workspace.todayHelpTooltip}
+            className="hidden h-10 flex-shrink-0 items-center gap-1.5 rounded-2xl border border-white/10 bg-surface px-4 text-xs font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black sm:flex"
+          >
+            <span aria-hidden="true">❔</span> {t.workspace.todayHelpButton}
+          </button>
           {activeBusinessId && (
             <>
               <BusinessSwitcher
@@ -2079,27 +2477,56 @@ function Workspace() {
               />
               <button
                 onClick={() => setShowBusinessUpdate(true)}
-                className="rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black shadow-sm shadow-primary/30 transition-transform duration-200 hover:scale-[1.03] hover:opacity-90"
+                className="flex h-10 flex-shrink-0 items-center rounded-2xl bg-primary px-5 text-sm font-bold text-black shadow-[0_0_20px_-6px_rgba(255,152,0,0.5)] transition-transform duration-200 hover:scale-[1.03] hover:opacity-90 motion-reduce:transition-none motion-reduce:hover:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
                 {t.workspace.updateBusinessButton}
               </button>
-              <button
-                onClick={() => {
-                  setConfirmingDelete(true);
-                  setDeleteError(null);
-                }}
-                className="rounded-full border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-300 hover:border-red-500/50 hover:text-red-200"
-              >
-                {t.workspace.deleteBusinessButton}
-              </button>
             </>
           )}
-          <button
-            onClick={handleSignOut}
-            className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-neutral-300 hover:border-primary/40 hover:text-white"
-          >
-            {t.workspace.signOutButton}
-          </button>
+          {/* Aksi jarang dipakai (Hapus Bisnis, Keluar) disembunyikan di
+              belakang menu titik-tiga supaya header utama tidak penuh —
+              cuma Bell/Bantuan/Switcher/Update Bisnis yang selalu terlihat. */}
+          <div className="relative">
+            <button
+              onClick={() => setShowAccountMenu((v) => !v)}
+              aria-label={t.workspace.accountMenuLabel}
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-surface text-neutral-400 transition-colors duration-200 hover:border-primary/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="h-[18px] w-[18px]">
+                <circle cx="5" cy="12" r="1.6" />
+                <circle cx="12" cy="12" r="1.6" />
+                <circle cx="19" cy="12" r="1.6" />
+              </svg>
+            </button>
+            {showAccountMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowAccountMenu(false)} />
+                <div className="absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-lg">
+                  {activeBusinessId && (
+                    <button
+                      onClick={() => {
+                        setShowAccountMenu(false);
+                        setConfirmingDelete(true);
+                        setDeleteError(null);
+                      }}
+                      className="block w-full px-4 py-3 text-left text-xs font-semibold text-red-300 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/70"
+                    >
+                      {t.workspace.deleteBusinessButton}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowAccountMenu(false);
+                      handleSignOut();
+                    }}
+                    className="block w-full px-4 py-3 text-left text-xs font-semibold text-neutral-300 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/70"
+                  >
+                    {t.workspace.signOutButton}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -2153,29 +2580,88 @@ function Workspace() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-[260px_1fr]">
-        {/* Sidebar — lebih lapang, minim border, ikon outline, indikator
-            aktif jelas (bukan lagi kotak bordered kecil-kecil). */}
-        <nav className="flex gap-1.5 overflow-x-auto rounded-2xl border border-white/5 bg-surface/40 p-3 md:flex-col md:overflow-visible">
-          {MENU_ITEMS.map((item) => {
-            const isActive = activeMenu === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => setActiveMenu(item.key)}
-                className={
-                  "flex flex-shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition-all duration-200 md:flex-shrink " +
-                  (isActive
-                    ? "bg-primary text-black shadow-md shadow-primary/20"
-                    : "text-neutral-400 hover:bg-white/5 hover:text-white")
-                }
-              >
-                <MenuIcon name={item.key} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-[264px_1fr]">
+        {/* Sidebar — logo, item 2-baris (label+subtitle), indikator aktif
+            solid, divider + Pengaturan (masuk fallback ComingSoon yang
+            sudah ada, bukan halaman baru), kartu profil di bawah. */}
+        <div className="flex flex-col gap-6 md:sticky md:top-6 md:self-start">
+          <div className="hidden items-center gap-2.5 px-1 md:flex">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary text-lg font-black text-black">
+              🐝
+            </div>
+            <div className="leading-tight">
+              <p className="text-sm font-black tracking-wide text-white">THE HIVE</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{t.workspace.brandTagline}</p>
+            </div>
+          </div>
+
+          <nav className="flex gap-1.5 overflow-x-auto rounded-[20px] border border-white/5 bg-surface/40 p-3 md:flex-col md:overflow-visible">
+            {MENU_ITEMS.map((item) => {
+              const isActive = activeMenu === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveMenu(item.key)}
+                  className={
+                    "flex flex-shrink-0 items-center gap-3 rounded-2xl px-4 py-2.5 text-left transition-all duration-200 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:flex-shrink " +
+                    (isActive
+                      ? "bg-primary text-black shadow-[0_0_16px_-2px_rgba(255,152,0,0.5)]"
+                      : "text-neutral-400 hover:translate-x-0.5 hover:bg-white/[0.06] hover:text-white motion-reduce:hover:translate-x-0")
+                  }
+                >
+                  <MenuIcon name={item.key} />
+                  <span className="leading-tight">
+                    <span className="block text-sm font-bold">{item.label}</span>
+                    <span className={`hidden text-[11px] font-medium md:block ${isActive ? "text-black/60" : "text-neutral-500"}`}>
+                      {item.subtitle}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+
+            <div className="my-1 hidden border-t border-white/5 md:block" />
+
+            <button
+              onClick={() => setActiveMenu("settings")}
+              className={
+                "flex flex-shrink-0 items-center gap-3 rounded-2xl px-4 py-2.5 text-left transition-all duration-200 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:flex-shrink " +
+                (activeMenu === "settings"
+                  ? "bg-primary text-black shadow-[0_0_16px_-2px_rgba(255,152,0,0.5)]"
+                  : "text-neutral-400 hover:translate-x-0.5 hover:bg-white/[0.06] hover:text-white motion-reduce:hover:translate-x-0")
+              }
+            >
+              <MenuIcon name="settings" />
+              <span className="leading-tight">
+                <span className="block text-sm font-bold">{SETTINGS_ITEM.label}</span>
+                <span className={`hidden text-[11px] font-medium md:block ${activeMenu === "settings" ? "text-black/60" : "text-neutral-500"}`}>
+                  {SETTINGS_ITEM.subtitle}
+                </span>
+              </span>
+            </button>
+          </nav>
+
+          {/* Kartu profil — data asli (nama bisnis aktif + tier membership),
+              bukan foto sungguhan (avatar inisial), murni dekoratif/display,
+              tidak ada aksi baru. */}
+          {activeBusiness && (
+            <div className="hidden items-center gap-3 rounded-[20px] border border-white/5 bg-surface/40 p-3 md:flex">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-black text-primary">
+                {activeBusiness.business_name.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 leading-tight">
+                <p className="truncate text-sm font-bold text-white">{activeBusiness.business_name}</p>
+                <p className="truncate text-[11px] font-medium text-neutral-500">
+                  {tier === "platinum"
+                    ? t.workspace.memberTierPlatinum
+                    : tier === "pro"
+                      ? t.workspace.memberTierPro
+                      : t.workspace.accessFreeTitle}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Content */}
         <div>
@@ -2189,6 +2675,8 @@ function Workspace() {
               lang={lang}
               snapshot={todaySnapshot}
               snapshotLoading={todaySnapshotLoading}
+              snapshotError={todaySnapshotError}
+              onRetrySnapshot={reloadTodaySnapshot}
               onOpenUpdateModal={() => setShowBusinessUpdate(true)}
               onNavigateToInsights={() => setActiveMenu("score")}
               onOpenChat={() => setActiveMenu("chat")}
@@ -2229,8 +2717,10 @@ function Workspace() {
             )
           ) : (
             <ComingSoon
-              label={MENU_ITEMS.find((m) => m.key === activeMenu)?.label || ""}
+              label={MENU_ITEMS.find((m) => m.key === activeMenu)?.label || SETTINGS_ITEM.label}
               desc={t.workspace.comingSoonDesc}
+              badge={t.workspace.comingSoonBadge}
+              note={t.workspace.comingSoonNextUpdate}
             />
           )}
         </div>
