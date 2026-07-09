@@ -9,7 +9,7 @@ import BusinessUpdateModal from "./BusinessUpdateModal";
 import UpgradeModal from "./UpgradeModal";
 import type { Translations } from "../i18n/translations";
 
-type MenuKey = "history" | "score" | "report" | "target" | "competitor" | "growth" | "chat";
+type MenuKey = "today" | "history" | "score" | "report" | "target" | "competitor" | "growth" | "chat";
 
 // --- Tipe data mengikuti skema Domain Model (Tahap 1, 1.5, 1.6) ---
 // Catatan penting: Workspace sekarang mendukung BANYAK business_profile per
@@ -840,10 +840,221 @@ function GrowthPanel({
   );
 }
 
+/** Business Pulse — bukan skor baru, bukan chart. Ambang sederhana atas
+ * data yang sudah dihitung Business Engine (lihat services/today/computeSnapshot.ts
+ * §4.2 dokumen arsitektur). Warna & kalimat dipilih dari `pulseLevel`, satu-
+ * satunya "opini" yang ditambahkan adalah ambang kapan sesuatu dianggap
+ * stabil/perlu perhatian — bukan angka yang dikarang. */
+function pulseVisual(level: string): { emoji: string; classes: string } {
+  switch (level) {
+    case "stable":
+      return { emoji: "🟢", classes: "border-green-500/30 bg-green-500/10 text-green-300" };
+    case "attention":
+      return { emoji: "🟡", classes: "border-amber-500/30 bg-amber-500/10 text-amber-300" };
+    case "action_required":
+      return { emoji: "🔴", classes: "border-red-500/30 bg-red-500/10 text-red-300" };
+    default:
+      return { emoji: "🟡", classes: "border-amber-500/30 bg-amber-500/10 text-amber-300" };
+  }
+}
+
+type TodaySnapshotPayload = {
+  stageGroup: "preparation" | "running";
+  pulseLevel: "preparation" | "stable" | "attention" | "action_required";
+  pulseReasons: Array<{ key: string; params?: Record<string, string | number> }>;
+  score: number | null;
+  journeyDelta: number | null;
+  daysSinceUpdate: number | null;
+  focusKey: string | null;
+  focusParams?: Record<string, string | number>;
+  whatChanged: Array<{ dimension: string; delta: number }> | null;
+};
+
+/** TODAY — halaman utama Business Command Center (Fase 1). Tidak menghitung
+ * apapun sendiri: seluruh angka datang dari today_snapshot (Today Engine),
+ * yang membaca Business Engine lewat service yang sudah ada. Lihat
+ * THE-HIVE-BUSINESS-COMMAND-CENTER-ARCHITECTURE.md §4/§7 untuk rancangan
+ * lengkap — halaman ini adalah versi Fase 1 (tanpa AI Insight, tanpa
+ * checklist interaktif persisten; itu menyusul Fase 2/8 setelah review). */
+function TodayPanel({
+  t,
+  lang,
+  snapshot,
+  snapshotLoading,
+  onOpenUpdateModal,
+  onNavigateToInsights,
+}: {
+  t: Translations;
+  lang: "id" | "en";
+  snapshot: TodaySnapshotPayload | null;
+  snapshotLoading: boolean;
+  onOpenUpdateModal: () => void;
+  onNavigateToInsights: () => void;
+}) {
+  if (snapshotLoading || !snapshot) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-surface p-10 text-center">
+        <p className="text-neutral-400">{t.workspace.loadingDataLabel}</p>
+      </div>
+    );
+  }
+
+  const pulse = pulseVisual(snapshot.pulseLevel);
+  const pulseLabel =
+    snapshot.pulseLevel === "stable"
+      ? t.workspace.todayPulseStable
+      : snapshot.pulseLevel === "attention"
+        ? t.workspace.todayPulseAttention
+        : snapshot.pulseLevel === "action_required"
+          ? t.workspace.todayPulseActionRequired
+          : t.workspace.todayPulsePreparation;
+  const pulseHeadline =
+    snapshot.pulseLevel === "stable"
+      ? t.workspace.todayPulseHeadlineStable
+      : snapshot.pulseLevel === "attention"
+        ? t.workspace.todayPulseHeadlineAttention
+        : snapshot.pulseLevel === "action_required"
+          ? t.workspace.todayPulseHeadlineActionRequired
+          : t.workspace.todayPulseHeadlinePreparation;
+
+  function reasonText(reason: { key: string; params?: Record<string, string | number> }): string {
+    const template =
+      reason.key === "neverUpdated"
+        ? t.workspace.todayReasonNeverUpdated
+        : reason.key === "updateOverdue"
+          ? t.workspace.todayReasonUpdateOverdue
+          : reason.key === "scoreDown"
+            ? t.workspace.todayReasonScoreDown
+            : reason.key === "scoreUp"
+              ? t.workspace.todayReasonScoreUp
+              : "";
+    return reason.params ? fillTemplate(template, reason.params) : template;
+  }
+
+  function focusText(): string {
+    const focusKey = snapshot?.focusKey;
+    if (!focusKey) return "";
+    const params = { ...snapshot?.focusParams };
+    if (focusKey === "focusWeakDimension" && params.dimension) {
+      params.dimension = DIMENSION_LABELS[params.dimension as string]?.[lang] || (params.dimension as string);
+    }
+    const template =
+      focusKey === "startFirstUpdate"
+        ? t.workspace.todayFocusStartFirstUpdate
+        : focusKey === "fillBusinessUpdate"
+          ? t.workspace.todayFocusFillBusinessUpdate
+          : focusKey === "focusWeakDimension"
+            ? t.workspace.todayFocusWeakDimension
+            : t.workspace.todayFocusKeepGoing;
+    return fillTemplate(template, params);
+  }
+
+  const isPreparation = snapshot.stageGroup === "preparation";
+
+  return (
+    <div className="space-y-6">
+      {/* Headline besar, bukan angka — pengganti header "Halo, {nama}" polos
+          yang sudah tampil di atas (eyebrow+greeting section), supaya tidak
+          dobel. Headline di sini spesifik menjawab "bagaimana bisnis hari ini". */}
+      <h1 className="text-2xl font-extrabold text-white sm:text-3xl">{pulseHeadline}</h1>
+
+      {/* Business Pulse — paling besar, paling atas. Satu kalimat, bukan chart. */}
+      <div className={`rounded-2xl border p-6 ${pulse.classes}`}>
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">{pulse.emoji}</span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest opacity-80">{t.workspace.todayPulseLabel}</p>
+            <p className="text-xl font-extrabold">{pulseLabel}</p>
+          </div>
+        </div>
+        {snapshot.pulseReasons.length > 0 && (
+          <ul className="mt-4 space-y-1.5">
+            {snapshot.pulseReasons.map((r, i) => (
+              <li key={i} className="text-sm leading-relaxed opacity-90">
+                • {reasonText(r)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {isPreparation ? (
+        <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
+          <p className="text-lg font-bold text-neutral-100">{focusText()}</p>
+          <p className="mt-2 text-sm text-neutral-500">{t.workspace.todayPreparationEmptyDesc}</p>
+          <button
+            onClick={onOpenUpdateModal}
+            className="mt-5 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black hover:opacity-90"
+          >
+            {t.workspace.updateBusinessButton}
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Fokus Hari Ini — lebih besar dari quick stats, ini yang harus
+              paling menarik perhatian (visual hierarchy per arahan Product Owner). */}
+          <div className="rounded-2xl border border-primary/30 bg-primary/10 p-6">
+            <p className="text-xs font-bold uppercase tracking-widest text-primary">{t.workspace.todayFocusLabel}</p>
+            <p className="mt-2 text-lg font-bold leading-relaxed text-white">{focusText()}</p>
+          </div>
+
+          {/* Quick stats — pendukung, sengaja lebih kecil dari Pulse/Focus */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-white/10 bg-surface p-4">
+              <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsScore}</p>
+              <p className="mt-1 text-2xl font-black text-white">{snapshot.score ?? "—"}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-surface p-4">
+              <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsJourney}</p>
+              <p className={`mt-1 text-2xl font-black ${(snapshot.journeyDelta ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {snapshot.journeyDelta !== null ? `${snapshot.journeyDelta > 0 ? "+" : ""}${snapshot.journeyDelta}` : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-surface p-4">
+              <p className="text-xs text-neutral-500">{t.workspace.todayQuickStatsLastUpdate}</p>
+              <p className="mt-1 text-lg font-bold text-white">
+                {snapshot.daysSinceUpdate === null
+                  ? t.workspace.todayQuickStatsNever
+                  : snapshot.daysSinceUpdate === 0
+                    ? (lang === "id" ? "Hari ini" : "Today")
+                    : fillTemplate(t.workspace.todayDaysAgo, { days: snapshot.daysSinceUpdate })}
+              </p>
+            </div>
+          </div>
+
+          {/* Yang berubah — presentasi ulang getHealthTrend, bukan hitungan baru */}
+          <div className="rounded-2xl border border-white/10 bg-surface p-5">
+            <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.todayWhatChangedTitle}</h3>
+            {!snapshot.whatChanged || snapshot.whatChanged.length === 0 ? (
+              <p className="text-sm text-neutral-500">{t.workspace.todayWhatChangedEmpty}</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {snapshot.whatChanged.map((c) => (
+                  <div key={c.dimension} className="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
+                    <p className="text-xs text-neutral-400">{DIMENSION_LABELS[c.dimension]?.[lang] || c.dimension}</p>
+                    <p className={`text-lg font-bold ${c.delta >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {c.delta > 0 ? "+" : ""}
+                      {c.delta}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button onClick={onNavigateToInsights} className="text-sm font-semibold text-primary hover:opacity-80">
+            {t.workspace.todayExploreMore}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Workspace() {
   const { user, session, loading, signOut } = useAuth();
   const { t, lang } = useLanguage();
-  const [activeMenu, setActiveMenu] = useState<MenuKey>("history");
+  const [activeMenu, setActiveMenu] = useState<MenuKey>("today");
   const [businesses, setBusinesses] = useState<BusinessProfileRow[]>([]);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
   const [analyses, setAnalyses] = useState<AnalysisRow[]>([]);
@@ -866,6 +1077,8 @@ function Workspace() {
     nextMilestone: Record<string, unknown> | null;
   }>({ unlocked: [], nextMilestone: null });
   const [achievementsLoading, setAchievementsLoading] = useState(false);
+  const [todaySnapshot, setTodaySnapshot] = useState<TodaySnapshotPayload | null>(null);
+  const [todaySnapshotLoading, setTodaySnapshotLoading] = useState(false);
   const [newlyUnlocked, setNewlyUnlocked] = useState<Array<Record<string, unknown>>>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
@@ -892,6 +1105,7 @@ function Workspace() {
   const [permanentDeleteError, setPermanentDeleteError] = useState<string | null>(null);
 
   const MENU_ITEMS: { key: MenuKey; label: string; icon: string }[] = [
+    { key: "today", label: t.workspace.menuToday, icon: "🏠" },
     { key: "score", label: t.workspace.menuScore, icon: "📊" },
     { key: "report", label: t.workspace.menuReport, icon: "📄" },
     { key: "target", label: t.workspace.menuTarget, icon: "🎯" },
@@ -994,12 +1208,13 @@ function Workspace() {
       }
 
       if (session?.access_token) {
+        setTodaySnapshotLoading(true);
         try {
           // Membership TIDAK dibaca langsung dari tabel subscriptions di
           // sini lagi — selalu lewat action "getMembership", supaya
           // pengecekan expires_at konsisten dengan services/beemo/chat.ts
           // (satu sumber kebenaran: services/membership/getActiveMembership.ts).
-          const [healthResponse, progressResponse, membershipResponse, healthTrendResponse] = await Promise.all([
+          const [healthResponse, progressResponse, membershipResponse, healthTrendResponse, todayResponse] = await Promise.all([
             fetch("/api/workspace", {
               method: "POST",
               headers: {
@@ -1032,11 +1247,20 @@ function Workspace() {
               },
               body: JSON.stringify({ action: "getHealthTrend", businessProfileId: activeBusinessId }),
             }),
+            fetch("/api/workspace", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ action: "getTodaySnapshot", businessProfileId: activeBusinessId }),
+            }),
           ]);
           const healthJson = await healthResponse.json();
           const progressJson = await progressResponse.json();
           const membershipJson = await membershipResponse.json();
           const healthTrendJson = await healthTrendResponse.json();
+          const todayJson = await todayResponse.json();
           if (!cancelled) {
             if (healthResponse.ok) {
               setBusinessHealth({ dimensions: healthJson.dimensions, overall: healthJson.overall });
@@ -1056,9 +1280,16 @@ function Workspace() {
                 biggestMoverDimension: healthTrendJson.biggestMoverDimension,
               });
             }
+            if (todayResponse.ok) {
+              setTodaySnapshot(todayJson.snapshot as TodaySnapshotPayload);
+            } else {
+              console.error("Gagal memuat Today snapshot:", todayJson.error);
+            }
           }
         } catch (err) {
-          console.error("getBusinessHealth/getProgress/getMembership/getHealthTrend error:", err);
+          console.error("getBusinessHealth/getProgress/getMembership/getHealthTrend/getTodaySnapshot error:", err);
+        } finally {
+          if (!cancelled) setTodaySnapshotLoading(false);
         }
       }
 
@@ -1337,6 +1568,25 @@ function Workspace() {
       setNewlyUnlocked(newlyUnlockedFromSave);
     }
     loadAchievements();
+    // Today Engine di-cache 1x/hari (lihat services/today/computeSnapshot.ts)
+    // supaya tidak menghitung ulang tiap kali halaman dibuka. Tapi begitu
+    // pelanggan baru saja mengisi Business Update, Today HARUS langsung
+    // terasa berubah saat itu juga (inti Daily Operating Loop) — jadi di
+    // sini secara eksplisit minta forceRecompute, bukan menunggu cache besok.
+    if (session?.access_token && activeBusinessId) {
+      setTodaySnapshotLoading(true);
+      fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "getTodaySnapshot", businessProfileId: activeBusinessId, forceRecompute: true }),
+      })
+        .then((res) => res.json().then((json) => ({ ok: res.ok, json })))
+        .then(({ ok, json }) => {
+          if (ok) setTodaySnapshot(json.snapshot as TodaySnapshotPayload);
+        })
+        .catch((err) => console.error("getTodaySnapshot forceRecompute error:", err))
+        .finally(() => setTodaySnapshotLoading(false));
+    }
   }
 
   // Growth Timeline butuh riwayat Business Update — muat sekali saat menu
@@ -1530,6 +1780,15 @@ function Workspace() {
             <div className="rounded-2xl border border-white/10 bg-surface p-10 text-center">
               <p className="text-neutral-400">{t.workspace.loadingDataLabel}</p>
             </div>
+          ) : activeMenu === "today" ? (
+            <TodayPanel
+              t={t}
+              lang={lang}
+              snapshot={todaySnapshot}
+              snapshotLoading={todaySnapshotLoading}
+              onOpenUpdateModal={() => setShowBusinessUpdate(true)}
+              onNavigateToInsights={() => setActiveMenu("score")}
+            />
           ) : activeMenu === "history" ? (
             <HistoryList analyses={analyses} t={t} lang={lang} />
           ) : activeMenu === "score" ? (

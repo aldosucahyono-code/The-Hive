@@ -15,6 +15,7 @@ import { getHealthTrend } from "../services/workspace/getHealthTrend.js";
 import { getAchievements } from "../services/workspace/getAchievements.js";
 import { getLatestPayment } from "../services/workspace/getLatestPayment.js";
 import { getMembership } from "../services/workspace/getMembership.js";
+import { getTodaySnapshot } from "../services/today/computeSnapshot.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -61,6 +62,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "getMembership":
       result = await getMembership(userId, payload);
+      break;
+    case "getTodaySnapshot":
+      result = await getTodaySnapshot(userId, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });
