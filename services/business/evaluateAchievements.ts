@@ -138,11 +138,21 @@ export async function evaluateAchievements(
   const newlyUnlocked: NewlyUnlocked[] = [];
   const lockedCandidates: Array<{ def: Definition; result: CheckResult }> = [];
 
+  // Cache per-panggilan: beberapa condition_type membaca sumber data yang
+  // SAMA (business_health per dimensi, progress_snapshots baseline/latest/
+  // previous). Tanpa cache ini, tiap achievement definition memicu query-nya
+  // sendiri walau datanya identik — jadi N query untuk N definition padahal
+  // sumber datanya cuma segelintir baris. Cache di-scope ke satu pemanggilan
+  // evaluateAchievements() saja (bukan lintas request), murni optimasi query,
+  // tidak mengubah hasil evaluasi sama sekali.
+  const healthCache: Map<string, number | null> = new Map();
+  const snapshotCache: SnapshotCache = {};
+
   for (const def of definitions as Definition[]) {
     if (unlockedIds.has(def.id)) continue;
     if (UNSUPPORTED_CONDITION_TYPES.has(def.condition_type)) continue;
 
-    const result = await runChecker(businessProfileId, def);
+    const result = await runChecker(businessProfileId, def, healthCache, snapshotCache);
     if (!result) continue;
 
     if (result.met) {
@@ -205,7 +215,12 @@ export async function evaluateAchievements(
   return { newlyUnlocked, nextMilestone };
 }
 
-async function runChecker(businessProfileId: string, def: Definition): Promise<CheckResult | null> {
+async function runChecker(
+  businessProfileId: string,
+  def: Definition,
+  healthCache: Map<string, number | null>,
+  snapshotCache: SnapshotCache
+): Promise<CheckResult | null> {
   const config = def.condition_config || {};
 
   if (def.condition_type === "business_updates_count") {
@@ -232,7 +247,7 @@ async function runChecker(businessProfileId: string, def: Definition): Promise<C
 
   if (def.condition_type === "business_health_score") {
     const threshold = Number(config.threshold ?? 80);
-    const overall = await getLatestOverallHealth(businessProfileId);
+    const overall = await getOverallHealthCached(businessProfileId, healthCache);
     if (overall === null) return { met: false, currentValue: 0, threshold };
     return { met: overall >= threshold, currentValue: overall, threshold };
   }
@@ -240,25 +255,19 @@ async function runChecker(businessProfileId: string, def: Definition): Promise<C
   const dimension = HEALTH_DIMENSION_CONDITION_TYPES[def.condition_type];
   if (dimension) {
     const threshold = Number(config.threshold ?? 80);
-    const score = await getLatestDimensionHealth(businessProfileId, dimension);
+    const score = await getDimensionHealthCached(businessProfileId, dimension, healthCache);
     if (score === null) return { met: false, currentValue: 0, threshold };
     return { met: score >= threshold, currentValue: score, threshold };
   }
 
   if (def.condition_type === "journey_growth" || def.condition_type === "period_growth") {
     const thresholdPercent = Number(config.thresholdPercent ?? 20);
-    const { data: snapshots } = await supabase
-      .from("progress_snapshots")
-      .select("business_score, period_start")
-      .eq("business_profile_id", businessProfileId)
-      .order("period_start", { ascending: true });
+    const latest = await getLatestSnapshotCached(businessProfileId, snapshotCache);
+    const baseline =
+      def.condition_type === "journey_growth"
+        ? await getBaselineSnapshotCached(businessProfileId, snapshotCache)
+        : await getPreviousSnapshotCached(businessProfileId, snapshotCache);
 
-    if (!snapshots || snapshots.length === 0) {
-      return { met: false, currentValue: 0, threshold: thresholdPercent };
-    }
-
-    const baseline = def.condition_type === "journey_growth" ? snapshots[0] : snapshots[snapshots.length - 2];
-    const latest = snapshots[snapshots.length - 1];
     if (!baseline || !latest || baseline.business_score <= 0) {
       return { met: false, currentValue: 0, threshold: thresholdPercent };
     }
@@ -297,29 +306,32 @@ function countConsecutiveWeeks(periodStartsDesc: string[]): number {
   return streak;
 }
 
-async function getLatestOverallHealth(businessProfileId: string): Promise<number | null> {
+// Performance audit finding (Final Audit, Tahap 2.4): versi lama fungsi ini
+// menarik SELURUH histori business_health (tanpa limit) lalu mengambil baris
+// terbaru per dimensi di JS — query yang tumbuh terus seiring makin banyak
+// Business Update. Diganti dengan getDimensionHealthCached() yang query
+// ORDER BY evaluated_at DESC LIMIT 1 per dimensi (bounded, tidak tumbuh
+// seiring waktu) DAN di-cache per pemanggilan evaluateAchievements(), supaya
+// achievement "Business Health di Atas 80" dan 6 achievement per-dimensi
+// (sales/finance/customer/marketing/operations/brand) berbagi query yang
+// sama alih-alih masing-masing query sendiri.
+async function getOverallHealthCached(
+  businessProfileId: string,
+  cache: Map<string, number | null>
+): Promise<number | null> {
   const dims = ["marketing", "sales", "operations", "finance", "customer", "brand"];
-  const { data: rows } = await supabase
-    .from("business_health")
-    .select("dimension, score, evaluated_at")
-    .eq("business_profile_id", businessProfileId)
-    .order("evaluated_at", { ascending: false });
-  if (!rows || rows.length === 0) return null;
-
-  const latestByDimension: Record<string, number> = {};
-  const seen = new Set<string>();
-  for (const row of rows) {
-    if (!seen.has(row.dimension)) {
-      latestByDimension[row.dimension] = row.score;
-      seen.add(row.dimension);
-    }
-  }
-  const scores = dims.map((d) => latestByDimension[d]).filter((s) => typeof s === "number");
-  if (scores.length === 0) return null;
-  return Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length);
+  const scores = await Promise.all(dims.map((d) => getDimensionHealthCached(businessProfileId, d, cache)));
+  const valid = scores.filter((s): s is number => typeof s === "number");
+  if (valid.length === 0) return null;
+  return Math.round(valid.reduce((sum, s) => sum + s, 0) / valid.length);
 }
 
-async function getLatestDimensionHealth(businessProfileId: string, dimension: string): Promise<number | null> {
+async function getDimensionHealthCached(
+  businessProfileId: string,
+  dimension: string,
+  cache: Map<string, number | null>
+): Promise<number | null> {
+  if (cache.has(dimension)) return cache.get(dimension)!;
   const { data } = await supabase
     .from("business_health")
     .select("score")
@@ -328,5 +340,58 @@ async function getLatestDimensionHealth(businessProfileId: string, dimension: st
     .order("evaluated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return data ? (data.score as number) : null;
+  const score = data ? (data.score as number) : null;
+  cache.set(dimension, score);
+  return score;
+}
+
+// Sama seperti health cache di atas: versi lama journey_growth/period_growth
+// menarik SELURUH histori progress_snapshots (tanpa limit) padahal cuma
+// butuh baseline (baris pertama), latest (baris terakhir), dan previous
+// (baris kedua-dari-akhir, khusus period_growth). Diganti 3 query bertarget
+// (LIMIT 1 / range 1-1), di-cache per pemanggilan supaya journey_growth dan
+// period_growth berbagi query "latest" yang sama.
+type SnapshotRow = { business_score: number; period_start: string };
+type SnapshotCache = {
+  latest?: SnapshotRow | null;
+  baseline?: SnapshotRow | null;
+  previous?: SnapshotRow | null;
+};
+
+async function getLatestSnapshotCached(businessProfileId: string, cache: SnapshotCache): Promise<SnapshotRow | null> {
+  if (cache.latest !== undefined) return cache.latest;
+  const { data } = await supabase
+    .from("progress_snapshots")
+    .select("business_score, period_start")
+    .eq("business_profile_id", businessProfileId)
+    .order("period_start", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  cache.latest = (data as SnapshotRow | null) ?? null;
+  return cache.latest;
+}
+
+async function getBaselineSnapshotCached(businessProfileId: string, cache: SnapshotCache): Promise<SnapshotRow | null> {
+  if (cache.baseline !== undefined) return cache.baseline;
+  const { data } = await supabase
+    .from("progress_snapshots")
+    .select("business_score, period_start")
+    .eq("business_profile_id", businessProfileId)
+    .order("period_start", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  cache.baseline = (data as SnapshotRow | null) ?? null;
+  return cache.baseline;
+}
+
+async function getPreviousSnapshotCached(businessProfileId: string, cache: SnapshotCache): Promise<SnapshotRow | null> {
+  if (cache.previous !== undefined) return cache.previous;
+  const { data } = await supabase
+    .from("progress_snapshots")
+    .select("business_score, period_start")
+    .eq("business_profile_id", businessProfileId)
+    .order("period_start", { ascending: false })
+    .range(1, 1);
+  cache.previous = (data && data[0] ? (data[0] as SnapshotRow) : null);
+  return cache.previous;
 }

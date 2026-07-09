@@ -41,6 +41,13 @@ alter table business_achievements enable row level security;
 -- untuk join judul/deskripsi), TIDAK ada insert/update/delete lewat
 -- client — mutasi katalog hanya lewat service_role (nanti: Super Admin
 -- Platform). Baris yang belum aktif/masih hidden tidak ikut ter-expose.
+--
+-- Final Audit finding: standar Postgres tidak mendukung
+-- "CREATE POLICY IF NOT EXISTS" (beda dengan CREATE TABLE/INDEX di
+-- migrasi lain). DROP POLICY IF EXISTS sebelum CREATE POLICY membuat
+-- file ini aman dijalankan ulang, konsisten dengan pola idempoten di
+-- seluruh migrasi lain — tidak mengubah efek policy-nya sama sekali.
+drop policy if exists achievement_definitions_select_authenticated on achievement_definitions;
 create policy achievement_definitions_select_authenticated
   on achievement_definitions
   for select
@@ -53,6 +60,7 @@ create policy achievement_definitions_select_authenticated
 -- insert/update/delete lewat client — achievement adalah keputusan sistem
 -- (evaluateAchievements(), lewat service_role), bukan sesuatu yang bisa
 -- diklaim sendiri oleh pengguna.
+drop policy if exists business_achievements_select_own on business_achievements;
 create policy business_achievements_select_own
   on business_achievements
   for select

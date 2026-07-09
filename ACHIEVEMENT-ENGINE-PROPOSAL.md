@@ -1,6 +1,6 @@
 # Achievement Engine — Architecture Proposal (Tahap 2.4)
 
-Status: **DISETUJUI (v3, setelah penyempurnaan Product Owner) — implementasi berjalan mengikuti dokumen ini.**
+Status: **ARSIP — digantikan oleh `ACHIEVEMENT-ENGINE-FINAL.md`.** Dokumen ini disimpan sebagai riwayat proses perancangan (v1 → v3) dan tidak lagi menjadi sumber kebenaran. Untuk dokumentasi resmi Achievement Engine yang berjalan di production (termasuk hasil Final Audit), lihat `ACHIEVEMENT-ENGINE-FINAL.md`.
 
 Riwayat:
 - v1 disetujui secara prinsip.
