@@ -262,13 +262,17 @@ function BusinessScorePanel({
     );
   }
 
-  const statusLabel = hasHealthData
-    ? score >= 70
+  // Catatan: statusLabel SELALU dihitung dari skor numerik lewat kunci i18n,
+  // bukan diambil dari preview.statusLabel mentah — field itu adalah teks
+  // yang ditulis AI saat analisis dibuat (beku dalam bahasa saat itu), jadi
+  // tidak ikut berubah saat pengguna toggle bahasa UI. Menghitung ulang dari
+  // angka memastikan label ini selalu mengikuti bahasa aktif.
+  const statusLabel =
+    score >= 70
       ? t.workspace.healthStatusGood
       : score >= 45
         ? t.workspace.healthStatusNeedsAttention
-        : t.workspace.healthStatusNeedsSeriousAttention
-    : preview?.statusLabel;
+        : t.workspace.healthStatusNeedsSeriousAttention;
 
   return (
     <div className="space-y-4">
