@@ -5,6 +5,12 @@
     },
     "api/generate-report.ts": {
       "maxDuration": 60
+    },
+    "api/generate-monthly-report.ts": {
+      "maxDuration": 60
+    },
+    "api/generate-wizard-questions.ts": {
+      "maxDuration": 60
     }
   }
 }
