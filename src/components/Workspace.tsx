@@ -20,6 +20,9 @@ import {
   EmptyState,
 } from "./WorkspaceDesignSystem";
 
+// "growth" (Journey) digabung ke "target" (audit Juli 2026: skor Journey
+// tampil identik di 2 halaman terpisah — sekarang satu halaman "Target &
+// Progress", lihat TargetPanel). Key lama tidak dipakai lagi.
 type MenuKey =
   | "today"
   | "history"
@@ -27,7 +30,6 @@ type MenuKey =
   | "report"
   | "target"
   | "competitor"
-  | "growth"
   | "chat"
   | "settings"
   | "businessUpdates"
@@ -297,6 +299,7 @@ function HistoryList({
  * baru, supaya tidak ada dua sumber "riwayat update" yang bisa beda. */
 function BusinessUpdatesList({
   updates,
+  tier,
   t,
   lang,
   loading,
@@ -305,6 +308,7 @@ function BusinessUpdatesList({
   onOpenUpdateModal,
 }: {
   updates: Array<Record<string, unknown>>;
+  tier: Tier;
   t: Translations;
   lang: "id" | "en";
   loading: boolean;
@@ -322,6 +326,14 @@ function BusinessUpdatesList({
     medium: t.workspace.updateSeverityMedium,
     low: t.workspace.updateSeverityLow,
   };
+  const kondisiPenjualanLabel: Record<string, string> = {
+    naik: t.workspace.updateKondisiNaik,
+    tetap: t.workspace.updateKondisiTetap,
+    turun: t.workspace.updateKondisiTurun,
+  };
+  function formatRupiah(value: number): string {
+    return `Rp${value.toLocaleString(lang === "id" ? "id-ID" : "en-US")}`;
+  }
 
   return (
     <WorkspaceSection>
@@ -382,11 +394,58 @@ function BusinessUpdatesList({
                       {u.pencapaian as string}
                     </p>
                   )}
+                  {!!u.tantangan && (
+                    <p className="mt-1 text-xs text-neutral-500">
+                      <span className="font-semibold text-neutral-400">{t.workspace.businessUpdatesChallengeLabel}: </span>
+                      {u.tantangan as string}
+                    </p>
+                  )}
                   {!!u.target_depan && (
                     <p className="mt-1 text-xs text-neutral-500">
                       <span className="font-semibold text-neutral-400">{t.workspace.businessUpdatesNextTargetLabel}: </span>
                       {u.target_depan as string}
                     </p>
+                  )}
+
+                  {/* Detail form lengkap (audit Juli 2026: sebelumnya arsip ini
+                      cuma tampilkan sebagian isi form, bukan detailnya). */}
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-3">
+                    {!!u.kondisi_penjualan && (
+                      <span className="rounded-full bg-white/5 px-3 py-1 text-[11px] font-semibold text-neutral-300">
+                        {t.workspace.businessUpdatesSalesLabel}: {kondisiPenjualanLabel[u.kondisi_penjualan as string] || (u.kondisi_penjualan as string)}
+                      </span>
+                    )}
+                    {typeof u.omset_value === "number" && (
+                      <span className="rounded-full bg-white/5 px-3 py-1 text-[11px] font-semibold text-neutral-300">
+                        {t.workspace.businessUpdatesRevenueLabel}: {formatRupiah(u.omset_value as number)}
+                      </span>
+                    )}
+                    {typeof u.pelanggan_baru === "number" && (
+                      <span className="rounded-full bg-white/5 px-3 py-1 text-[11px] font-semibold text-neutral-300">
+                        {t.workspace.businessUpdatesNewCustomersLabel}: {u.pelanggan_baru as number}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Insight Platinum — dari Update Engine (services/updateEngine/
+                      classify.ts), sudah dihitung deterministik saat update
+                      disimpan, bukan panggilan AI baru. Pro & Gratis tidak
+                      lihat bagian ini (pembeda nyata, bukan cuma kuota). */}
+                  {tier === "platinum" && !!u.insight_headline_key && (
+                    <div className="mt-3 rounded-xl border border-primary/20 bg-primary/[0.06] p-3">
+                      <p className="text-xs font-bold text-primary">🐝 {t.workspace.businessUpdatesInsightLabel}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-neutral-200">
+                        {fillTemplate(
+                          (t.workspace as unknown as Record<string, string>)[u.insight_headline_key as string] || "",
+                          (u.insight_headline_params as Record<string, string | number>) || {}
+                        )}
+                      </p>
+                      {!!u.insight_action_key && (
+                        <p className="mt-1 text-xs leading-relaxed text-neutral-400">
+                          {(t.workspace as unknown as Record<string, string>)[u.insight_action_key as string] || ""}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </WorkspaceCard>
               );
@@ -1015,11 +1074,20 @@ function ReportContent({
  * murni reuse improvements+opportunity yang sama dengan Rekomendasi
  * Prioritas di Report (satu sumber data, sesuai prinsip "sintesis boleh,
  * mengarang tidak boleh"). */
+/** Target & Progress — digabung dari 2 halaman terpisah (Target + Journey)
+ * yang sebelumnya menampilkan skor Journey yang SAMA PERSIS dua kali (audit
+ * Juli 2026). Sekarang satu cerita: apa targetnya -> sudah sejalan atau
+ * belum -> apa yang sudah dilakukan (timeline+achievement). Free terkunci
+ * total (sama seperti Journey lama). Pro tetap dapat timeline/achievement
+ * (seperti sebelumnya di Journey) — HANYA skor Progress numerik yang tetap
+ * eksklusif Platinum (sama seperti Target lama), supaya tidak ada yang
+ * "hilang" diam-diam dari Pro dibanding sebelum digabung. */
 function TargetPanel({
   rawInput,
   preview,
   tier,
   t,
+  lang,
   progress,
   analysesLoading,
   analysesError,
@@ -1029,11 +1097,20 @@ function TargetPanel({
   onRetryProgress,
   onUpgradeClick,
   onOpenUpdateModal,
+  healthTrend,
+  updates,
+  updatesLoading,
+  achievements,
+  achievementsLoading,
+  updateHistoryError,
+  achievementsError,
+  onRetryTimeline,
 }: {
   rawInput: Record<string, string> | null;
   preview: PreviewOutput | null;
   tier: Tier;
   t: Translations;
+  lang: "id" | "en";
   progress: {
     journey: { baselineScore: number; currentScore: number; delta: number } | null;
     period: { previousScore: number; currentScore: number; delta: number } | null;
@@ -1046,9 +1123,23 @@ function TargetPanel({
   onRetryProgress: () => void;
   onUpgradeClick: () => void;
   onOpenUpdateModal: () => void;
+  healthTrend: HealthTrend;
+  updates: Array<Record<string, unknown>>;
+  updatesLoading: boolean;
+  achievements: {
+    unlocked: Array<Record<string, unknown>>;
+    nextMilestone: Record<string, unknown> | null;
+  };
+  achievementsLoading: boolean;
+  updateHistoryError: boolean;
+  achievementsError: boolean;
+  onRetryTimeline: () => void;
 }) {
   const target = rawInput?.target;
   const hasPriority = Boolean(preview?.improvements || preview?.opportunity);
+  const periodDimensions = ["sales", "finance", "customer"] as const;
+  const timelineLoading = updatesLoading || achievementsLoading;
+  const timelineError = updateHistoryError || achievementsError;
 
   function deltaLabel(delta: number): string {
     const sign = delta > 0 ? "+" : "";
@@ -1059,6 +1150,19 @@ function TargetPanel({
     if (delta > 0) return "text-green-400";
     if (delta < 0) return "text-red-400";
     return "text-neutral-400";
+  }
+
+  if (tier === "free") {
+    return (
+      <WorkspaceSection>
+        <SectionHeader title={t.workspace.targetSectionTitle} description={t.workspace.targetSectionDesc} />
+        <UpgradeLockCard
+          description={t.workspace.growthLockedDesc}
+          buttonLabel={t.workspace.growthUpgradeButton}
+          onUpgradeClick={onUpgradeClick}
+        />
+      </WorkspaceSection>
+    );
   }
 
   return (
@@ -1095,8 +1199,9 @@ function TargetPanel({
         />
       )}
 
-      {/* Progress + Perbandingan — PLATINUM. Free/Pro dapat penjelasan
-          manfaat + CTA upgrade, bukan bagian yang hilang diam-diam. */}
+      {/* Progress & Journey — skor numerik tetap eksklusif PLATINUM (sama
+          seperti sebelum digabung). Pro dapat penjelasan manfaat + CTA
+          upgrade, bukan bagian yang hilang diam-diam. */}
       {tier !== "platinum" ? (
         <UpgradeLockCard
           description={t.workspace.targetProgressLockedDesc}
@@ -1122,35 +1227,198 @@ function TargetPanel({
           onCtaClick={onOpenUpdateModal}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <>
           <WorkspaceCard>
-            <p className="mb-1 text-xs font-bold uppercase text-neutral-400">{t.workspace.targetJourneyLabel}</p>
-            <p className="text-2xl font-black text-white">
-              {progress.journey.baselineScore} → {progress.journey.currentScore}
-              <span className="ml-1 text-sm font-normal text-neutral-500">/100</span>
-            </p>
-            <p className={`text-sm font-semibold ${deltaColor(progress.journey.delta)}`}>
-              {deltaLabel(progress.journey.delta)} {t.workspace.pointsUnit}
-            </p>
-          </WorkspaceCard>
-
-          {progress.period ? (
-            <WorkspaceCard>
-              <p className="mb-1 text-xs font-bold uppercase text-neutral-400">{t.workspace.targetWeekCompareLabel}</p>
+            <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthJourneyTitle}</h3>
+            <WorkspaceCard variant="compact">
+              <p className="mb-1 text-xs font-bold uppercase text-neutral-400">{t.workspace.growthOverallScoreLabel}</p>
               <p className="text-2xl font-black text-white">
-                {progress.period.previousScore} → {progress.period.currentScore}
+                {progress.journey.baselineScore} → {progress.journey.currentScore}
                 <span className="ml-1 text-sm font-normal text-neutral-500">/100</span>
               </p>
-              <p className={`text-sm font-semibold ${deltaColor(progress.period.delta)}`}>
-                {deltaLabel(progress.period.delta)} {t.workspace.pointsUnit}
+              <p className={`text-sm font-semibold ${deltaColor(progress.journey.delta)}`}>
+                {deltaLabel(progress.journey.delta)} {t.workspace.pointsUnit}
               </p>
             </WorkspaceCard>
+
+            {healthTrend.biggestMoverDimension && healthTrend.journeyByDimension && (
+              <WorkspaceCard variant="compact" tone="primary" className="mt-3">
+                <p className="mb-1 text-xs font-bold uppercase text-primary">{t.workspace.growthBiggestMoverLabel}</p>
+                <p className="text-sm font-semibold text-white">
+                  {DIMENSION_LABELS[healthTrend.biggestMoverDimension]?.[lang] || healthTrend.biggestMoverDimension}{" "}
+                  <span className={deltaColor(healthTrend.journeyByDimension[healthTrend.biggestMoverDimension].delta)}>
+                    ({deltaLabel(healthTrend.journeyByDimension[healthTrend.biggestMoverDimension].delta)})
+                  </span>
+                </p>
+              </WorkspaceCard>
+            )}
+
+            {/* Riwayat — menggabungkan update bisnis dengan momen Achievement
+                terbuka, diurutkan kronologis, supaya halaman ini benar-benar
+                menceritakan perjalanan bisnis, bukan cuma daftar Business
+                Update. */}
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <h4 className="mb-3 text-xs font-bold uppercase text-neutral-500">{t.workspace.growthTimelineTitle}</h4>
+              {timelineError && !timelineLoading ? (
+                <ErrorCard
+                  title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.growthTimelineTitle })}
+                  description={t.workspace.workspaceSectionErrorDesc}
+                  retryLabel={t.workspace.workspaceRetryButton}
+                  onRetry={onRetryTimeline}
+                />
+              ) : (
+                <GrowthTimeline
+                  t={t}
+                  lang={lang}
+                  updates={updates}
+                  updatesLoading={updatesLoading}
+                  unlockedAchievements={achievements.unlocked}
+                  achievementsLoading={achievementsLoading}
+                />
+              )}
+            </div>
+          </WorkspaceCard>
+
+          {/* Perubahan Minggu Ini — minggu lalu vs minggu ini, per dimensi. */}
+          <WorkspaceCard>
+            <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthPeriodTitle}</h3>
+            {!progress.period || !healthTrend.periodByDimension ? (
+              <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.growthPeriodEmptyDesc}</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <WorkspaceCard variant="compact" className="text-center">
+                  <p className="text-xs font-bold uppercase text-neutral-400">{t.workspace.growthOverallScoreLabel}</p>
+                  <p className={`mt-1 text-sm font-bold ${deltaColor(progress.period.delta)}`}>
+                    {deltaLabel(progress.period.delta)}
+                  </p>
+                </WorkspaceCard>
+                {periodDimensions.map((dim) => {
+                  const d = healthTrend.periodByDimension?.[dim];
+                  if (!d) return null;
+                  return (
+                    <WorkspaceCard key={dim} variant="compact" className="text-center">
+                      <p className="text-xs font-bold uppercase text-neutral-400">{DIMENSION_LABELS[dim]?.[lang]}</p>
+                      <p className={`mt-1 text-sm font-bold ${deltaColor(d.delta)}`}>{deltaLabel(d.delta)}</p>
+                    </WorkspaceCard>
+                  );
+                })}
+              </div>
+            )}
+          </WorkspaceCard>
+        </>
+      )}
+
+      {/* Timeline/Achievement untuk PRO (sebelumnya di halaman Journey
+          terpisah, tetap tersedia di sini walau bukan Platinum — TIDAK
+          mengambil apa pun yang sudah dipunyai Pro sebelum digabung). */}
+      {tier === "pro" && (
+        <WorkspaceCard>
+          <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthTimelineTitle}</h3>
+          {timelineError && !timelineLoading ? (
+            <ErrorCard
+              title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.growthTimelineTitle })}
+              description={t.workspace.workspaceSectionErrorDesc}
+              retryLabel={t.workspace.workspaceRetryButton}
+              onRetry={onRetryTimeline}
+            />
           ) : (
-            <WorkspaceCard className="flex items-center justify-center text-center">
-              <p className="text-xs text-neutral-500">{t.workspace.targetWeeklyComparisonPending}</p>
+            <GrowthTimeline
+              t={t}
+              lang={lang}
+              updates={updates}
+              updatesLoading={updatesLoading}
+              unlockedAchievements={achievements.unlocked}
+              achievementsLoading={achievementsLoading}
+            />
+          )}
+        </WorkspaceCard>
+      )}
+
+      {/* Achievements — murni baca dari business_achievements. Tidak ada
+          badge/skor game — hanya judul, deskripsi singkat, dan tanggal
+          terbuka. Tersedia Pro+Platinum (sama seperti Journey sebelumnya). */}
+      {achievementsError && !achievementsLoading ? (
+        <ErrorCard
+          title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.growthAchievementsTitle })}
+          description={t.workspace.workspaceSectionErrorDesc}
+          retryLabel={t.workspace.workspaceRetryButton}
+          onRetry={onRetryTimeline}
+        />
+      ) : (
+        <WorkspaceCard>
+          <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthAchievementsTitle}</h3>
+          {achievementsLoading ? (
+            <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
+          ) : achievements.unlocked.length === 0 ? (
+            <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.growthAchievementsEmptyDesc}</p>
+          ) : (
+            <div className="space-y-3">
+              {achievements.unlocked.map((a) => {
+                const difficulty = a.difficulty as string | undefined;
+                const difficultyLabel =
+                  difficulty === "bronze"
+                    ? t.workspace.difficultyBronze
+                    : difficulty === "silver"
+                      ? t.workspace.difficultySilver
+                      : difficulty === "gold"
+                        ? t.workspace.difficultyGold
+                        : difficulty === "platinum"
+                          ? t.workspace.difficultyPlatinum
+                          : null;
+                const businessValue = lang === "id" ? (a.businessValueId as string | null) : (a.businessValueEn as string | null);
+                return (
+                  <WorkspaceCard key={a.code as string} variant="compact" className="transition-colors hover:border-primary/20">
+                    <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                      <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                        <span aria-hidden="true">🏆</span>
+                        {lang === "id" ? (a.titleId as string) : (a.titleEn as string)}
+                      </p>
+                      {difficultyLabel && (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-neutral-400">
+                          {difficultyLabel}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mb-2 text-sm text-neutral-400">
+                      {lang === "id" ? (a.descriptionId as string) : (a.descriptionEn as string)}
+                    </p>
+                    {businessValue && <p className="mb-2 text-sm italic text-primary/80">{businessValue}</p>}
+                    <p className="text-xs text-neutral-500">
+                      {new Date(a.unlockedAt as string).toLocaleDateString(LOCALE_MAP[lang], {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </WorkspaceCard>
+                );
+              })}
+            </div>
+          )}
+        </WorkspaceCard>
+      )}
+
+      {/* Next Milestone — satu kalimat motivasi, dipilih dari achievement
+          yang belum terbuka dengan remainingRatio terkecil. */}
+      {!achievementsError && (
+        <WorkspaceCard>
+          <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthNextMilestoneTitle}</h3>
+          {achievementsLoading ? (
+            <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
+          ) : !achievements.nextMilestone ? (
+            <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.growthNextMilestoneNone}</p>
+          ) : (
+            <WorkspaceCard variant="compact" tone="primary">
+              <p className="text-sm font-semibold leading-relaxed text-white">
+                {fillTemplate(t.workspace.growthNextMilestoneTemplate, {
+                  remaining: achievements.nextMilestone.remaining as number,
+                  unit: lang === "id" ? (achievements.nextMilestone.unitId as string) : (achievements.nextMilestone.unitEn as string),
+                  title: lang === "id" ? (achievements.nextMilestone.titleId as string) : (achievements.nextMilestone.titleEn as string),
+                })}
+              </p>
             </WorkspaceCard>
           )}
-        </div>
+        </WorkspaceCard>
       )}
 
       {/* Prioritas — BUKAN insight baru, reuse improvements+opportunity
@@ -1615,316 +1883,6 @@ function GrowthTimeline({
         );
       })}
     </div>
-  );
-}
-
-/** Growth/Journey — menjawab satu pertanyaan: "bagaimana perjalanan
- * bisnisku dari waktu ke waktu?" TIDAK menghitung apapun sendiri, murni
- * membaca hasil Business Engine yang sudah ada: progress_snapshots (lewat
- * getProgress, dipakai bersama TargetPanel — error/retry-nya JUGA dipakai
- * bersama, satu sumber data satu error state), business_health historis
- * (getHealthTrend — enrichment "biggest mover"/breakdown per-dimensi,
- * sengaja TIDAK diberi ErrorCard sendiri: kalau gagal, blok itu memang
- * tidak dirender karena sudah dijaga truthy-check `&&`, bukan menampilkan
- * data palsu — cukup untuk data pelengkap, bukan angka utama halaman),
- * dan business_updates+achievements (listUpdates+getAchievements, dua
- * fetch terpisah tapi SATU error/retry gabungan karena Timeline butuh
- * keduanya sekaligus). Tidak ada AI di sini — itu tugas Tahap AI Engine
- * nanti. */
-function GrowthPanel({
-  tier,
-  t,
-  lang,
-  onUpgradeClick,
-  onOpenUpdateModal,
-  progress,
-  progressLoading,
-  progressError,
-  onRetryProgress,
-  healthTrend,
-  updates,
-  updatesLoading,
-  achievements,
-  achievementsLoading,
-  updateHistoryError,
-  achievementsError,
-  onRetryTimeline,
-}: {
-  tier: Tier;
-  t: Translations;
-  lang: "id" | "en";
-  onUpgradeClick: () => void;
-  onOpenUpdateModal: () => void;
-  progress: {
-    journey: { baselineScore: number; currentScore: number; delta: number } | null;
-    period: { previousScore: number; currentScore: number; delta: number } | null;
-  };
-  progressLoading: boolean;
-  progressError: boolean;
-  onRetryProgress: () => void;
-  healthTrend: HealthTrend;
-  updates: Array<Record<string, unknown>>;
-  updatesLoading: boolean;
-  achievements: {
-    unlocked: Array<Record<string, unknown>>;
-    nextMilestone: Record<string, unknown> | null;
-  };
-  achievementsLoading: boolean;
-  updateHistoryError: boolean;
-  achievementsError: boolean;
-  onRetryTimeline: () => void;
-}) {
-  function deltaLabel(delta: number): string {
-    const sign = delta > 0 ? "+" : "";
-    return `${sign}${delta}`;
-  }
-
-  function deltaColor(delta: number): string {
-    if (delta > 0) return "text-green-400";
-    if (delta < 0) return "text-red-400";
-    return "text-neutral-400";
-  }
-
-  const periodDimensions = ["sales", "finance", "customer"] as const;
-  const timelineLoading = updatesLoading || achievementsLoading;
-  // Riwayat (Timeline) butuh KEDUA sumber (updates+achievements) — digabung
-  // secara visual ke dalam kartu "Perjalanan Bisnis" (bukan kartu sendiri)
-  // supaya hierarchy halaman terasa 4 langkah (Perjalanan → Perubahan →
-  // Achievement → Milestone), bukan 5 kartu terpisah yang membingungkan.
-  const timelineError = updateHistoryError || achievementsError;
-
-  return (
-    <WorkspaceSection>
-      <SectionHeader title={t.workspace.menuGrowth} description={t.workspace.growthSectionDesc} />
-
-      {tier === "free" ? (
-        <UpgradeLockCard
-          description={t.workspace.growthLockedDesc}
-          buttonLabel={t.workspace.growthUpgradeButton}
-          onUpgradeClick={onUpgradeClick}
-        />
-      ) : (
-        <>
-          {/* Perjalanan Bisnis — satu sumber data (progress), satu error/
-              retry (reuse dari Target). Riwayat (update+achievement) ikut
-              digabung di sini sebagai sub-bagian, bukan kartu terpisah. */}
-          {progressError && !progressLoading ? (
-            <ErrorCard
-              title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.menuGrowth })}
-              description={t.workspace.workspaceSectionErrorDesc}
-              retryLabel={t.workspace.workspaceRetryButton}
-              onRetry={onRetryProgress}
-            />
-          ) : progressLoading ? (
-            <SkeletonCard variant="default" />
-          ) : !progress.journey ? (
-            <EmptyState
-              variant="default"
-              icon="🌱"
-              title={t.workspace.growthEmptyTitle}
-              description={t.workspace.growthEmptyDesc}
-              ctaLabel={t.workspace.updateBusinessButton}
-              onCtaClick={onOpenUpdateModal}
-            />
-          ) : (
-            <WorkspaceCard>
-              <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthJourneyTitle}</h3>
-              <WorkspaceCard variant="compact">
-                <p className="mb-1 text-xs font-bold uppercase text-neutral-400">{t.workspace.growthOverallScoreLabel}</p>
-                <p className="text-2xl font-black text-white">
-                  {progress.journey.baselineScore} → {progress.journey.currentScore}
-                </p>
-                <p className={`text-sm font-semibold ${deltaColor(progress.journey.delta)}`}>
-                  {deltaLabel(progress.journey.delta)} {t.workspace.pointsUnit}
-                </p>
-              </WorkspaceCard>
-
-              {healthTrend.biggestMoverDimension && healthTrend.journeyByDimension && (
-                <WorkspaceCard variant="compact" tone="primary" className="mt-3">
-                  <p className="mb-1 text-xs font-bold uppercase text-primary">{t.workspace.growthBiggestMoverLabel}</p>
-                  <p className="text-sm font-semibold text-white">
-                    {DIMENSION_LABELS[healthTrend.biggestMoverDimension]?.[lang] || healthTrend.biggestMoverDimension}{" "}
-                    <span className={deltaColor(healthTrend.journeyByDimension[healthTrend.biggestMoverDimension].delta)}>
-                      ({deltaLabel(healthTrend.journeyByDimension[healthTrend.biggestMoverDimension].delta)})
-                    </span>
-                  </p>
-                </WorkspaceCard>
-              )}
-
-              {/* Riwayat — menggabungkan update bisnis dengan momen
-                  Achievement terbuka, diurutkan kronologis, supaya Journey
-                  benar-benar menceritakan perjalanan bisnis (Product Owner
-                  review v3 §5), bukan cuma daftar Business Update. Murni
-                  menggabung & mengurutkan data yang sudah ada. Error/retry
-                  sendiri karena sumber datanya (updates+achievements)
-                  berbeda dari skor journey di atas. */}
-              <div className="mt-4 border-t border-white/10 pt-4">
-                <h4 className="mb-3 text-xs font-bold uppercase text-neutral-500">{t.workspace.growthTimelineTitle}</h4>
-                {timelineError && !timelineLoading ? (
-                  <ErrorCard
-                    title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.growthTimelineTitle })}
-                    description={t.workspace.workspaceSectionErrorDesc}
-                    retryLabel={t.workspace.workspaceRetryButton}
-                    onRetry={onRetryTimeline}
-                  />
-                ) : (
-                  <GrowthTimeline
-                    t={t}
-                    lang={lang}
-                    updates={updates}
-                    updatesLoading={updatesLoading}
-                    unlockedAchievements={achievements.unlocked}
-                    achievementsLoading={achievementsLoading}
-                  />
-                )}
-              </div>
-            </WorkspaceCard>
-          )}
-
-          {/* Perubahan Minggu Ini — minggu lalu vs minggu ini, per dimensi.
-              Sumber data sama dengan kartu di atas (progress), jadi ikut
-              error/loading yang sama. */}
-          {!progressError && !progressLoading && progress.journey && (
-            <WorkspaceCard>
-              <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthPeriodTitle}</h3>
-              {!progress.period || !healthTrend.periodByDimension ? (
-                <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.growthPeriodEmptyDesc}</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <WorkspaceCard variant="compact" className="text-center">
-                    <p className="text-xs font-bold uppercase text-neutral-400">{t.workspace.growthOverallScoreLabel}</p>
-                    <p className={`mt-1 text-sm font-bold ${deltaColor(progress.period.delta)}`}>
-                      {deltaLabel(progress.period.delta)}
-                    </p>
-                  </WorkspaceCard>
-                  {periodDimensions.map((dim) => {
-                    const d = healthTrend.periodByDimension?.[dim];
-                    if (!d) return null;
-                    return (
-                      <WorkspaceCard key={dim} variant="compact" className="text-center">
-                        <p className="text-xs font-bold uppercase text-neutral-400">{DIMENSION_LABELS[dim]?.[lang]}</p>
-                        <p className={`mt-1 text-sm font-bold ${deltaColor(d.delta)}`}>{deltaLabel(d.delta)}</p>
-                      </WorkspaceCard>
-                    );
-                  })}
-                </div>
-              )}
-            </WorkspaceCard>
-          )}
-
-          {/* Achievements — murni baca dari business_achievements (lihat
-              services/workspace/getAchievements.ts). Tidak ada badge/skor
-              game — hanya judul, deskripsi singkat, dan tanggal terbuka,
-              supaya terasa elegan dan profesional, bukan gamifikasi. */}
-          {achievementsError && !achievementsLoading ? (
-            <ErrorCard
-              title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.growthAchievementsTitle })}
-              description={t.workspace.workspaceSectionErrorDesc}
-              retryLabel={t.workspace.workspaceRetryButton}
-              onRetry={onRetryTimeline}
-            />
-          ) : (
-            <WorkspaceCard>
-              <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthAchievementsTitle}</h3>
-              {achievementsLoading ? (
-                <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
-              ) : achievements.unlocked.length === 0 ? (
-                <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.growthAchievementsEmptyDesc}</p>
-              ) : (
-                <div className="space-y-3">
-                  {achievements.unlocked.map((a) => {
-                    const difficulty = a.difficulty as string | undefined;
-                    const difficultyLabel =
-                      difficulty === "bronze"
-                        ? t.workspace.difficultyBronze
-                        : difficulty === "silver"
-                          ? t.workspace.difficultySilver
-                          : difficulty === "gold"
-                            ? t.workspace.difficultyGold
-                            : difficulty === "platinum"
-                              ? t.workspace.difficultyPlatinum
-                              : null;
-                    const businessValue = lang === "id" ? (a.businessValueId as string | null) : (a.businessValueEn as string | null);
-                    return (
-                      <WorkspaceCard
-                        key={a.code as string}
-                        variant="compact"
-                        className="transition-colors hover:border-primary/20"
-                      >
-                        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                          <p className="flex items-center gap-2 text-sm font-semibold text-white">
-                            <span aria-hidden="true">🏆</span>
-                            {lang === "id" ? (a.titleId as string) : (a.titleEn as string)}
-                          </p>
-                          {difficultyLabel && (
-                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-neutral-400">
-                              {difficultyLabel}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mb-2 text-sm text-neutral-400">
-                          {lang === "id" ? (a.descriptionId as string) : (a.descriptionEn as string)}
-                        </p>
-                        {businessValue && (
-                          <p className="mb-2 text-sm italic text-primary/80">{businessValue}</p>
-                        )}
-                        <p className="text-xs text-neutral-500">
-                          {new Date(a.unlockedAt as string).toLocaleDateString(LOCALE_MAP[lang], {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })}
-                        </p>
-                      </WorkspaceCard>
-                    );
-                  })}
-                </div>
-              )}
-            </WorkspaceCard>
-          )}
-
-          {/* Next Milestone — satu kalimat motivasi, dipilih dari
-              achievement yang belum terbuka dengan remainingRatio terkecil
-              (lihat evaluateAchievements.ts). Tidak menampilkan progress
-              bar/angka teknis supaya tetap terasa memotivasi, bukan
-              seperti dashboard game. */}
-          {!achievementsError && (
-            <WorkspaceCard>
-              <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.growthNextMilestoneTitle}</h3>
-              {achievementsLoading ? (
-                <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
-              ) : !achievements.nextMilestone ? (
-                <p className="text-sm leading-relaxed text-neutral-500">{t.workspace.growthNextMilestoneNone}</p>
-              ) : (
-                <WorkspaceCard variant="compact" tone="primary">
-                  <p className="text-sm font-semibold leading-relaxed text-white">
-                    {fillTemplate(t.workspace.growthNextMilestoneTemplate, {
-                      remaining: achievements.nextMilestone.remaining as number,
-                      unit: lang === "id" ? (achievements.nextMilestone.unitId as string) : (achievements.nextMilestone.unitEn as string),
-                      title:
-                        lang === "id"
-                          ? (achievements.nextMilestone.titleId as string)
-                          : (achievements.nextMilestone.titleEn as string),
-                    })}
-                  </p>
-                </WorkspaceCard>
-              )}
-            </WorkspaceCard>
-          )}
-
-          {/* CTA penutup — pola sama seperti Target/Report, supaya setiap
-              halaman berakhir dengan arah yang jelas (bukan berhenti
-              begitu saja setelah daftar kartu). */}
-          {!progressError && !progressLoading && progress.journey && (
-            <WorkspaceCard tone="primary" className="text-center">
-              <h3 className="mb-2 text-sm font-bold text-primary">{t.workspace.targetCtaTitle}</h3>
-              <p className="mx-auto max-w-md text-sm leading-relaxed text-neutral-300">{t.workspace.growthCtaDesc}</p>
-              <RetryButton label={t.workspace.updateBusinessButton} onRetry={onOpenUpdateModal} />
-            </WorkspaceCard>
-          )}
-        </>
-      )}
-    </WorkspaceSection>
   );
 }
 
@@ -3364,13 +3322,6 @@ function MenuIcon({ name }: { name: MenuKey }) {
           <path d="m14.5 9.5-2 5-5 2 2-5Z" />
         </svg>
       );
-    case "growth":
-      return (
-        <svg {...props}>
-          <path d="M3 17l6-6 4 4 8-8" />
-          <path d="M15 6h6v6" />
-        </svg>
-      );
     case "history":
       return (
         <svg {...props}>
@@ -4292,7 +4243,7 @@ function Workspace() {
     // progress/healthTrend/membership supaya Business Score, Target, dan
     // Growth langsung menampilkan angka terbaru, bukan data basi.
     setRefreshKey((k) => k + 1);
-    if (showUpdateHistory || activeMenu === "growth") loadUpdateHistory();
+    if (showUpdateHistory || activeMenu === "target") loadUpdateHistory();
     if (newlyUnlockedFromSave && newlyUnlockedFromSave.length > 0) {
       setNewlyUnlocked(newlyUnlockedFromSave);
     }
@@ -4327,7 +4278,7 @@ function Workspace() {
   // dimuat ulang SETIAP kali Growth dibuka (bukan cuma sekali) supaya
   // achievement berbasis waktu murni (member_since_days) ikut tertangkap.
   useEffect(() => {
-    if (activeMenu === "growth") {
+    if (activeMenu === "target") {
       if (!showUpdateHistory && updateHistory.length === 0 && !updateHistoryLoading) {
         loadUpdateHistory();
       }
@@ -4431,7 +4382,6 @@ function Workspace() {
   type MenuItemDef = { key: MenuKey; label: string; subtitle: string };
   const ALL_MENU_ITEMS: Record<Exclude<MenuKey, "settings">, MenuItemDef> = {
     today: { key: "today", label: t.workspace.menuToday, subtitle: t.workspace.todayNavSubtitleToday },
-    growth: { key: "growth", label: t.workspace.menuGrowth, subtitle: t.workspace.todayNavSubtitleJourney },
     businessUpdates: {
       key: "businessUpdates",
       label: t.workspace.menuBusinessUpdates,
@@ -4440,7 +4390,9 @@ function Workspace() {
     report: { key: "report", label: t.workspace.menuReport, subtitle: t.workspace.todayNavSubtitleReport },
     score: { key: "score", label: t.workspace.menuScore, subtitle: t.workspace.todayNavSubtitleScore },
     competitor: { key: "competitor", label: t.workspace.menuCompetitor, subtitle: t.workspace.todayNavSubtitleCompetitor },
-    target: { key: "target", label: t.workspace.menuTarget, subtitle: t.workspace.todayNavSubtitleTarget },
+    // Digabung dengan Journey (audit Juli 2026) — label/subtitle diperbarui
+    // supaya mencerminkan isi gabungan (target + progres perjalanan bisnis).
+    target: { key: "target", label: t.workspace.menuTarget, subtitle: t.workspace.todayNavSubtitleTargetMerged },
     decisionJournal: {
       key: "decisionJournal",
       label: t.workspace.menuDecisionJournal,
@@ -4465,8 +4417,8 @@ function Workspace() {
             stageLabel: t.workspace.stageStartPreparation,
             items: [ALL_MENU_ITEMS.today, ALL_MENU_ITEMS.businessUpdates, ALL_MENU_ITEMS.decisionJournal, ALL_MENU_ITEMS.chat],
           },
-          // 4. Progres — kemana arah bisnis ini.
-          { stageLabel: t.workspace.stageStartProgress, items: [ALL_MENU_ITEMS.growth, ALL_MENU_ITEMS.target, ALL_MENU_ITEMS.history] },
+          // 4. Progres — kemana arah bisnis ini (Journey digabung ke Target).
+          { stageLabel: t.workspace.stageStartProgress, items: [ALL_MENU_ITEMS.target, ALL_MENU_ITEMS.history] },
         ]
       : [
           // 1. Panduan awal — hasil PDF dipandu sesuai tantangan/harapan.
@@ -4478,8 +4430,8 @@ function Workspace() {
           },
           // 3. Pendukung keputusan — solusi relevan berbasis data+AI untuk setiap masalah.
           { stageLabel: t.workspace.stageGrowDecisionSupport, items: [ALL_MENU_ITEMS.decisionJournal, ALL_MENU_ITEMS.competitor] },
-          // 4. Laporan & progres — kemajuan bisnis + apa saja yang sudah dilakukan.
-          { stageLabel: t.workspace.stageGrowReview, items: [ALL_MENU_ITEMS.growth, ALL_MENU_ITEMS.target, ALL_MENU_ITEMS.history] },
+          // 4. Laporan & progres — kemajuan bisnis + apa saja yang sudah dilakukan (Journey digabung ke Target).
+          { stageLabel: t.workspace.stageGrowReview, items: [ALL_MENU_ITEMS.target, ALL_MENU_ITEMS.history] },
         ];
 
   const SETTINGS_ITEM = { key: "settings" as const, label: t.workspace.menuSettings, subtitle: t.workspace.todayNavSubtitleSettings };
@@ -4839,11 +4791,14 @@ function Workspace() {
               onOpenUpdateModal={() => setShowBusinessUpdate(true)}
             />
           ) : activeMenu === "target" ? (
+            // Journey digabung ke sini (audit Juli 2026) — TargetPanel sekarang
+            // juga menerima props yang dulu punya GrowthPanel sendiri.
             <TargetPanel
               rawInput={latestRawInput}
               preview={latestPreview}
               tier={tier}
               t={t}
+              lang={lang}
               progress={progressData}
               analysesLoading={analysesLoading}
               analysesError={analysesError}
@@ -4853,6 +4808,14 @@ function Workspace() {
               onRetryProgress={reloadProgress}
               onUpgradeClick={openUpgradeModal}
               onOpenUpdateModal={() => setShowBusinessUpdate(true)}
+              healthTrend={healthTrend}
+              updates={updateHistory}
+              updatesLoading={updateHistoryLoading}
+              achievements={achievements}
+              achievementsLoading={achievementsLoading}
+              updateHistoryError={updateHistoryError}
+              achievementsError={achievementsError}
+              onRetryTimeline={reloadJourneyTimeline}
             />
           ) : activeMenu === "competitor" ? (
             <CompetitorPanel
@@ -4865,26 +4828,6 @@ function Workspace() {
               error={competitorError}
               notReadyMessage={competitorNotReadyMessage}
               onRetry={() => loadCompetitorAnalysis(true)}
-            />
-          ) : activeMenu === "growth" ? (
-            <GrowthPanel
-              tier={tier}
-              t={t}
-              lang={lang}
-              onUpgradeClick={openUpgradeModal}
-              onOpenUpdateModal={() => setShowBusinessUpdate(true)}
-              progress={progressData}
-              progressLoading={progressLoading}
-              progressError={progressError}
-              onRetryProgress={reloadProgress}
-              healthTrend={healthTrend}
-              updates={updateHistory}
-              updatesLoading={updateHistoryLoading}
-              achievements={achievements}
-              achievementsLoading={achievementsLoading}
-              updateHistoryError={updateHistoryError}
-              achievementsError={achievementsError}
-              onRetryTimeline={reloadJourneyTimeline}
             />
           ) : activeMenu === "chat" ? (
             activeBusinessId && (
@@ -4926,6 +4869,7 @@ function Workspace() {
           ) : activeMenu === "businessUpdates" ? (
             <BusinessUpdatesList
               updates={updateHistory}
+              tier={tier}
               t={t}
               lang={lang}
               loading={updateHistoryLoading}
