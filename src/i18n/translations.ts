@@ -201,8 +201,8 @@ const id = {
     platinumChecklist: [
       "Semua fitur PRO",
       "Business Workspace & Dashboard lengkap — mentor pendamping harian",
-      "Growth Plan & Marketing Assets",
-      "Template Website & Branding",
+      "Target & Progres bisnis dipantau lebih detail",
+      "Beemo AI multi-peran (HRD, Akuntan, Marketing, Legal) dengan riset langsung — bukan cuma satu sudut pandang",
       "Laporan Perkembangan Bulanan (PDF), kapan pun kamu minta",
       "Konsultasi Chat Beemo selama 30 hari",
     ],
@@ -338,8 +338,8 @@ const id = {
     platinumChecklist: [
       "Semua fitur PRO",
       "Business Workspace & Dashboard yang lebih lengkap — mentor pendamping harian, bukan cuma laporan sekali jadi",
-      "Growth Plan & Marketing Assets",
-      "Template Website & Branding",
+      "Target & Progres bisnis dipantau lebih detail",
+      "Beemo AI multi-peran (HRD, Akuntan, Marketing, Legal) dengan riset langsung — bukan cuma satu sudut pandang",
       "Competitor Workspace & Roadmap bisnis",
       "Laporan Perkembangan Bulanan (PDF), kapan pun kamu minta",
       "Konsultasi Chat Beemo selama 30 hari",
@@ -1432,8 +1432,8 @@ const en: Translations = {
     platinumChecklist: [
       "Everything in PRO",
       "Fuller Business Workspace & Dashboard — a daily companion mentor",
-      "Growth Plan & Marketing Assets",
-      "Website & Branding templates",
+      "More detailed Target & Progress tracking",
+      "Multi-role Beemo AI (HR, Accountant, Marketing, Legal) with live research — not just one point of view",
       "Monthly Progress Report (PDF), whenever you ask for it",
       "30 days of Beemo AI chat consultation",
     ],
@@ -1569,8 +1569,8 @@ const en: Translations = {
     platinumChecklist: [
       "Everything in PRO",
       "Fuller Business Workspace & Dashboard — a daily companion mentor, not just a one-time report",
-      "Growth Plan & Marketing Assets",
-      "Website & Branding templates",
+      "More detailed Target & Progress tracking",
+      "Multi-role Beemo AI (HR, Accountant, Marketing, Legal) with live research — not just one point of view",
       "Competitor Workspace & business Roadmap",
       "Monthly Progress Report (PDF), whenever you ask for it",
       "30 days of Beemo AI chat consultation",

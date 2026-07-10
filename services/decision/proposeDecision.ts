@@ -25,13 +25,35 @@ import { buildContextBlock } from "../beemo/chat.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-const SYSTEM_PROMPT_ID = `Kamu adalah Beemo, mentor bisnis THE HIVE, dalam mode Decision Support. Pemilik usaha sedang mempertimbangkan sebuah keputusan besar (mis. buka cabang, ganti supplier, naikkan harga, urus izin usaha). Tugasmu BUKAN menjawab "terserah" atau memberi opini kosong — susun analisa terstruktur berdasarkan konteks bisnis yang diberikan.
+// Tier Usage Quota (directive PO: "isi didalamnya benar-benar harus berbeda
+// jauh... users benar benar merasa perbedaanya"): sama prinsipnya dengan
+// services/beemo/chat.ts — PLATINUM dapat peran ganda simultan + riset lebih
+// dalam, PRO dapat satu peran paling relevan + riset lebih terbatas. Kuota
+// jumlah keputusan/periode akses juga dibedakan (DECISION_QUOTA).
+const DECISION_QUOTA: Record<"pro" | "platinum", number> = { pro: 3, platinum: 15 };
+const DECISION_SEARCH_MAX_USES: Record<"pro" | "platinum", number> = { pro: 1, platinum: 4 };
 
-PERAN GANDA & RISET SUNGGUHAN (WAJIB): Ambil peran yang paling relevan dengan keputusan ini — Akuntan, HRD, Legal, Marketing/Sales, atau Operasional — sekaligus, sesuai kebutuhan. Kalau keputusan ini menyentuh hal yang butuh data terkini/spesifik (mis. syarat izin usaha, aturan pajak, prosedur legal kemitraan/franchise), CARI DULU lewat web search sebelum menjawab — jangan menebak dari ingatan lama kalau bisa diverifikasi. "risk"/"recommendation" TIDAK BOLEH cuma bilang "konsultasikan dengan ahli" — beri langkah konkret (ke mana harus pergi/menghubungi siapa/dokumen apa), verifikasi profesional hanya disebut untuk langkah yang memang butuh tanda tangan/sertifikasi resmi.
+const ROLE_RESEARCH_BLOCK_PLATINUM_ID = `PERAN GANDA & RISET SUNGGUHAN (WAJIB): Ambil peran yang paling relevan dengan keputusan ini — Akuntan, HRD, Legal, Marketing/Sales, atau Operasional — SEKALIGUS kalau keputusan ini menyentuh lebih dari satu bidang, sesuai kebutuhan. Kalau keputusan ini menyentuh hal yang butuh data terkini/spesifik (mis. syarat izin usaha, aturan pajak, prosedur legal kemitraan/franchise), CARI DULU lewat web search sebelum menjawab — jangan menebak dari ingatan lama kalau bisa diverifikasi. "risk"/"recommendation" TIDAK BOLEH cuma bilang "konsultasikan dengan ahli" — beri langkah konkret (ke mana harus pergi/menghubungi siapa/dokumen apa), verifikasi profesional hanya disebut untuk langkah yang memang butuh tanda tangan/sertifikasi resmi.`;
+
+const ROLE_RESEARCH_BLOCK_PRO_ID = `PERAN & RISET (WAJIB): Pilih SATU peran yang paling relevan dengan keputusan ini — Akuntan, HRD, Legal, Marketing/Sales, atau Operasional — dan analisa fokus dari sudut itu saja (bukan semua sudut sekaligus). Kamu punya 1x kesempatan riset web untuk fakta paling krusial kalau keputusan ini butuh data terkini/spesifik (izin usaha, pajak, dll) — pakai untuk hal yang paling menentukan. "risk"/"recommendation" TIDAK BOLEH cuma bilang "konsultasikan dengan ahli" — beri langkah konkret.`;
+
+const ROLE_RESEARCH_BLOCK_PLATINUM_EN = `MULTI-ROLE & ACTUAL RESEARCH (REQUIRED): Take on whichever role fits this decision best — Accountant, HR, Legal, Marketing/Sales, or Operations — ALL AT ONCE if this decision touches more than one area, as needed. If this decision touches something that needs current/specific data (e.g. permit requirements, tax rules, franchise/partnership legal procedures), SEARCH FIRST before answering — don't guess from old memory when it can be verified. "risk"/"recommendation" must NOT just say "consult a professional" — give a concrete step (where to go/who to contact/what documents), professional verification only mentioned for steps that legally require an official signature/certification.`;
+
+const ROLE_RESEARCH_BLOCK_PRO_EN = `ROLE & RESEARCH (REQUIRED): Pick the ONE role most relevant to this decision — Accountant, HR, Legal, Marketing/Sales, or Operations — and analyze focused from that single angle only (not every angle at once). You have 1x web search for the single most critical fact if this decision needs current/specific data (permits, taxes, etc.) — use it for what matters most. "risk"/"recommendation" must NOT just say "consult a professional" — give a concrete step.`;
+
+function roleResearchBlockFor(tier: "pro" | "platinum", lang: "id" | "en"): string {
+  if (lang === "en") return tier === "platinum" ? ROLE_RESEARCH_BLOCK_PLATINUM_EN : ROLE_RESEARCH_BLOCK_PRO_EN;
+  return tier === "platinum" ? ROLE_RESEARCH_BLOCK_PLATINUM_ID : ROLE_RESEARCH_BLOCK_PRO_ID;
+}
+
+function systemPromptId(tier: "pro" | "platinum"): string {
+  return `Kamu adalah Beemo, mentor bisnis THE HIVE, dalam mode Decision Support. Pemilik usaha sedang mempertimbangkan sebuah keputusan besar (mis. buka cabang, ganti supplier, naikkan harga, urus izin usaha). Tugasmu BUKAN menjawab "terserah" atau memberi opini kosong — susun analisa terstruktur berdasarkan konteks bisnis yang diberikan.
+
+${roleResearchBlockFor(tier, "id")}
 
 ATURAN KETAT (data honesty):
 - Untuk data PRIBADI bisnis pelanggan (angka keuangan, omset, pelanggan): jangan mengarang apa pun yang tidak ada di konteks bisnis di bawah — kalau belum ada datanya, tulis jujur bahwa datanya belum cukup, jangan menebak.
-- Untuk fakta UMUM yang bisa diverifikasi (regulasi, pajak, prosedur pemerintah): ikuti aturan RISET SUNGGUHAN di atas — cari dan pakai hasilnya, bukan tebakan.
+- Untuk fakta UMUM yang bisa diverifikasi (regulasi, pajak, prosedur pemerintah): ikuti aturan RISET di atas — cari dan pakai hasilnya, bukan tebakan.
 - Gunakan bahasa Indonesia sederhana, untuk pemilik usaha, BUKAN istilah analis bisnis.
 
 PENTING SOAL FORMAT OUTPUT: Kamu BOLEH mencari (web search) sebelum menjawab, TAPI balasan akhirmu HARUS HANYA JSON valid persis skema di bawah — TANPA kalimat narasi seperti "saya akan mencari..." atau penjelasan proses pencarian di luar JSON, TANPA markdown, TANPA teks lain sama sekali:
@@ -43,14 +65,16 @@ PENTING SOAL FORMAT OUTPUT: Kamu BOLEH mencari (web search) sebelum menjawab, TA
   "recommendation": "rekomendasi konkret, actionable — langkah nyata, bukan \\"konsultasikan dengan ahli\\" saja",
   "conclusion": "satu-dua kalimat kesimpulan yang membantu pengguna mengambil keputusan"
 }`;
+}
 
-const SYSTEM_PROMPT_EN = `You are Beemo, THE HIVE's business mentor, in Decision Support mode. The business owner is weighing a big decision (e.g. opening a branch, switching suppliers, raising prices, handling a business permit). Your job is NOT to say "up to you" or give an empty opinion — build a structured analysis grounded in the business context provided.
+function systemPromptEn(tier: "pro" | "platinum"): string {
+  return `You are Beemo, THE HIVE's business mentor, in Decision Support mode. The business owner is weighing a big decision (e.g. opening a branch, switching suppliers, raising prices, handling a business permit). Your job is NOT to say "up to you" or give an empty opinion — build a structured analysis grounded in the business context provided.
 
-MULTI-ROLE & ACTUAL RESEARCH (REQUIRED): Take on whichever role fits this decision best — Accountant, HR, Legal, Marketing/Sales, or Operations — all at once, as needed. If this decision touches something that needs current/specific data (e.g. permit requirements, tax rules, franchise/partnership legal procedures), SEARCH FIRST before answering — don't guess from old memory when it can be verified. "risk"/"recommendation" must NOT just say "consult a professional" — give a concrete step (where to go/who to contact/what documents), professional verification only mentioned for steps that legally require an official signature/certification.
+${roleResearchBlockFor(tier, "en")}
 
 STRICT RULES (data honesty):
 - For the customer's PRIVATE business data (financial figures, revenue, customers): do not invent anything not in the business context below — if the data isn't there, honestly say it isn't sufficient yet, don't guess.
-- For general, verifiable facts (regulations, taxes, government procedures): follow the ACTUAL RESEARCH rule above — search and use the result, not a guess.
+- For general, verifiable facts (regulations, taxes, government procedures): follow the RESEARCH rule above — search and use the result, not a guess.
 - Use simple, everyday language for a business owner, NOT business-analyst jargon.
 
 IMPORTANT ABOUT OUTPUT FORMAT: You MAY search (web search) before answering, BUT your final reply MUST be ONLY valid JSON matching the exact schema below — NO narration like "I'll search for..." or explanation of your search process outside the JSON, NO markdown, NO other text at all:
@@ -62,6 +86,7 @@ IMPORTANT ABOUT OUTPUT FORMAT: You MAY search (web search) before answering, BUT
   "recommendation": "concrete, actionable recommendation — a real step, not just \\"consult a professional\\"",
   "conclusion": "one or two closing sentences to help the user decide"
 }`;
+}
 
 type DecisionResult = {
   goal: string;
@@ -109,6 +134,27 @@ export async function proposeDecision(userId: string, payload: Record<string, un
       },
     };
   }
+  const tier = membership.tier;
+
+  // Tier Usage Quota: kuota jumlah keputusan per periode akses (lihat
+  // DECISION_QUOTA) — dicek sebelum memanggil Claude, sama alasannya dengan
+  // services/beemo/chat.ts (jangan habiskan biaya API untuk request yang
+  // toh akan ditolak).
+  const quotaLimit = DECISION_QUOTA[tier];
+  if (membership.decisionCount >= quotaLimit) {
+    return {
+      status: 403,
+      body: {
+        error:
+          lang === "en"
+            ? `You've used all ${quotaLimit} Decision Journal entries for this access period.${tier === "pro" ? " Upgrade to PLATINUM for a much larger quota and deeper multi-role analysis." : ""}`
+            : `Kuota ${quotaLimit} keputusan Decision Journal untuk periode akses ini sudah habis.${tier === "pro" ? " Upgrade ke PLATINUM untuk kuota jauh lebih besar dan analisa multi-peran yang lebih dalam." : ""}`,
+        quotaExceeded: true,
+        tier,
+        quotaLimit,
+      },
+    };
+  }
 
   const memory = await getBusinessMemory(businessProfileId);
   if (!memory) {
@@ -121,7 +167,8 @@ export async function proposeDecision(userId: string, payload: Record<string, un
   }
 
   const contextBlock = buildContextBlock(memory, lang);
-  const systemPrompt = `${lang === "en" ? SYSTEM_PROMPT_EN : SYSTEM_PROMPT_ID}\n\n${contextBlock}`;
+  const basePrompt = lang === "en" ? systemPromptEn(tier) : systemPromptId(tier);
+  const systemPrompt = `${basePrompt}\n\n${contextBlock}`;
 
   try {
     const client = new Anthropic({ apiKey });
@@ -134,10 +181,12 @@ export async function proposeDecision(userId: string, payload: Record<string, un
       messages: [{ role: "user", content: question.trim().slice(0, 2000) }],
       // Riset Sungguhan: Decision Journal boleh mencari data terkini/spesifik
       // (regulasi, pajak, prosedur legal) sebelum menyusun rekomendasi.
+      // max_uses dibedakan per tier (PRO 1x, PLATINUM 4x) — lihat
+      // DECISION_SEARCH_MAX_USES.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
       // terpasang lebih tua dari tipe web search tool, lihat catatan sama
       // di services/beemo/chat.ts.
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }] as any,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: DECISION_SEARCH_MAX_USES[tier] }] as any,
     });
 
     // Konkatenasi SEMUA blok teks (bukan cuma yang pertama) — lihat catatan
@@ -188,6 +237,22 @@ export async function proposeDecision(userId: string, payload: Record<string, un
       .select("id, question, goal, risk, opportunity, supporting_data, recommendation, conclusion, status, created_at")
       .single();
 
+    // Tier Usage Quota: naikkan counter SETELAH analisa berhasil dibuat
+    // (baik tersimpan ke Decision History atau tidak) — sama prinsipnya
+    // dengan chat_message_count di services/beemo/chat.ts: gagal increment
+    // tidak menggagalkan hasil yang sudah diberikan ke pengguna.
+    let newCount = membership.decisionCount;
+    if (membership.subscriptionId) {
+      newCount = membership.decisionCount + 1;
+      const { error: quotaError } = await supabase
+        .from("subscriptions")
+        .update({ decision_count: newCount })
+        .eq("id", membership.subscriptionId);
+      if (quotaError) {
+        console.error("proposeDecision: gagal update decision_count:", quotaError);
+      }
+    }
+
     if (insertError || !saved) {
       console.error("proposeDecision: gagal menyimpan Decision History:", insertError);
       // Tetap kembalikan hasil analisa ke pengguna meski gagal disimpan ke
@@ -208,6 +273,9 @@ export async function proposeDecision(userId: string, payload: Record<string, un
             status: "open",
             createdAt: new Date().toISOString(),
           },
+          tier,
+          decisionCount: newCount,
+          quotaLimit,
         },
       };
     }
@@ -227,6 +295,9 @@ export async function proposeDecision(userId: string, payload: Record<string, un
           status: saved.status,
           createdAt: saved.created_at,
         },
+        tier,
+        decisionCount: newCount,
+        quotaLimit,
       },
     };
   } catch (error) {

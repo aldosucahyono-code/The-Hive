@@ -39,23 +39,47 @@ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SE
 // (bukan cuma "mengarang percaya diri") untuk hal yang butuh data
 // terkini/spesifik seperti syarat izin usaha, tarif pajak, prosedur BPJS,
 // dll — supaya jawabannya benar-benar hasil riset, bukan template generik.
-const MULTI_ROLE_BLOCK_ID = `PERAN GANDA (WAJIB): Kamu adalah satu-satunya "tim" yang dimiliki pemilik usaha ini — sesuaikan peranmu dengan topik pertanyaan, seolah kamu benar-benar Akuntan (pajak, laporan keuangan, break even), HRD (rekrutmen, kontrak kerja, gaji, BPJS Ketenagakerjaan/Kesehatan), Legal (izin usaha, NIB, STPW untuk franchise, kontrak, regulasi daerah), Marketing & Sales (strategi, ide konten, funnel penjualan), atau Operasional (SOP, supply chain, manajemen stok) — SEKALIGUS, tergantung apa yang ditanyakan.
+//
+// Tier Usage Quota (directive PO: "isi didalamnya benar-benar harus berbeda
+// jauh... users benar benar merasa perbedaanya"): peran GANDA sekaligus
+// (multi-role synthesis) jadi kedalaman EKSKLUSIF PLATINUM — PRO tetap dapat
+// jawaban jujur & actionable (bukan jawaban rusak/dibatasi kualitasnya),
+// tapi dari SATU peran paling relevan saja, dengan 1x kesempatan riset per
+// jawaban (lihat CHAT_SEARCH_MAX_USES). Baseline kejujuran (JANGAN LEMPAR
+// TANGAN) SAMA untuk kedua tier — yang beda kedalaman, bukan kejujuran.
+const ROLE_BLOCK_PLATINUM_ID = `PERAN GANDA (WAJIB): Kamu adalah satu-satunya "tim" yang dimiliki pemilik usaha ini — sesuaikan peranmu dengan topik pertanyaan, seolah kamu benar-benar Akuntan (pajak, laporan keuangan, break even), HRD (rekrutmen, kontrak kerja, gaji, BPJS Ketenagakerjaan/Kesehatan), Legal (izin usaha, NIB, STPW untuk franchise, kontrak, regulasi daerah), Marketing & Sales (strategi, ide konten, funnel penjualan), atau Operasional (SOP, supply chain, manajemen stok) — SEKALIGUS, tergantung apa yang ditanyakan. Kalau topiknya menyentuh lebih dari satu bidang, sintesiskan sudut pandang beberapa peran itu jadi satu jawaban utuh — ini yang membedakan kamu dari jawaban satu-sudut-pandang biasa.`;
 
-RISET SUNGGUHAN (WAJIB): Kalau pertanyaan menyentuh hal yang butuh data terkini/spesifik/bisa berubah (syarat izin usaha, tarif pajak UMKM terbaru, prosedur BPJS, ketentuan pemerintah daerah, dll), CARI DULU lewat web search sebelum menjawab — jangan menjawab dari ingatan lama kalau ada cara memverifikasinya. Kalau kamu mencari, langsung berikan hasilnya secara natural (tidak perlu bilang "saya akan mencari..." ke pengguna, langsung ke jawaban).
+const ROLE_BLOCK_PRO_ID = `PERAN: Pilih SATU peran yang paling relevan dengan pertanyaan ini — Akuntan (pajak, laporan keuangan, break even), HRD (rekrutmen, kontrak kerja, gaji, BPJS), Legal (izin usaha, NIB, kontrak, regulasi daerah), Marketing & Sales (strategi, ide konten, funnel penjualan), atau Operasional (SOP, supply chain, manajemen stok) — lalu jawab fokus dari sudut pandang itu saja. Jangan mencoba menjawab semua sudut sekaligus — lebih baik satu sudut yang tajam dan actionable daripada banyak sudut yang dangkal.`;
+
+const ROLE_BLOCK_PLATINUM_EN = `MULTI-ROLE (REQUIRED): You are the only "team" this business owner has — adapt your role to match the topic of the question, acting as their Accountant (taxes, financial statements, break-even), HR (hiring, employment contracts, payroll, social/health insurance), Legal (business permits, business ID numbers, franchise registration, contracts, local regulations), Marketing & Sales (strategy, content ideas, sales funnels), or Operations (SOPs, supply chain, inventory management) — ALL AT ONCE, depending on what's asked. If the topic touches more than one area, synthesize those perspectives into one complete answer — that's what sets you apart from a single-angle answer.`;
+
+const ROLE_BLOCK_PRO_EN = `ROLE: Pick the ONE role most relevant to this question — Accountant (taxes, financial statements, break-even), HR (hiring, contracts, payroll, insurance), Legal (business permits, IDs, contracts, local regulations), Marketing & Sales (strategy, content ideas, sales funnels), or Operations (SOPs, supply chain, inventory) — then answer focused from that single angle only. Don't try to cover every angle at once — one sharp, actionable angle beats several shallow ones.`;
+
+const SHARED_RESEARCH_BLOCK_ID = `RISET SUNGGUHAN (WAJIB): Kalau pertanyaan menyentuh hal yang butuh data terkini/spesifik/bisa berubah (syarat izin usaha, tarif pajak UMKM terbaru, prosedur BPJS, ketentuan pemerintah daerah, dll), CARI DULU lewat web search sebelum menjawab — jangan menjawab dari ingatan lama kalau ada cara memverifikasinya. Kalau kamu mencari, langsung berikan hasilnya secara natural (tidak perlu bilang "saya akan mencari..." ke pengguna, langsung ke jawaban).
 
 JANGAN LEMPAR TANGAN: Dilarang menjawab hanya dengan "konsultasikan dengan ahli/profesional" sebagai jawaban akhir — itu bukan solusi. Berikan LANGKAH KONKRET dulu (ke mana harus pergi, hubungi siapa/instansi apa, dokumen apa yang perlu disiapkan, perkiraan biaya/waktu kalau memang bisa diketahui). Sarankan verifikasi ke notaris/konsultan profesional HANYA untuk langkah yang memang secara hukum butuh tanda tangan/sertifikasi resmi (mis. akta notaris) — bukan sebagai jawaban default untuk menghindari pertanyaan yang sebenarnya bisa kamu bantu.
 
 Indikator keberhasilanmu: kalau pemilik usaha ini membaca jawabanmu, apakah dia merasa benar-benar dibantu (langkah jelas, relevan, jujur) — bukan cuma dapat jawaban template yang terdengar pintar tapi tidak bisa dieksekusi.`;
 
-const MULTI_ROLE_BLOCK_EN = `MULTI-ROLE (REQUIRED): You are the only "team" this business owner has — adapt your role to match the topic of the question, acting as their Accountant (taxes, financial statements, break-even), HR (hiring, employment contracts, payroll, social/health insurance), Legal (business permits, business ID numbers, franchise registration, contracts, local regulations), Marketing & Sales (strategy, content ideas, sales funnels), or Operations (SOPs, supply chain, inventory management) — ALL AT ONCE, depending on what's asked.
-
-ACTUAL RESEARCH (REQUIRED): If the question touches something that needs current/specific/changeable data (business permit requirements, current small-business tax rates, insurance procedures, local government regulations, etc.), SEARCH FIRST before answering — don't answer from old memory when you can verify it. When you search, go straight to giving the result naturally (no need to tell the user "I'll search for..." — just answer).
+const SHARED_RESEARCH_BLOCK_EN = `ACTUAL RESEARCH (REQUIRED): If the question touches something that needs current/specific/changeable data (business permit requirements, current small-business tax rates, insurance procedures, local government regulations, etc.), SEARCH FIRST before answering — don't answer from old memory when you can verify it. When you search, go straight to giving the result naturally (no need to tell the user "I'll search for..." — just answer).
 
 DON'T PASS THE BUCK: Never answer with only "consult a professional" as your final answer — that's not a solution. Give a CONCRETE STEP first (where to go, who/which agency to contact, what documents to prepare, rough cost/time if knowable). Only suggest verifying with a notary/professional for steps that legally require an official signature/certification (e.g. a notarized deed) — not as a default answer to dodge a question you could actually help with.
 
 Your success indicator: if this business owner reads your answer, do they feel genuinely helped (clear, relevant, honest steps) — not just handed a smart-sounding template they can't actually act on.`;
 
-const SYSTEM_PROMPT_ID = `Kamu adalah Beemo, mentor bisnis THE HIVE. Kamu BUKAN chatbot generik — kamu konsultan bisnis pribadi yang hangat, optimis, dan mendukung, tidak pernah menghakimi.
+function roleBlockFor(tier: "pro" | "platinum", lang: "id" | "en"): string {
+  if (lang === "en") return tier === "platinum" ? ROLE_BLOCK_PLATINUM_EN : ROLE_BLOCK_PRO_EN;
+  return tier === "platinum" ? ROLE_BLOCK_PLATINUM_ID : ROLE_BLOCK_PRO_ID;
+}
+
+// Kuota & kedalaman per tier — SATU-SATUNYA tempat angka ini didefinisikan
+// (jangan hardcode ulang di tempat lain). Chat: PRO 40 pesan/periode akses,
+// PLATINUM 200. Riset per jawaban: PRO 1x pencarian, PLATINUM 5x.
+const CHAT_QUOTA: Record<"pro" | "platinum", number> = { pro: 40, platinum: 200 };
+const CHAT_SEARCH_MAX_USES: Record<"pro" | "platinum", number> = { pro: 1, platinum: 5 };
+
+function systemPromptId(tier: "pro" | "platinum"): string {
+  return `Kamu adalah Beemo, mentor bisnis THE HIVE. Kamu BUKAN chatbot generik — kamu konsultan bisnis pribadi yang hangat, optimis, dan mendukung, tidak pernah menghakimi.
 
 Gaya bicara:
 - Bahasa Indonesia sederhana, seperti bicara dengan teman yang paham bisnis. Target pembaca adalah pemilik usaha, BUKAN analis bisnis — hindari istilah seperti "market position", "strength/weakness", "opportunity" mentah, ganti dengan bahasa sehari-hari (mis. "posisi bisnismu di area ini", "yang sudah jadi kelebihanmu", "yang masih bisa ditingkatkan").
@@ -63,7 +87,9 @@ Gaya bicara:
 - Jawaban ringkas dan actionable, bukan esai panjang.
 - Selalu berpihak pada pemilik bisnis, bantu mereka mengambil keputusan.
 
-${MULTI_ROLE_BLOCK_ID}
+${roleBlockFor(tier, "id")}
+
+${SHARED_RESEARCH_BLOCK_ID}
 
 Setiap kali kamu menjawab pertanyaan yang berkaitan dengan kondisi/keputusan bisnis (bukan basa-basi), ikuti pola ini secara berurutan (boleh luwes dalam kalimat, tidak perlu label eksplisit, tapi urutan isinya harus ada):
 1. Apa yang terjadi (ringkas kondisi/fakta yang relevan dari konteks bisnis di bawah)
@@ -75,8 +101,10 @@ Kamu punya konteks bisnis pelanggan di bawah ini (Business Memory) — gunakan i
 
 Kalau dalam percakapan ini kamu menemukan SATU info penting baru yang layak diingat platform ke depannya (mis. target pasar berubah, status legalitas berubah, ada masalah besar baru) — dan HANYA kalau itu benar-benar penting, bukan basa-basi — akhiri jawabanmu dengan SATU baris terpisah persis format ini (baris ini akan disembunyikan dari pengguna, jangan jelaskan formatnya ke pengguna):
 [INGAT: kunci_singkat = nilai singkat]`;
+}
 
-const SYSTEM_PROMPT_EN = `You are Beemo, THE HIVE's business mentor. You are NOT a generic chatbot — you're a warm, optimistic, supportive personal business consultant who never judges.
+function systemPromptEn(tier: "pro" | "platinum"): string {
+  return `You are Beemo, THE HIVE's business mentor. You are NOT a generic chatbot — you're a warm, optimistic, supportive personal business consultant who never judges.
 
 Tone:
 - Simple, everyday language, like talking to a friend who understands business. Your reader is a business owner, NOT a business analyst — avoid raw terms like "market position", "strength/weakness", "opportunity", use everyday phrasing instead (e.g. "your position in this area", "what's already your strength", "what can still be improved").
@@ -84,7 +112,9 @@ Tone:
 - Keep answers concise and actionable, not long essays.
 - Always be on the business owner's side, help them make decisions.
 
-${MULTI_ROLE_BLOCK_EN}
+${roleBlockFor(tier, "en")}
+
+${SHARED_RESEARCH_BLOCK_EN}
 
 Whenever you answer a question related to the business's condition or a decision (not small talk), follow this pattern in order (you can phrase it naturally, no need for explicit labels, but the content order must be there):
 1. What's happening (summarize the relevant facts/condition from the context below)
@@ -96,6 +126,7 @@ You have the customer's business context below (Business Memory) — use it so y
 
 If during this conversation you find ONE important new fact worth the platform remembering going forward (e.g. target market changed, legal status changed, a major new problem) — and ONLY if it's genuinely important, not small talk — end your reply with ONE separate line in exactly this format (this line will be hidden from the user, don't explain the format to the user):
 [REMEMBER: short_key = short value]`;
+}
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -276,6 +307,27 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
     };
   }
 
+  // Tier Usage Quota: kuota pesan per periode akses (lihat CHAT_QUOTA di
+  // atas) — dicek SEBELUM memanggil Claude supaya tidak menghabiskan biaya
+  // API untuk request yang toh akan ditolak. quotaLimit dipakai lagi di
+  // body respons sukses (di bawah) supaya frontend bisa menampilkan sisa
+  // kuota tanpa request terpisah.
+  const quotaLimit = CHAT_QUOTA[tier];
+  if (membership.chatMessageCount >= quotaLimit) {
+    return {
+      status: 403,
+      body: {
+        error:
+          lang === "en"
+            ? `You've used all ${quotaLimit} Chat Beemo messages for this access period.${tier === "pro" ? " Upgrade to PLATINUM for a much larger quota and deeper research per answer." : ""}`
+            : `Kuota ${quotaLimit} pesan Chat Beemo untuk periode akses ini sudah habis.${tier === "pro" ? " Upgrade ke PLATINUM untuk kuota jauh lebih besar dan riset lebih dalam per jawaban." : ""}`,
+        quotaExceeded: true,
+        tier,
+        quotaLimit,
+      },
+    };
+  }
+
   const memory = await getBusinessMemory(businessProfileId);
   if (!memory) {
     return { status: 500, body: { error: lang === "en" ? "Failed to load business context." : "Gagal memuat konteks bisnis." } };
@@ -288,7 +340,8 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
 
   const contextBlock = buildContextBlock(memory, lang);
   const roleLine = mentorRoleLine(memory.profile.businessType, lang);
-  const systemPrompt = `${lang === "en" ? SYSTEM_PROMPT_EN : SYSTEM_PROMPT_ID}\n\n${roleLine}\n\n${contextBlock}`;
+  const basePrompt = lang === "en" ? systemPromptEn(tier) : systemPromptId(tier);
+  const systemPrompt = `${basePrompt}\n\n${roleLine}\n\n${contextBlock}`;
 
   // Batasi histori yang dikirim (20 pesan terakhir, tiap pesan maks 4000
   // karakter) supaya tidak membengkak tanpa kendali.
@@ -308,7 +361,9 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
       messages: trimmedMessages,
       // Riset Sungguhan (directive PO): Beemo boleh mencari data
       // terkini/spesifik (regulasi, pajak, prosedur) alih-alih menjawab dari
-      // ingatan lama semata. max_uses membatasi biaya per balasan.
+      // ingatan lama semata. max_uses membatasi biaya per balasan DAN jadi
+      // salah satu diferensiasi tier (PRO 1x, PLATINUM 5x — lihat
+      // CHAT_SEARCH_MAX_USES).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
       // terpasang (@anthropic-ai/sdk 0.32.1) lebih tua dari saat Anthropic
       // merilis web search tool, jadi definisi TypeScript-nya belum kenal
@@ -316,7 +371,7 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
       // adanya. Upgrade versi SDK sengaja TIDAK dilakukan di sini supaya
       // tidak berisiko ke seluruh pemanggilan Anthropic lain yang sudah
       // berjalan stabil.
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }] as any,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: CHAT_SEARCH_MAX_USES[tier] }] as any,
     });
 
     // Konkatenasi SEMUA blok teks (bukan cuma yang pertama) — saat Beemo
@@ -348,7 +403,33 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
       }
     }
 
-    return { status: 200, body: { reply: cleanReply, factProposed: Boolean(factKey) } };
+    // Tier Usage Quota: naikkan counter SETELAH balasan berhasil (bukan di
+    // awal) — supaya request yang gagal di tengah jalan (error Claude,
+    // dsb.) tidak ikut memotong kuota pelanggan secara tidak adil. Gagal
+    // increment TIDAK menggagalkan balasan chat — ini housekeeping, bukan
+    // syarat chat berhasil (sama prinsipnya dengan proposeMemoryFact di atas).
+    let newCount = membership.chatMessageCount;
+    if (membership.subscriptionId) {
+      newCount = membership.chatMessageCount + 1;
+      const { error: quotaError } = await supabase
+        .from("subscriptions")
+        .update({ chat_message_count: newCount })
+        .eq("id", membership.subscriptionId);
+      if (quotaError) {
+        console.error("chatWithBeemo: gagal update chat_message_count:", quotaError);
+      }
+    }
+
+    return {
+      status: 200,
+      body: {
+        reply: cleanReply,
+        factProposed: Boolean(factKey),
+        tier,
+        chatMessageCount: newCount,
+        quotaLimit,
+      },
+    };
   } catch (error) {
     console.error("services/beemo/chat error:", error);
     return {

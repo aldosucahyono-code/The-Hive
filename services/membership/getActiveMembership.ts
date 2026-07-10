@@ -30,12 +30,20 @@ export type Membership = {
   tier: MembershipTier;
   status: MembershipStatus;
   expiresAt: string | null;
+  // Tier Usage Quota (directive PO: "batasannya... users benar benar merasa
+  // perbedaanya" PRO vs PLATINUM) — id baris subscription aktif (dipakai
+  // buat increment counter di chat.ts/proposeDecision.ts) plus counter yang
+  // sudah terpakai pada periode akses ini. null kalau tier "free" (kuota
+  // tidak relevan untuk free).
+  subscriptionId: string | null;
+  chatMessageCount: number;
+  decisionCount: number;
 };
 
 export async function getActiveMembership(businessProfileId: string): Promise<Membership> {
   const { data: row, error } = await supabase
     .from("subscriptions")
-    .select("tier, expires_at")
+    .select("id, tier, expires_at, chat_message_count, decision_count")
     .eq("business_profile_id", businessProfileId)
     .eq("status", "active")
     .order("started_at", { ascending: false })
@@ -44,23 +52,37 @@ export async function getActiveMembership(businessProfileId: string): Promise<Me
 
   if (error) {
     console.error("getActiveMembership error:", error);
-    return { tier: "free", status: "free", expiresAt: null };
+    return { tier: "free", status: "free", expiresAt: null, subscriptionId: null, chatMessageCount: 0, decisionCount: 0 };
   }
 
   if (!row) {
-    return { tier: "free", status: "free", expiresAt: null };
+    return { tier: "free", status: "free", expiresAt: null, subscriptionId: null, chatMessageCount: 0, decisionCount: 0 };
   }
 
   // Baris "free" bawaan (dibuat otomatis saat business_profile dibuat) tidak
   // punya expires_at — selalu dianggap aktif, tidak pernah "kadaluarsa".
   if (row.tier === "free" || !row.expires_at) {
-    return { tier: (row.tier as MembershipTier) || "free", status: "free", expiresAt: null };
+    return {
+      tier: (row.tier as MembershipTier) || "free",
+      status: "free",
+      expiresAt: null,
+      subscriptionId: null,
+      chatMessageCount: 0,
+      decisionCount: 0,
+    };
   }
 
   const isExpired = new Date(row.expires_at).getTime() <= Date.now();
   if (isExpired) {
-    return { tier: "free", status: "expired", expiresAt: row.expires_at };
+    return { tier: "free", status: "expired", expiresAt: row.expires_at, subscriptionId: null, chatMessageCount: 0, decisionCount: 0 };
   }
 
-  return { tier: row.tier as MembershipTier, status: "active", expiresAt: row.expires_at };
+  return {
+    tier: row.tier as MembershipTier,
+    status: "active",
+    expiresAt: row.expires_at,
+    subscriptionId: row.id,
+    chatMessageCount: row.chat_message_count ?? 0,
+    decisionCount: row.decision_count ?? 0,
+  };
 }
