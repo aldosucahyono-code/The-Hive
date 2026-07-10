@@ -4,6 +4,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "./create.js";
+import { checkBusinessCap } from "./checkBusinessCap.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -21,6 +22,22 @@ export async function restoreBusiness(userId: string, payload: Record<string, un
 
   if (bpError || !businessProfile || businessProfile.user_id !== userId) {
     return { status: 403, body: { error: "Business profile tidak valid untuk akun ini." } };
+  }
+
+  // Batas jumlah usaha per akun (lihat services/business/checkBusinessCap.ts)
+  // — tanpa ini, user bisa "akali" batas dengan cara archive 1 bisnis, buat
+  // bisnis baru untuk isi slot yang kosong, lalu restore bisnis yang
+  // di-archive tadi juga -> jumlah aktif jadi lebih banyak dari cap.
+  const capResult = await checkBusinessCap(userId);
+  if (!capResult.allowed) {
+    return {
+      status: 403,
+      body: {
+        error: "Batas jumlah usaha untuk paket kamu saat ini sudah tercapai.",
+        capExceeded: true,
+        ...capResult,
+      },
+    };
   }
 
   const { error: updateError } = await supabase
