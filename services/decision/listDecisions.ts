@@ -7,6 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "../business/create.js";
+import { getActiveMembership } from "../membership/getActiveMembership.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -26,6 +27,14 @@ export async function listDecisions(userId: string, payload: Record<string, unkn
     return { status: 403, body: { error: "Business profile tidak valid untuk akun ini." } };
   }
 
+  // Audit Juli 2026: Decision Journal (baca maupun tulis) dipersempit jadi
+  // eksklusif PLATINUM — cek ulang di server, konsisten dengan
+  // proposeDecision.ts, supaya bukan cuma UI yang menyembunyikan.
+  const membership = await getActiveMembership(businessProfileId);
+  if (membership.tier !== "platinum") {
+    return { status: 200, body: { decisions: [] } };
+  }
+
   const { data: rows, error } = await supabase
     .from("business_decisions")
     .select("id, question, goal, risk, opportunity, supporting_data, recommendation, conclusion, status, created_at")
@@ -35,24 +44,4 @@ export async function listDecisions(userId: string, payload: Record<string, unkn
 
   if (error) {
     console.error("services/decision/listDecisions error:", error);
-    return { status: 500, body: { error: "Gagal memuat riwayat keputusan." } };
-  }
-
-  return {
-    status: 200,
-    body: {
-      decisions: (rows || []).map((r) => ({
-        id: r.id,
-        question: r.question,
-        goal: r.goal,
-        risk: r.risk,
-        opportunity: r.opportunity,
-        supportingData: r.supporting_data || [],
-        recommendation: r.recommendation,
-        conclusion: r.conclusion,
-        status: r.status,
-        createdAt: r.created_at,
-      })),
-    },
-  };
-}
+    return { status: 500, body: { error: "Gagal memuat r

@@ -467,8 +467,14 @@ function BusinessUpdatesList({
  * pemilik usaha mengajukan keputusan besar (mis. "apa saya buka cabang?")
  * dan Beemo menyusun Tujuan/Risiko/Peluang/Data Pendukung/Rekomendasi/
  * Kesimpulan (services/decision/proposeDecision.ts), lalu arsipnya
- * tersimpan di sini. Sama seperti Chat Beemo, eksklusif PRO/PLATINUM —
- * gating dicek ulang di server (proposeDecision.ts), ini cuma UI-nya. */
+ * tersimpan di sini — sama seperti mengobrol dengan Beemo, hanya hasilnya
+ * yang disimpan (bukan transkrip chat).
+ * Audit Juli 2026: dipersempit jadi eksklusif PLATINUM (sebelumnya
+ * PRO+PLATINUM) — fitur analisa multi-peran + riset mendalam ini yang
+ * paling membedakan Platinum dari Pro, gating dicek ulang di server
+ * (proposeDecision.ts), ini cuma UI-nya. Riwayat juga sekarang menonjolkan
+ * KEPUTUSAN (kesimpulan/rekomendasi) sebagai judul kartu, bukan pertanyaan
+ * mentah yang diketik user. */
 function DecisionJournalList({
   tier,
   t,
@@ -500,7 +506,7 @@ function DecisionJournalList({
   submitError: string | null;
   quotaHit: boolean;
 }) {
-  if (tier === "free") {
+  if (tier !== "platinum") {
     return (
       <WorkspaceSection>
         <SectionHeader title={t.workspace.menuDecisionJournal} description={t.workspace.decisionJournalSectionDesc} />
@@ -553,17 +559,7 @@ function DecisionJournalList({
         {quotaHit && (
           <div className="mt-3 rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
             <p className="text-sm font-bold text-primary">🐝 {t.workspace.decisionQuotaNudgeTitle}</p>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-300">
-              {tier === "pro" ? t.workspace.decisionQuotaNudgeDescPro : t.workspace.decisionQuotaNudgeDescPlatinum}
-            </p>
-            {tier === "pro" && (
-              <button
-                onClick={onUpgradeClick}
-                className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-              >
-                {t.workspace.chatQuotaNudgeButton}
-              </button>
-            )}
+            <p className="mt-1 text-xs leading-relaxed text-neutral-300">{t.workspace.decisionQuotaNudgeDescPlatinum}</p>
           </div>
         )}
       </WorkspaceCard>
@@ -587,15 +583,22 @@ function DecisionJournalList({
           {decisions.map((d) => {
             const status = (d.status as string) || "open";
             const supportingData = Array.isArray(d.supportingData) ? (d.supportingData as string[]) : [];
+            // Task 12 (audit Juli 2026): riwayat harus menonjolkan KEPUTUSAN
+            // yang diambil (kesimpulan, atau rekomendasi kalau kesimpulan
+            // kosong) sebagai judul kartu — bukan pertanyaan mentah yang
+            // diketik user (itu sekarang jadi caption kecil di bawah judul).
+            const decisionHeadline = (d.conclusion as string) || (d.recommendation as string) || (d.question as string);
             return (
               <WorkspaceCard key={d.id as string}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <p className="text-sm font-bold text-white">{d.question as string}</p>
+                  <p className="text-sm font-bold text-white">{decisionHeadline}</p>
                   <span className={`flex-none rounded-full px-3 py-1 text-xs font-bold ${statusBadgeClass[status] || "bg-white/5 text-neutral-400"}`}>
                     {statusLabel[status] || status}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-neutral-500">{formatDate(d.createdAt as string, lang)}</p>
+                <p className="mt-1 text-xs text-neutral-500">
+                  {t.workspace.decisionBasedOnQuestionLabel}: {d.question as string} · {formatDate(d.createdAt as string, lang)}
+                </p>
 
                 <div className="mt-4 space-y-2 text-sm leading-relaxed text-neutral-300">
                   {!!d.goal && (
@@ -4299,7 +4302,7 @@ function Workspace() {
     if (activeMenu === "businessUpdates" && !showUpdateHistory && updateHistory.length === 0 && !updateHistoryLoading) {
       loadUpdateHistory();
     }
-    if (activeMenu === "decisionJournal" && tier !== "free" && !decisionsLoaded && !decisionsLoading) {
+    if (activeMenu === "decisionJournal" && tier === "platinum" && !decisionsLoaded && !decisionsLoading) {
       loadDecisions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5064,20 +5067,4 @@ function Workspace() {
                   aria-label={t.workspace.achievementUnlockedDismiss}
                   className="text-neutral-500 hover:text-white"
                 >
-                  ✕
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {showUpgradeModal && activeBusinessId && (
-        <UpgradeModal
-          businessProfileId={activeBusinessId}
-          businessName={activeBusiness?.business_name || ""}
-          onClose={() => setShowUpgradeModal(false)}
-          onUpgraded={handleUpgraded}
-        />
-      )}
-    </secti
+              

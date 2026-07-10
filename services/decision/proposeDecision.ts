@@ -126,14 +126,18 @@ export async function proposeDecision(userId: string, payload: Record<string, un
   }
 
   const membership = await getActiveMembership(businessProfileId);
-  if (membership.tier === "free") {
+  // Audit Juli 2026: Decision Journal dipersempit dari PRO+PLATINUM jadi
+  // eksklusif PLATINUM — analisa multi-peran + riset mendalam ini yang
+  // paling membedakan Platinum, konsisten dengan gating baru di frontend
+  // (Workspace.tsx DecisionJournalList).
+  if (membership.tier !== "platinum") {
     return {
       status: 403,
       body: {
         error:
           lang === "en"
-            ? "Decision support is available for PRO/PLATINUM customers."
-            : "Bantuan keputusan tersedia untuk pelanggan PRO/PLATINUM.",
+            ? "Decision Journal is available exclusively for PLATINUM customers."
+            : "Decision Journal tersedia eksklusif untuk pelanggan PLATINUM.",
       },
     };
   }
@@ -303,11 +307,4 @@ export async function proposeDecision(userId: string, payload: Record<string, un
         quotaLimit,
       },
     };
-  } catch (error) {
-    console.error("services/decision/proposeDecision error:", error);
-    return {
-      status: 500,
-      body: { error: lang === "en" ? "Beemo failed to analyze this decision. Please try again." : "Beemo gagal menganalisa keputusan ini. Coba lagi." },
-    };
-  }
-}
+  } cat
