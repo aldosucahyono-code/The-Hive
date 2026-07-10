@@ -49,6 +49,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
 
   useEffect(() => {
     if (!preview || !user || !session?.access_token || autoSavedBusinessId || autoSaving) return;
+    const accessToken = session.access_token;
     let cancelled = false;
 
     async function autoPromote() {
@@ -69,7 +70,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ draftId: saveJson.id }),
         });
