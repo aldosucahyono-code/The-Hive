@@ -28,7 +28,9 @@ export async function listBusinessUpdates(userId: string, payload: Record<string
 
   const { data: updates, error } = await supabase
     .from("business_updates")
-    .select("id, content, pencapaian, tantangan, kondisi_penjualan, omset_value, pelanggan_baru, target_depan, created_at")
+    .select(
+      "id, content, pencapaian, tantangan, kondisi_penjualan, omset_value, pelanggan_baru, target_depan, category, severity, insight_headline_key, insight_headline_params, insight_action_key, created_at"
+    )
     .eq("business_profile_id", businessProfileId)
     .order("created_at", { ascending: false })
     .limit(20);

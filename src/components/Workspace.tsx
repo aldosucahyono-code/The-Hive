@@ -289,6 +289,288 @@ function HistoryList({
   );
 }
 
+/** Business Updates — arsip LENGKAP Business Update yang pernah dikirim,
+ * dengan badge kategori (dimensi mana yang disinggung — reuse DIMENSION_LABELS,
+ * SAMA dengan Business Score, bukan daftar kedua) dan tingkat perhatian
+ * (Update Engine, services/updateEngine/classify.ts). Data SAMA dengan yang
+ * dipakai Journey (listUpdates) — reuse state yang sudah ada, TIDAK fetch
+ * baru, supaya tidak ada dua sumber "riwayat update" yang bisa beda. */
+function BusinessUpdatesList({
+  updates,
+  t,
+  lang,
+  loading,
+  error,
+  onRetry,
+  onOpenUpdateModal,
+}: {
+  updates: Array<Record<string, unknown>>;
+  t: Translations;
+  lang: "id" | "en";
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+  onOpenUpdateModal: () => void;
+}) {
+  const severityBadgeClass: Record<string, string> = {
+    high: "bg-red-500/15 text-red-300",
+    medium: "bg-amber-500/15 text-amber-300",
+    low: "bg-green-500/15 text-green-300",
+  };
+  const severityLabel: Record<string, string> = {
+    high: t.workspace.updateSeverityHigh,
+    medium: t.workspace.updateSeverityMedium,
+    low: t.workspace.updateSeverityLow,
+  };
+
+  return (
+    <WorkspaceSection>
+      <SectionHeader title={t.workspace.menuBusinessUpdates} description={t.workspace.businessUpdatesSectionDesc} />
+
+      {error && !loading ? (
+        <ErrorCard
+          title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.menuBusinessUpdates })}
+          description={t.workspace.workspaceSectionErrorDesc}
+          retryLabel={t.workspace.workspaceRetryButton}
+          onRetry={onRetry}
+        />
+      ) : loading ? (
+        <>
+          <SkeletonCard variant="default" />
+          <SkeletonCard variant="default" />
+          <SkeletonCard variant="default" />
+        </>
+      ) : updates.length === 0 ? (
+        <EmptyState
+          variant="default"
+          icon="📝"
+          title={t.workspace.businessUpdatesEmptyTitle}
+          description={t.workspace.businessUpdatesEmptyDesc}
+          ctaLabel={t.workspace.updateBusinessButton}
+          onCtaClick={onOpenUpdateModal}
+        />
+      ) : (
+        <>
+          <div className="space-y-3">
+            {updates.map((u) => {
+              const category = (u.category as string) || null;
+              const severity = (u.severity as string) || null;
+              const dim = category ? DIMENSION_LABELS[category] : null;
+              return (
+                <WorkspaceCard key={u.id as string} variant="default">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-neutral-500">{formatDate(u.created_at as string, lang)}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {dim && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs font-bold text-neutral-300">
+                          {dim.icon} {lang === "id" ? dim.id : dim.en}
+                        </span>
+                      )}
+                      {severity && (
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold ${severityBadgeClass[severity] || "bg-white/5 text-neutral-300"}`}
+                        >
+                          {severityLabel[severity] || severity}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-neutral-200">{u.content as string}</p>
+                  {!!u.pencapaian && (
+                    <p className="mt-2 text-xs text-neutral-500">
+                      <span className="font-semibold text-neutral-400">{t.workspace.businessUpdatesAchievementLabel}: </span>
+                      {u.pencapaian as string}
+                    </p>
+                  )}
+                  {!!u.target_depan && (
+                    <p className="mt-1 text-xs text-neutral-500">
+                      <span className="font-semibold text-neutral-400">{t.workspace.businessUpdatesNextTargetLabel}: </span>
+                      {u.target_depan as string}
+                    </p>
+                  )}
+                </WorkspaceCard>
+              );
+            })}
+          </div>
+
+          <WorkspaceCard tone="primary" className="text-center">
+            <h3 className="mb-2 text-sm font-bold text-primary">{t.workspace.targetCtaTitle}</h3>
+            <p className="mx-auto max-w-md text-sm leading-relaxed text-neutral-300">{t.workspace.businessUpdatesCtaDesc}</p>
+            <RetryButton label={t.workspace.updateBusinessButton} onRetry={onOpenUpdateModal} />
+          </WorkspaceCard>
+        </>
+      )}
+    </WorkspaceSection>
+  );
+}
+
+/** Decision Journal — "AI Business Mentor, bukan AI Reporter": tempat
+ * pemilik usaha mengajukan keputusan besar (mis. "apa saya buka cabang?")
+ * dan Beemo menyusun Tujuan/Risiko/Peluang/Data Pendukung/Rekomendasi/
+ * Kesimpulan (services/decision/proposeDecision.ts), lalu arsipnya
+ * tersimpan di sini. Sama seperti Chat Beemo, eksklusif PRO/PLATINUM —
+ * gating dicek ulang di server (proposeDecision.ts), ini cuma UI-nya. */
+function DecisionJournalList({
+  tier,
+  t,
+  lang,
+  decisions,
+  loading,
+  error,
+  onRetry,
+  onUpgradeClick,
+  question,
+  onQuestionChange,
+  onSubmit,
+  submitting,
+  submitError,
+}: {
+  tier: Tier;
+  t: Translations;
+  lang: "id" | "en";
+  decisions: Array<Record<string, unknown>>;
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+  onUpgradeClick: () => void;
+  question: string;
+  onQuestionChange: (value: string) => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  submitError: string | null;
+}) {
+  if (tier === "free") {
+    return (
+      <WorkspaceSection>
+        <SectionHeader title={t.workspace.menuDecisionJournal} description={t.workspace.decisionJournalSectionDesc} />
+        <UpgradeLockCard
+          description={t.workspace.decisionJournalLockedDesc}
+          buttonLabel={t.workspace.competitorUpgradeButton}
+          onUpgradeClick={onUpgradeClick}
+        />
+      </WorkspaceSection>
+    );
+  }
+
+  const statusBadgeClass: Record<string, string> = {
+    open: "bg-amber-500/15 text-amber-300",
+    decided: "bg-green-500/15 text-green-300",
+    dismissed: "bg-white/5 text-neutral-400",
+  };
+  const statusLabel: Record<string, string> = {
+    open: t.workspace.decisionStatusOpen,
+    decided: t.workspace.decisionStatusDecided,
+    dismissed: t.workspace.decisionStatusDismissed,
+  };
+
+  return (
+    <WorkspaceSection>
+      <SectionHeader title={t.workspace.menuDecisionJournal} description={t.workspace.decisionJournalSectionDesc} />
+
+      {/* Ajukan keputusan baru — input bebas, langsung memanggil Decision
+          Engine (bukan cuma arsip pasif). Reuse kunci i18n decisionXxx yang
+          sudah ada sejak Decision Engine MVP (belum pernah dipasang ke UI
+          manapun sebelum ini — bukan bikin set kunci kedua). */}
+      <WorkspaceCard>
+        <h3 className="mb-1 text-sm font-bold text-neutral-200">{t.workspace.decisionSectionTitle}</h3>
+        <p className="mb-3 text-xs text-neutral-500">{t.workspace.decisionSectionDesc}</p>
+        <textarea
+          value={question}
+          onChange={(e) => onQuestionChange(e.target.value)}
+          placeholder={t.workspace.decisionInputPlaceholder}
+          rows={3}
+          disabled={submitting}
+          className="w-full resize-none rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-neutral-100 outline-none focus:border-primary disabled:opacity-60"
+        />
+        {submitError && <p className="mt-2 text-sm text-red-400">{submitError}</p>}
+        <div className="mt-3">
+          <RetryButton
+            label={submitting ? t.workspace.decisionSubmitLoading : t.workspace.decisionSubmitButton}
+            onRetry={onSubmit}
+          />
+        </div>
+      </WorkspaceCard>
+
+      {error && !loading ? (
+        <ErrorCard
+          title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.menuDecisionJournal })}
+          description={t.workspace.workspaceSectionErrorDesc}
+          retryLabel={t.workspace.workspaceRetryButton}
+          onRetry={onRetry}
+        />
+      ) : loading ? (
+        <>
+          <SkeletonCard variant="default" />
+          <SkeletonCard variant="default" />
+        </>
+      ) : decisions.length === 0 ? (
+        <EmptyState variant="default" icon="🧭" title={t.workspace.decisionHistoryTitle} description={t.workspace.decisionHistoryEmpty} />
+      ) : (
+        <div className="space-y-3">
+          {decisions.map((d) => {
+            const status = (d.status as string) || "open";
+            const supportingData = Array.isArray(d.supportingData) ? (d.supportingData as string[]) : [];
+            return (
+              <WorkspaceCard key={d.id as string}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="text-sm font-bold text-white">{d.question as string}</p>
+                  <span className={`flex-none rounded-full px-3 py-1 text-xs font-bold ${statusBadgeClass[status] || "bg-white/5 text-neutral-400"}`}>
+                    {statusLabel[status] || status}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-neutral-500">{formatDate(d.createdAt as string, lang)}</p>
+
+                <div className="mt-4 space-y-2 text-sm leading-relaxed text-neutral-300">
+                  {!!d.goal && (
+                    <p>
+                      <span className="font-semibold text-neutral-100">{t.workspace.decisionGoalLabel}: </span>
+                      {d.goal as string}
+                    </p>
+                  )}
+                  {!!d.risk && (
+                    <p>
+                      <span className="font-semibold text-neutral-100">{t.workspace.decisionRiskLabel}: </span>
+                      {d.risk as string}
+                    </p>
+                  )}
+                  {!!d.opportunity && (
+                    <p>
+                      <span className="font-semibold text-neutral-100">{t.workspace.decisionOpportunityLabel}: </span>
+                      {d.opportunity as string}
+                    </p>
+                  )}
+                  {supportingData.length > 0 && (
+                    <div>
+                      <span className="font-semibold text-neutral-100">{t.workspace.decisionSupportingDataLabel}: </span>
+                      <ul className="mt-1 list-disc space-y-1 pl-5 text-neutral-400">
+                        {supportingData.map((s, i) => (
+                          <li key={i}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {!!d.recommendation && (
+                    <p>
+                      <span className="font-semibold text-neutral-100">{t.workspace.decisionRecommendationLabel}: </span>
+                      {d.recommendation as string}
+                    </p>
+                  )}
+                  {!!d.conclusion && (
+                    <p className="rounded-xl bg-primary/5 p-3 text-primary/90">
+                      <span className="font-semibold">{t.workspace.decisionConclusionLabel}: </span>
+                      {d.conclusion as string}
+                    </p>
+                  )}
+                </div>
+              </WorkspaceCard>
+            );
+          })}
+        </div>
+      )}
+    </WorkspaceSection>
+  );
+}
+
 /** Ditampilkan kalau user sudah login tapi belum punya business_profile
  * SAMA SEKALI (belum pernah menyelesaikan analisis apapun). */
 function NoBusinessYet({ t }: { t: Translations }) {
@@ -3092,6 +3374,15 @@ function Workspace() {
   const [updateHistory, setUpdateHistory] = useState<Array<Record<string, unknown>>>([]);
   const [showUpdateHistory, setShowUpdateHistory] = useState(false);
   const [updateHistoryLoading, setUpdateHistoryLoading] = useState(false);
+  // Decision Journal (halaman nyata, bukan lagi placeholder — directive PO
+  // "penyelarasan visi funnel": pendukung keputusan harus benar-benar hidup).
+  const [decisions, setDecisions] = useState<Array<Record<string, unknown>>>([]);
+  const [decisionsLoading, setDecisionsLoading] = useState(false);
+  const [decisionsError, setDecisionsError] = useState(false);
+  const [decisionsLoaded, setDecisionsLoaded] = useState(false);
+  const [decisionQuestion, setDecisionQuestion] = useState("");
+  const [decisionSubmitting, setDecisionSubmitting] = useState(false);
+  const [decisionSubmitError, setDecisionSubmitError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -3109,27 +3400,6 @@ function Workspace() {
   // dropdown kecil di belakang tombol titik-tiga, supaya baris header utama
   // cukup Bell/Bantuan/Switcher/Update Bisnis saja.
   const [showAccountMenu, setShowAccountMenu] = useState(false);
-
-  // Urutan & label sidebar mengikuti mockup persis: Today, Journey, Business
-  // Updates, Insights, Competitor, Decision Journal, Beemo AI muncul dengan
-  // nama yang sama seperti referensi (arahan: label sidebar HARUS sama,
-  // walau kontennya sementara masih placeholder Coming Soon untuk yang
-  // belum ada fiturnya). Tab nyata yang sudah ada tapi tidak ada di mockup
-  // (Business Score, Target, Riwayat) disisipkan di antaranya, bukan
-  // dihapus.
-  const MENU_ITEMS: { key: MenuKey; label: string; subtitle: string }[] = [
-    { key: "today", label: t.workspace.menuToday, subtitle: t.workspace.todayNavSubtitleToday },
-    { key: "growth", label: t.workspace.menuGrowth, subtitle: t.workspace.todayNavSubtitleJourney },
-    { key: "businessUpdates", label: t.workspace.menuBusinessUpdates, subtitle: t.workspace.todayNavSubtitleBusinessUpdates },
-    { key: "report", label: t.workspace.menuReport, subtitle: t.workspace.todayNavSubtitleReport },
-    { key: "score", label: t.workspace.menuScore, subtitle: t.workspace.todayNavSubtitleScore },
-    { key: "competitor", label: t.workspace.menuCompetitor, subtitle: t.workspace.todayNavSubtitleCompetitor },
-    { key: "target", label: t.workspace.menuTarget, subtitle: t.workspace.todayNavSubtitleTarget },
-    { key: "decisionJournal", label: t.workspace.menuDecisionJournal, subtitle: t.workspace.todayNavSubtitleDecisionJournal },
-    { key: "history", label: t.workspace.menuHistory, subtitle: t.workspace.todayNavSubtitleHistory },
-    { key: "chat", label: t.workspace.menuChat, subtitle: t.workspace.todayNavSubtitleChat },
-  ];
-  const SETTINGS_ITEM = { key: "settings" as const, label: t.workspace.menuSettings, subtitle: t.workspace.todayNavSubtitleSettings };
 
   // Muat daftar business_profiles + Active Business Context (sekali per sesi user)
   useEffect(() => {
@@ -3680,6 +3950,63 @@ function Workspace() {
     setUpdateHistoryLoading(false);
   }
 
+  async function loadDecisions() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setDecisionsLoading(true);
+    setDecisionsError(false);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "listDecisions", businessProfileId: activeBusinessId }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setDecisions(json.decisions || []);
+        setDecisionsLoaded(true);
+      } else {
+        console.error("listDecisions error:", json.error);
+        setDecisionsError(true);
+      }
+    } catch (err) {
+      console.error("listDecisions error:", err);
+      setDecisionsError(true);
+    }
+    setDecisionsLoading(false);
+  }
+
+  async function handleProposeDecision() {
+    if (!activeBusinessId || !session?.access_token || !decisionQuestion.trim()) return;
+    setDecisionSubmitting(true);
+    setDecisionSubmitError(null);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          action: "proposeDecision",
+          businessProfileId: activeBusinessId,
+          question: decisionQuestion.trim(),
+          lang,
+        }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setDecisionQuestion("");
+        // Refetch daripada menormalkan bentuk respons proposeDecision
+        // (snake_case) vs listDecisions (camelCase) secara manual — satu
+        // sumber bentuk data, konsisten dengan pola submitUpdate.
+        await loadDecisions();
+      } else {
+        setDecisionSubmitError(json.error || t.workspace.decisionErrorGeneric);
+      }
+    } catch (err) {
+      console.error("proposeDecision error:", err);
+      setDecisionSubmitError(t.workspace.decisionErrorGeneric);
+    }
+    setDecisionSubmitting(false);
+  }
+
   async function toggleUpdateHistory() {
     const next = !showUpdateHistory;
     setShowUpdateHistory(next);
@@ -3871,6 +4198,12 @@ function Workspace() {
     if (activeMenu === "competitor" && tier !== "free" && !competitorAnalysis && !competitorLoading) {
       loadCompetitorAnalysis();
     }
+    if (activeMenu === "businessUpdates" && !showUpdateHistory && updateHistory.length === 0 && !updateHistoryLoading) {
+      loadUpdateHistory();
+    }
+    if (activeMenu === "decisionJournal" && tier !== "free" && !decisionsLoaded && !decisionsLoading) {
+      loadDecisions();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenu]);
 
@@ -3931,6 +4264,70 @@ function Workspace() {
   // fallback ke "grow" — bukan ditebak sebagai fakta baru, hanya supaya
   // Workspace tidak kosong/rusak untuk mereka.
   const businessType: "start" | "grow" = activeBusiness?.business_type === "start" ? "start" : "grow";
+
+  // Navigasi Workspace (directive PO — penyelarasan visi funnel lengkap):
+  // sidebar TIDAK LAGI daftar 11 menu flat ("kok terlalu banyak menu ya").
+  // Menu yang sama dikelompokkan jadi 4 TAHAP mengikuti alur pikir pelanggan
+  // yang natural — urutan tahap BEDA untuk usaha baru vs usaha berjalan,
+  // sesuai gambaran eksplisit PO. Ini TIDAK menghapus satu pun fitur/route
+  // yang sudah ada (semua MenuKey tetap valid & bisa dituju), murni
+  // pengelompokan tampilan — jadi tidak ada logic content-rendering yang
+  // berubah, hanya struktur sidebar.
+  type MenuItemDef = { key: MenuKey; label: string; subtitle: string };
+  const ALL_MENU_ITEMS: Record<Exclude<MenuKey, "settings">, MenuItemDef> = {
+    today: { key: "today", label: t.workspace.menuToday, subtitle: t.workspace.todayNavSubtitleToday },
+    growth: { key: "growth", label: t.workspace.menuGrowth, subtitle: t.workspace.todayNavSubtitleJourney },
+    businessUpdates: {
+      key: "businessUpdates",
+      label: t.workspace.menuBusinessUpdates,
+      subtitle: t.workspace.todayNavSubtitleBusinessUpdates,
+    },
+    report: { key: "report", label: t.workspace.menuReport, subtitle: t.workspace.todayNavSubtitleReport },
+    score: { key: "score", label: t.workspace.menuScore, subtitle: t.workspace.todayNavSubtitleScore },
+    competitor: { key: "competitor", label: t.workspace.menuCompetitor, subtitle: t.workspace.todayNavSubtitleCompetitor },
+    target: { key: "target", label: t.workspace.menuTarget, subtitle: t.workspace.todayNavSubtitleTarget },
+    decisionJournal: {
+      key: "decisionJournal",
+      label: t.workspace.menuDecisionJournal,
+      subtitle: t.workspace.todayNavSubtitleDecisionJournal,
+    },
+    history: { key: "history", label: t.workspace.menuHistory, subtitle: t.workspace.todayNavSubtitleHistory },
+    chat: { key: "chat", label: t.workspace.menuChat, subtitle: t.workspace.todayNavSubtitleChat },
+  };
+  // Dipertahankan sebagai daftar datar (dipakai untuk lookup judul halaman
+  // di header — lihat MENU_ITEMS.find di bawah) — bukan lagi sumber render sidebar.
+  const MENU_ITEMS: MenuItemDef[] = Object.values(ALL_MENU_ITEMS);
+
+  const STAGE_GROUPS: { stageLabel: string; items: MenuItemDef[] }[] =
+    businessType === "start"
+      ? [
+          // 1. Kelayakan — "benar/tidak saya mau buka bisnis ini" + PDF baseline.
+          { stageLabel: t.workspace.stageStartFeasibility, items: [ALL_MENU_ITEMS.report] },
+          // 2. Riset Pasar — laku/tidak, lokasi, peta kompetitor.
+          { stageLabel: t.workspace.stageStartMarketFit, items: [ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.competitor] },
+          // 3. Persiapan & Pendampingan — 0 sampai launching, dari data PDF.
+          {
+            stageLabel: t.workspace.stageStartPreparation,
+            items: [ALL_MENU_ITEMS.today, ALL_MENU_ITEMS.businessUpdates, ALL_MENU_ITEMS.decisionJournal, ALL_MENU_ITEMS.chat],
+          },
+          // 4. Progres — kemana arah bisnis ini.
+          { stageLabel: t.workspace.stageStartProgress, items: [ALL_MENU_ITEMS.growth, ALL_MENU_ITEMS.target, ALL_MENU_ITEMS.history] },
+        ]
+      : [
+          // 1. Panduan awal — hasil PDF dipandu sesuai tantangan/harapan.
+          { stageLabel: t.workspace.stageGrowGuidance, items: [ALL_MENU_ITEMS.report] },
+          // 2. Solusi & pendampingan harian — saran, ide, dikawal tiap hari.
+          {
+            stageLabel: t.workspace.stageGrowDailySupport,
+            items: [ALL_MENU_ITEMS.today, ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.businessUpdates, ALL_MENU_ITEMS.chat],
+          },
+          // 3. Pendukung keputusan — solusi relevan berbasis data+AI untuk setiap masalah.
+          { stageLabel: t.workspace.stageGrowDecisionSupport, items: [ALL_MENU_ITEMS.decisionJournal, ALL_MENU_ITEMS.competitor] },
+          // 4. Laporan & progres — kemajuan bisnis + apa saja yang sudah dilakukan.
+          { stageLabel: t.workspace.stageGrowReview, items: [ALL_MENU_ITEMS.growth, ALL_MENU_ITEMS.target, ALL_MENU_ITEMS.history] },
+        ];
+
+  const SETTINGS_ITEM = { key: "settings" as const, label: t.workspace.menuSettings, subtitle: t.workspace.todayNavSubtitleSettings };
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-10">
@@ -4150,29 +4547,36 @@ function Workspace() {
           </div>
 
           <nav className="flex gap-1.5 overflow-x-auto rounded-[20px] border border-white/5 bg-surface/40 p-3 md:flex-col md:overflow-visible">
-            {MENU_ITEMS.map((item) => {
-              const isActive = activeMenu === item.key;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => setActiveMenu(item.key)}
-                  className={
-                    "flex flex-shrink-0 items-center gap-3 rounded-2xl px-4 py-2.5 text-left transition-all duration-200 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:flex-shrink " +
-                    (isActive
-                      ? "bg-primary text-black shadow-[0_0_16px_-2px_rgba(255,152,0,0.5)]"
-                      : "text-neutral-400 hover:translate-x-0.5 hover:bg-white/[0.06] hover:text-white motion-reduce:hover:translate-x-0")
-                  }
-                >
-                  <MenuIcon name={item.key} />
-                  <span className="leading-tight">
-                    <span className="block text-sm font-bold">{item.label}</span>
-                    <span className={`hidden text-[11px] font-medium md:block ${isActive ? "text-black/60" : "text-neutral-500"}`}>
-                      {item.subtitle}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
+            {STAGE_GROUPS.map((group, groupIdx) => (
+              <div key={group.stageLabel} className={"flex flex-shrink-0 gap-1.5 md:flex-col " + (groupIdx === 0 ? "" : "md:mt-2")}>
+                <p className="hidden px-4 pt-1 text-[10px] font-bold uppercase tracking-widest text-neutral-600 md:block">
+                  {groupIdx + 1}. {group.stageLabel}
+                </p>
+                {group.items.map((item) => {
+                  const isActive = activeMenu === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => setActiveMenu(item.key)}
+                      className={
+                        "flex flex-shrink-0 items-center gap-3 rounded-2xl px-4 py-2.5 text-left transition-all duration-200 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:flex-shrink " +
+                        (isActive
+                          ? "bg-primary text-black shadow-[0_0_16px_-2px_rgba(255,152,0,0.5)]"
+                          : "text-neutral-400 hover:translate-x-0.5 hover:bg-white/[0.06] hover:text-white motion-reduce:hover:translate-x-0")
+                      }
+                    >
+                      <MenuIcon name={item.key} />
+                      <span className="leading-tight">
+                        <span className="block text-sm font-bold">{item.label}</span>
+                        <span className={`hidden text-[11px] font-medium md:block ${isActive ? "text-black/60" : "text-neutral-500"}`}>
+                          {item.subtitle}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
 
             <div className="my-1 hidden border-t border-white/5 md:block" />
 
@@ -4358,6 +4762,32 @@ function Workspace() {
                 setConfirmingDelete(true);
                 setDeleteError(null);
               }}
+            />
+          ) : activeMenu === "businessUpdates" ? (
+            <BusinessUpdatesList
+              updates={updateHistory}
+              t={t}
+              lang={lang}
+              loading={updateHistoryLoading}
+              error={updateHistoryError}
+              onRetry={loadUpdateHistory}
+              onOpenUpdateModal={() => setShowBusinessUpdate(true)}
+            />
+          ) : activeMenu === "decisionJournal" ? (
+            <DecisionJournalList
+              tier={tier}
+              t={t}
+              lang={lang}
+              decisions={decisions}
+              loading={decisionsLoading}
+              error={decisionsError}
+              onRetry={loadDecisions}
+              onUpgradeClick={openUpgradeModal}
+              question={decisionQuestion}
+              onQuestionChange={setDecisionQuestion}
+              onSubmit={handleProposeDecision}
+              submitting={decisionSubmitting}
+              submitError={decisionSubmitError}
             />
           ) : (
             <EmptyState

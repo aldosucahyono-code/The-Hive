@@ -132,12 +132,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       max_tokens: tier === "platinum" ? 8000 : 4000,
       system: buildSystemPrompt(tier, wizardData.jenisAnalisis, activeLang),
       messages: [{ role: "user", content: buildUserPrompt(wizardData, tier) }],
+      // Riset Sungguhan (directive PO — "kamu harus bisa menjadi semua
+      // peranan... untuk menjawab seluruh keresahan/tantangan users"):
+      // laporan baseline boleh mencari data faktual terkini (regulasi,
+      // syarat izin, prosedur kemitraan/franchise) alih-alih hanya
+      // mengandalkan pengetahuan lama model — lihat aturan RISET SUNGGUHAN
+      // di report-engine/reportPrompt.ts.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
+      // terpasang lebih tua dari tipe web search tool, lihat catatan sama
+      // di services/beemo/chat.ts.
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: tier === "platinum" ? 8 : 4 }] as any,
     });
 
-    const textBlock = message.content.find((b) => b.type === "text");
-    const raw = textBlock && "text" in textBlock ? textBlock.text : "";
-    const cleaned = raw.replace(/```json|```/g, "").trim();
-    const aiContent = JSON.parse(cleaned);
+    // Konkatenasi SEMUA blok teks — kalau Claude mencari dulu, jawabannya
+    // bisa terpecah jadi beberapa blok teks yang disisipi hasil pencarian.
+    const raw = message.content
+      .filter((b) => b.type === "text")
+      .map((b) => ("text" in b ? b.text : ""))
+      .join("");
+    let cleaned = raw.replace(/```json|```/g, "").trim();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- sama
+    // seperti sebelumnya (JSON.parse tanpa anotasi = any), dipertahankan
+    // supaya properti aiContent.* di bawah tetap bisa dipakai langsung
+    // tanpa cast satu-satu (perilaku sudah begini sejak sebelum perubahan ini).
+    let aiContent: any;
+    try {
+      aiContent = JSON.parse(cleaned);
+    } catch (parseErr) {
+      // Fallback: kalau ada narasi pencarian yang lolos di luar JSON,
+      // ambil satu objek JSON dari dalam teks alih-alih gagal total.
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw parseErr;
+      cleaned = jsonMatch[0];
+      aiContent = JSON.parse(cleaned);
+    }
 
     // 2. Gabungkan hasil AI dengan data yang memang seharusnya deterministik
     //    (kode), bukan dikarang ulang oleh AI setiap kali — nomor report,

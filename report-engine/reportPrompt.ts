@@ -50,6 +50,11 @@ ATURAN KEDALAMAN:
 - Setiap insight jelaskan: kenapa begitu, apa dampaknya, apa yang harus dilakukan — jangan cuma kasih skor/label lalu selesai.
 - Referensi ke sumber kredibel boleh disebut secara umum untuk konteks pasar, tapi jangan mengarang angka statistik yang presisi dan spesifik seolah-olah dikutip dari laporan resmi.
 
+PERAN GANDA & RISET SUNGGUHAN (WAJIB — indikator keberhasilan: kalau Anda jadi pemilik usaha ini, apakah Anda benar-benar puas membaca laporan ini, bukan cuma dapat template yang terdengar pintar):
+- Susun laporan ini dengan mengambil peran SEMUA fungsi bisnis yang relevan — Akuntan, HRD, Legal, Marketing/Sales, Operasional — sekaligus, sesuai isi tiap bagian.
+- Kalau suatu bagian menyentuh hal yang butuh data terkini/spesifik (syarat izin usaha, aturan pajak UMKM, prosedur legalitas, ketentuan pemerintah daerah, dll), CARI DULU lewat web search sebelum menulis bagian itu — jangan menulis dari ingatan lama kalau bisa diverifikasi.
+- DILARANG menutup sebuah masalah hanya dengan "konsultasikan dengan ahli/profesional" sebagai solusi akhir — itu bukan rekomendasi. Beri LANGKAH KONKRET dulu (ke mana harus pergi, hubungi siapa/instansi apa, dokumen apa yang perlu disiapkan). Verifikasi profesional hanya disebut untuk langkah yang memang secara hukum butuh tanda tangan/sertifikasi resmi.
+
 ATURAN MODE PELANGGAN (WAJIB, PENTING UNTUK RELEVANSI):
 Ada 2 jenis pelanggan dengan kebutuhan yang BERBEDA — jangan campur adukkan gaya keduanya:
 ${
@@ -80,14 +85,17 @@ ${
   "kemitraan", "mitra", "lisensi", atau nama merek yang dikenal sebagai jaringan franchise) —
   WAJIB tambahkan satu bagian khusus "Regulasi & Perjanjian Kemitraan/Franchise" (boleh disisipkan
   di antara bagian lain, tidak menambah kuota jumlah section di luar rentang yang sudah ditentukan).
-- Bagian ini WAJIB membahas secara kualitatif (bukan mengarang klausul spesifik pihak tertentu):
-  hal-hal yang LAZIM perlu dicek pengguna di perjanjian kemitraan/franchise (mis. masa berlaku &
-  perpanjangan, wilayah eksklusivitas, royalti/fee berkelanjutan, kewajiban pasokan dari pusat,
-  hak keluar/terminasi, sanksi wanprestasi), kewajiban legalitas dasar di Indonesia yang umumnya
-  relevan (mis. STPW/Surat Tanda Pendaftaran Waralaba, NIB, izin usaha, NPWP) tanpa mengarang
-  nomor pasal/undang-undang yang presisi, dan REKOMENDASI TEGAS untuk berkonsultasi dengan
-  notaris/konsultan hukum SEBELUM menandatangani apa pun — laporan ini alat bantu keputusan,
-  BUKAN pengganti nasihat hukum profesional. Sebutkan batasan ini secara eksplisit dan jujur.
+- CARI DULU lewat web search syarat legalitas terkini yang relevan (mis. prosedur STPW/Surat Tanda
+  Pendaftaran Waralaba, NIB, izin usaha, NPWP) — jangan hanya mengandalkan ingatan lama, regulasi
+  bisa berubah. Bagian ini WAJIB membahas: hal-hal yang LAZIM perlu dicek pengguna di perjanjian
+  kemitraan/franchise (mis. masa berlaku & perpanjangan, wilayah eksklusivitas, royalti/fee
+  berkelanjutan, kewajiban pasokan dari pusat, hak keluar/terminasi, sanksi wanprestasi), LANGKAH
+  KONKRET legalitas dasar berdasarkan hasil riset (bukan cuma nama dokumennya, tapi kira-kira ke
+  instansi mana dan alur umumnya) — tanpa mengarang nomor pasal/undang-undang yang presisi kalau
+  tidak ditemukan lewat pencarian — dan REKOMENDASI TEGAS untuk verifikasi akhir ke notaris/
+  konsultan hukum SEBELUM menandatangani apa pun (bukan sebagai jawaban tunggal, tapi sebagai
+  langkah TERAKHIR setelah langkah konkret di atas) — laporan ini alat bantu keputusan, BUKAN
+  pengganti nasihat hukum profesional untuk penandatanganan resmi. Sebutkan batasan ini jujur.
 - Keputusan "decision" (GO/WAIT/PIVOT/STOP) di bagian ini harus mempertimbangkan risiko legal —
   kalau data dari pengguna tidak cukup untuk menilai kelayakan perjanjian, "WAIT" dengan alasan
   "perlu dokumen perjanjian resmi + review hukum" adalah jawaban yang jujur, bukan menebak "GO".`
@@ -117,7 +125,7 @@ kalau bisnis baru, "Kondisi Bisnis Saat Ini" jadi "Kesiapan & Rencana Peluncuran
 "Business Health Score" jadi "Business Readiness Score", "Rencana Aksi 30 Hari" jadi
 rencana menuju hari peluncuran (bukan 30 hari sejak sekarang untuk bisnis yang sudah jalan).
 
-Jawab HANYA dengan JSON valid sesuai skema ReportData (lihat definisi terpisah), tanpa markdown, tanpa teks lain.${
+Anda boleh mencari (web search) dulu untuk bagian yang butuh data terkini, TAPI balasan akhir Anda HARUS HANYA JSON valid sesuai skema ReportData (lihat definisi terpisah) — TANPA kalimat narasi proses pencarian, TANPA markdown, TANPA teks lain sama sekali.${
   isEnglish ? " Remember: ALL text content inside the JSON must be in ENGLISH." : ""
 }`;
   }
@@ -147,7 +155,7 @@ kalau bisnis baru, framing bergeser dari "kondisi/kesehatan saat ini" menjadi "k
 peluncuran", dan Roadmap diorientasikan menuju hari peluncuran, bukan pertumbuhan dari
 kondisi yang sudah berjalan.
 
-Jawab HANYA dengan JSON valid sesuai skema ReportData (lihat definisi terpisah), tanpa markdown, tanpa teks lain.${
+Anda boleh mencari (web search) dulu untuk bagian yang butuh data terkini, TAPI balasan akhir Anda HARUS HANYA JSON valid sesuai skema ReportData (lihat definisi terpisah) — TANPA kalimat narasi proses pencarian, TANPA markdown, TANPA teks lain sama sekali.${
     isEnglish ? " Remember: ALL text content inside the JSON must be in ENGLISH." : ""
   }`;
 }

@@ -176,12 +176,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       max_tokens: 8000,
       system: buildMonthlySystemPrompt(activeLang),
       messages: [{ role: "user", content: buildUserPrompt(memory, snapshotRow ?? null, activeLang) }],
+      // Riset Sungguhan: rekomendasi bulanan boleh mencari data terkini
+      // (tenggat pajak, perpanjangan izin, dll) sebelum ditulis.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
+      // terpasang lebih tua dari tipe web search tool, lihat catatan sama
+      // di services/beemo/chat.ts.
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }] as any,
     });
 
-    const textBlock = message.content.find((b) => b.type === "text");
-    const raw = textBlock && "text" in textBlock ? textBlock.text : "";
-    const cleaned = raw.replace(/```json|```/g, "").trim();
-    const aiContent = JSON.parse(cleaned);
+    const raw = message.content
+      .filter((b) => b.type === "text")
+      .map((b) => ("text" in b ? b.text : ""))
+      .join("");
+    let cleaned = raw.replace(/```json|```/g, "").trim();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- sama
+    // seperti generate-report.ts, dipertahankan any supaya properti
+    // aiContent.* di bawah tetap bisa dipakai langsung.
+    let aiContent: any;
+    try {
+      aiContent = JSON.parse(cleaned);
+    } catch (parseErr) {
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw parseErr;
+      cleaned = jsonMatch[0];
+      aiContent = JSON.parse(cleaned);
+    }
 
     const today = new Date();
     const periodLabel = snapshotRow

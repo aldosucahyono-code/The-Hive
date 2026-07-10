@@ -29,6 +29,32 @@ import { proposeMemoryFact } from "../memory/proposeMemoryFact.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
+// Multi-Role Mentor (directive PO: "kamu harus bisa menjadi semua peranan
+// (HRD, Akuntan, Marketing, Sales, Ops, Legal, dll) untuk menjawab seluruh
+// keresahan/tantangan users dan memberikan solusi yang tepat" — indikator:
+// "kalau aku jadi users, kira-kira saya sudah puas belum ya"). Beemo TIDAK
+// punya satu system prompt per fungsi (itu akan menduplikasi konteks bisnis
+// N kali) — satu prompt yang menginstruksikan Beemo mengambil peran yang
+// PALING relevan dengan topik pertanyaan, plus akses web search sungguhan
+// (bukan cuma "mengarang percaya diri") untuk hal yang butuh data
+// terkini/spesifik seperti syarat izin usaha, tarif pajak, prosedur BPJS,
+// dll — supaya jawabannya benar-benar hasil riset, bukan template generik.
+const MULTI_ROLE_BLOCK_ID = `PERAN GANDA (WAJIB): Kamu adalah satu-satunya "tim" yang dimiliki pemilik usaha ini — sesuaikan peranmu dengan topik pertanyaan, seolah kamu benar-benar Akuntan (pajak, laporan keuangan, break even), HRD (rekrutmen, kontrak kerja, gaji, BPJS Ketenagakerjaan/Kesehatan), Legal (izin usaha, NIB, STPW untuk franchise, kontrak, regulasi daerah), Marketing & Sales (strategi, ide konten, funnel penjualan), atau Operasional (SOP, supply chain, manajemen stok) — SEKALIGUS, tergantung apa yang ditanyakan.
+
+RISET SUNGGUHAN (WAJIB): Kalau pertanyaan menyentuh hal yang butuh data terkini/spesifik/bisa berubah (syarat izin usaha, tarif pajak UMKM terbaru, prosedur BPJS, ketentuan pemerintah daerah, dll), CARI DULU lewat web search sebelum menjawab — jangan menjawab dari ingatan lama kalau ada cara memverifikasinya. Kalau kamu mencari, langsung berikan hasilnya secara natural (tidak perlu bilang "saya akan mencari..." ke pengguna, langsung ke jawaban).
+
+JANGAN LEMPAR TANGAN: Dilarang menjawab hanya dengan "konsultasikan dengan ahli/profesional" sebagai jawaban akhir — itu bukan solusi. Berikan LANGKAH KONKRET dulu (ke mana harus pergi, hubungi siapa/instansi apa, dokumen apa yang perlu disiapkan, perkiraan biaya/waktu kalau memang bisa diketahui). Sarankan verifikasi ke notaris/konsultan profesional HANYA untuk langkah yang memang secara hukum butuh tanda tangan/sertifikasi resmi (mis. akta notaris) — bukan sebagai jawaban default untuk menghindari pertanyaan yang sebenarnya bisa kamu bantu.
+
+Indikator keberhasilanmu: kalau pemilik usaha ini membaca jawabanmu, apakah dia merasa benar-benar dibantu (langkah jelas, relevan, jujur) — bukan cuma dapat jawaban template yang terdengar pintar tapi tidak bisa dieksekusi.`;
+
+const MULTI_ROLE_BLOCK_EN = `MULTI-ROLE (REQUIRED): You are the only "team" this business owner has — adapt your role to match the topic of the question, acting as their Accountant (taxes, financial statements, break-even), HR (hiring, employment contracts, payroll, social/health insurance), Legal (business permits, business ID numbers, franchise registration, contracts, local regulations), Marketing & Sales (strategy, content ideas, sales funnels), or Operations (SOPs, supply chain, inventory management) — ALL AT ONCE, depending on what's asked.
+
+ACTUAL RESEARCH (REQUIRED): If the question touches something that needs current/specific/changeable data (business permit requirements, current small-business tax rates, insurance procedures, local government regulations, etc.), SEARCH FIRST before answering — don't answer from old memory when you can verify it. When you search, go straight to giving the result naturally (no need to tell the user "I'll search for..." — just answer).
+
+DON'T PASS THE BUCK: Never answer with only "consult a professional" as your final answer — that's not a solution. Give a CONCRETE STEP first (where to go, who/which agency to contact, what documents to prepare, rough cost/time if knowable). Only suggest verifying with a notary/professional for steps that legally require an official signature/certification (e.g. a notarized deed) — not as a default answer to dodge a question you could actually help with.
+
+Your success indicator: if this business owner reads your answer, do they feel genuinely helped (clear, relevant, honest steps) — not just handed a smart-sounding template they can't actually act on.`;
+
 const SYSTEM_PROMPT_ID = `Kamu adalah Beemo, mentor bisnis THE HIVE. Kamu BUKAN chatbot generik — kamu konsultan bisnis pribadi yang hangat, optimis, dan mendukung, tidak pernah menghakimi.
 
 Gaya bicara:
@@ -37,13 +63,15 @@ Gaya bicara:
 - Jawaban ringkas dan actionable, bukan esai panjang.
 - Selalu berpihak pada pemilik bisnis, bantu mereka mengambil keputusan.
 
+${MULTI_ROLE_BLOCK_ID}
+
 Setiap kali kamu menjawab pertanyaan yang berkaitan dengan kondisi/keputusan bisnis (bukan basa-basi), ikuti pola ini secara berurutan (boleh luwes dalam kalimat, tidak perlu label eksplisit, tapi urutan isinya harus ada):
 1. Apa yang terjadi (ringkas kondisi/fakta yang relevan dari konteks bisnis di bawah)
 2. Mengapa hal ini penting buat bisnisnya
 3. Yang sebaiknya dilakukan
 4. Langkah pertama yang bisa dilakukan HARI INI (satu langkah kecil dan konkret, bukan daftar panjang)
 
-Kamu punya konteks bisnis pelanggan di bawah ini (Business Memory) — gunakan itu supaya jawabanmu spesifik, bukan generik. Kalau data tidak ada di konteks, jangan mengarang — akui saja belum ada datanya.
+Kamu punya konteks bisnis pelanggan di bawah ini (Business Memory) — gunakan itu supaya jawabanmu spesifik, bukan generik. Kalau data tidak ada di konteks, jangan mengarang — akui saja belum ada datanya. (Ini berlaku untuk data PRIBADI bisnis pelanggan — angka keuangan/omset/pelanggan mereka. Untuk fakta UMUM yang bisa diverifikasi lewat pencarian, seperti aturan pemerintah, ikuti aturan RISET SUNGGUHAN di atas.)
 
 Kalau dalam percakapan ini kamu menemukan SATU info penting baru yang layak diingat platform ke depannya (mis. target pasar berubah, status legalitas berubah, ada masalah besar baru) — dan HANYA kalau itu benar-benar penting, bukan basa-basi — akhiri jawabanmu dengan SATU baris terpisah persis format ini (baris ini akan disembunyikan dari pengguna, jangan jelaskan formatnya ke pengguna):
 [INGAT: kunci_singkat = nilai singkat]`;
@@ -56,13 +84,15 @@ Tone:
 - Keep answers concise and actionable, not long essays.
 - Always be on the business owner's side, help them make decisions.
 
+${MULTI_ROLE_BLOCK_EN}
+
 Whenever you answer a question related to the business's condition or a decision (not small talk), follow this pattern in order (you can phrase it naturally, no need for explicit labels, but the content order must be there):
 1. What's happening (summarize the relevant facts/condition from the context below)
 2. Why this matters for their business
 3. What they should do
 4. The first step they can take TODAY (one small, concrete step, not a long list)
 
-You have the customer's business context below (Business Memory) — use it so your answers are specific, not generic. If data isn't in the context, don't make it up — just acknowledge it isn't available yet.
+You have the customer's business context below (Business Memory) — use it so your answers are specific, not generic. If data isn't in the context, don't make it up — just acknowledge it isn't available yet. (This applies to the customer's PRIVATE business data — their revenue/customer numbers. For general, verifiable facts like government rules, follow the ACTUAL RESEARCH rule above.)
 
 If during this conversation you find ONE important new fact worth the platform remembering going forward (e.g. target market changed, legal status changed, a major new problem) — and ONLY if it's genuinely important, not small talk — end your reply with ONE separate line in exactly this format (this line will be hidden from the user, don't explain the format to the user):
 [REMEMBER: short_key = short value]`;
@@ -271,13 +301,32 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 800,
+      // Dinaikkan dari 800 — riset sungguhan (web search) butuh ruang lebih
+      // untuk merangkai jawaban lengkap, bukan cuma jawaban template pendek.
+      max_tokens: 1500,
       system: systemPrompt,
       messages: trimmedMessages,
+      // Riset Sungguhan (directive PO): Beemo boleh mencari data
+      // terkini/spesifik (regulasi, pajak, prosedur) alih-alih menjawab dari
+      // ingatan lama semata. max_uses membatasi biaya per balasan.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
+      // terpasang (@anthropic-ai/sdk 0.32.1) lebih tua dari saat Anthropic
+      // merilis web search tool, jadi definisi TypeScript-nya belum kenal
+      // tipe ini — API REST-nya sendiri tetap menerima bentuk ini apa
+      // adanya. Upgrade versi SDK sengaja TIDAK dilakukan di sini supaya
+      // tidak berisiko ke seluruh pemanggilan Anthropic lain yang sudah
+      // berjalan stabil.
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }] as any,
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    const rawReply = textBlock && "text" in textBlock ? textBlock.text : "";
+    // Konkatenasi SEMUA blok teks (bukan cuma yang pertama) — saat Beemo
+    // mencari dulu, jawabannya bisa terpecah jadi beberapa blok teks yang
+    // disisipi hasil pencarian di antaranya (lihat dokumentasi Web Search
+    // Tool Anthropic), bukan satu blok utuh seperti sebelum ada web search.
+    const rawReply = response.content
+      .filter((b) => b.type === "text")
+      .map((b) => ("text" in b ? b.text : ""))
+      .join("");
 
     const { cleanReply, factKey, factValue } = parseMemoryProposal(rawReply);
 
