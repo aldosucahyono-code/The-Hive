@@ -2235,7 +2235,7 @@ function personalGreeting(
   const namePart = opts.nama || opts.fallbackName;
   const profesiPart = opts.profesi ? `, ${opts.profesi}` : "";
   const businessPart = opts.businessName ? ` - ${opts.businessName}` : "";
-  return `${prefix}, ${namePart}${profesiPart}${businessPart}! 👋`;
+  return `${prefix} ${namePart}${profesiPart}${businessPart}! 👋`;
 }
 
 type RuleItem = { key: string; params?: Record<string, string | number>; whyKey?: string };
