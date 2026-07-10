@@ -19,6 +19,7 @@ import { archiveBusiness } from "../services/business/archive.js";
 import { restoreBusiness } from "../services/business/restore.js";
 import { deleteBusinessPermanently } from "../services/business/delete.js";
 import { saveBusinessAnalysis } from "../services/business/saveAnalysis.js";
+import { checkBusinessCap } from "../services/business/checkBusinessCap.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -56,6 +57,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "saveAnalysis":
       result = await saveBusinessAnalysis(userId, payload);
+      break;
+    case "getCap":
+      result = { status: 200, body: await checkBusinessCap(userId) };
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import {
@@ -15,19 +15,63 @@ import {
 type AddBusinessModalProps = {
   onClose: () => void;
   onCreated: (businessProfileId: string) => void;
+  onUpgradeClick: () => void;
 };
 
 type JenisAnalisis = "baru" | "berjalan";
-type Phase = "choose" | "form" | "analyzing";
+type Phase = "checkingCap" | "capped" | "choose" | "form" | "analyzing";
+type CapTier = "free" | "pro" | "platinum";
 
 const todayString = getTodayString();
 
-function AddBusinessModal({ onClose, onCreated }: AddBusinessModalProps) {
+function AddBusinessModal({ onClose, onCreated, onUpgradeClick }: AddBusinessModalProps) {
   const { t, lang } = useLanguage();
   const { session } = useAuth();
 
-  const [phase, setPhase] = useState<Phase>("choose");
+  // Batas jumlah usaha per akun (lihat services/business/checkBusinessCap.ts)
+  // — dicek SEBELUM menampilkan form, supaya user yang sudah kena batas
+  // langsung tahu (dan diarahkan upgrade) tanpa harus mengisi form penuh
+  // dulu baru ditolak di akhir (directive PO: "sudah bisa tersaring").
+  const [phase, setPhase] = useState<Phase>("checkingCap");
+  const [capHighestTier, setCapHighestTier] = useState<CapTier>("free");
   const [jenisAnalisis, setJenisAnalisis] = useState<JenisAnalisis | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!session?.access_token) {
+        if (!cancelled) setPhase("choose");
+        return;
+      }
+      try {
+        const res = await fetch("/api/business", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ action: "getCap" }),
+        });
+        const json = await res.json();
+        if (cancelled) return;
+        if (res.ok && json.allowed === false) {
+          setCapHighestTier((json.highestTier as CapTier) || "free");
+          setPhase("capped");
+        } else {
+          setPhase("choose");
+        }
+      } catch (err) {
+        console.error("AddBusinessModal getCap error:", err);
+        // Gagal cek -> jangan mengunci user gara-gara masalah jaringan
+        // sesaat; pengecekan defense-in-depth tetap ada di server saat submit.
+        if (!cancelled) setPhase("choose");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [namaBisnis, setNamaBisnis] = useState("");
   const [jenisBisnis, setJenisBisnis] = useState("");
@@ -182,6 +226,11 @@ function AddBusinessModal({ onClose, onCreated }: AddBusinessModalProps) {
       });
       const bizJson = await bizResponse.json();
       if (!bizResponse.ok) {
+        if (bizJson.capExceeded) {
+          setCapHighestTier((bizJson.highestTier as CapTier) || "free");
+          setPhase("capped");
+          return;
+        }
         setServerError(bizJson.error || t.addBusinessModal.genericError);
         setPhase("form");
         return;
@@ -242,6 +291,46 @@ function AddBusinessModal({ onClose, onCreated }: AddBusinessModalProps) {
 
         <h2 className="mb-1 text-xl font-extrabold text-white">{t.addBusinessModal.title}</h2>
         <p className="mb-6 text-sm text-neutral-400">{t.addBusinessModal.subtitle}</p>
+
+        {phase === "checkingCap" && (
+          <div className="py-10 text-center">
+            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm text-neutral-300">{t.addBusinessModal.checkingCapLabel}</p>
+          </div>
+        )}
+
+        {phase === "capped" && (
+          <div className="py-4 text-center">
+            <div className="mb-3 text-3xl">🔒</div>
+            <h3 className="mb-2 text-base font-bold text-white">{t.addBusinessModal.capBlockedTitle}</h3>
+            <p className="mb-6 text-sm leading-relaxed text-neutral-400">
+              {capHighestTier === "platinum"
+                ? t.addBusinessModal.capBlockedDescPlatinum
+                : capHighestTier === "pro"
+                  ? t.addBusinessModal.capBlockedDescPro
+                  : t.addBusinessModal.capBlockedDescFree}
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+              {capHighestTier !== "platinum" && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onUpgradeClick();
+                  }}
+                  className="rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-black transition-opacity hover:opacity-90"
+                >
+                  {t.addBusinessModal.capBlockedUpgradeButton}
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="rounded-lg border border-white/15 px-5 py-2.5 text-sm text-neutral-300 hover:border-primary/40 hover:text-white"
+              >
+                {t.addBusinessModal.capBlockedCloseButton}
+              </button>
+            </div>
+          </div>
+        )}
 
         {phase === "choose" && (
           <div>

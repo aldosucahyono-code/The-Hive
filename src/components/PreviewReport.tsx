@@ -46,6 +46,11 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
   // business_profile permanen untuk orang yang cuma coba-coba gratis.
   const [autoSavedBusinessId, setAutoSavedBusinessId] = useState<string | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
+  // Batas jumlah usaha per akun (services/business/checkBusinessCap.ts) —
+  // kalau user sudah di batas, auto-promote tidak membuat business_profile
+  // baru; tampilkan pemberitahuan yang jelas + arahkan upgrade, alih-alih
+  // diam-diam gagal (log error saja) seperti sebelumnya.
+  const [autoSaveCapped, setAutoSaveCapped] = useState(false);
 
   useEffect(() => {
     if (!preview || !user || !session?.access_token || autoSavedBusinessId || autoSaving) return;
@@ -77,6 +82,8 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
         const promoteJson = await promoteRes.json();
         if (!cancelled && promoteRes.ok && promoteJson.businessProfileId) {
           setAutoSavedBusinessId(promoteJson.businessProfileId);
+        } else if (!cancelled && promoteJson.capExceeded) {
+          setAutoSaveCapped(true);
         } else if (!promoteRes.ok) {
           console.error("auto-promote: promote-draft gagal:", promoteJson.error);
         }
@@ -198,6 +205,18 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
             className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-transform hover:-translate-y-0.5"
           >
             {t.previewReport.autoSavedButton}
+          </button>
+        </div>
+      )}
+
+      {autoSaveCapped && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] px-5 py-3 text-center sm:text-left">
+          <p className="text-sm text-neutral-200">🔒 {t.previewReport.autoSaveCappedNote}</p>
+          <button
+            onClick={() => hardNavigate("workspace")}
+            className="rounded-full border border-amber-500/40 px-4 py-2 text-xs font-bold text-amber-300 transition-transform hover:-translate-y-0.5"
+          >
+            {t.previewReport.autoSaveCappedButton}
           </button>
         </div>
       )}

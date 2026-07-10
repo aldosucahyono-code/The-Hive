@@ -5,6 +5,7 @@
 // yang SUDAH diverifikasi oleh router, dan payload mentah dari body request.
 
 import { createClient } from "@supabase/supabase-js";
+import { checkBusinessCap } from "./checkBusinessCap.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -21,6 +22,21 @@ export async function createBusiness(userId: string, payload: Record<string, unk
 
   if (!businessName || typeof businessName !== "string" || !businessName.trim()) {
     return { status: 400, body: { error: "Nama bisnis wajib diisi" } };
+  }
+
+  // Batas jumlah usaha per akun (lihat services/business/checkBusinessCap.ts)
+  // — pengecekan terakhir di sisi server, jaga-jaga kalau UI (AddBusinessModal)
+  // entah bagaimana lolos tanpa cek cap lebih dulu.
+  const capResult = await checkBusinessCap(userId);
+  if (!capResult.allowed) {
+    return {
+      status: 403,
+      body: {
+        error: "Batas jumlah usaha untuk paket kamu saat ini sudah tercapai.",
+        capExceeded: true,
+        ...capResult,
+      },
+    };
   }
 
   const stage = VALID_STAGES.includes(businessStage as string) ? businessStage : "idea";

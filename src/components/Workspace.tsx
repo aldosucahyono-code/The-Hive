@@ -2154,15 +2154,27 @@ function pulseVisual(level: string): { emoji: string; pillClasses: string } {
 /** Headline/subheadline pulse & sapaan waktu — dipakai bersama oleh header
  * (Workspace()) dan TodayPanel, supaya teks "Bisnismu berjalan baik hari
  * ini" yang tampil di header besar sama persis dengan yang dipakai di
- * badan halaman Today, bukan dua sumber teks yang bisa tidak sinkron. */
-function pulseHeadlineText(t: Translations, level: "preparation" | "stable" | "attention" | "action_required"): string {
-  return level === "stable"
-    ? t.workspace.todayPulseHeadlineStable
-    : level === "attention"
-      ? t.workspace.todayPulseHeadlineAttention
-      : level === "action_required"
-        ? t.workspace.todayPulseHeadlineActionRequired
-        : t.workspace.todayPulseHeadlinePreparation;
+ * badan halaman Today, bukan dua sumber teks yang bisa tidak sinkron.
+ *
+ * pulseLevel "stable" murni berarti "data baru & tidak sedang menurun" (lihat
+ * services/today/computeSnapshot.ts §4.2) — BUKAN sinyal skor tinggi. Tanpa
+ * kalibrasi, bisnis dengan Business Score 50/100 bisa tetap dapat headline
+ * "Bisnismu berjalan baik hari ini." yang menyesatkan (directive PO: "bukan
+ * template, melainkan workspace yang hidup"). Jadi untuk level "stable",
+ * teksnya dikalibrasi lagi dari skor aktual — bukan cuma dari pulseLevel. */
+function pulseHeadlineText(
+  t: Translations,
+  level: "preparation" | "stable" | "attention" | "action_required",
+  score: number | null
+): string {
+  if (level === "attention") return t.workspace.todayPulseHeadlineAttention;
+  if (level === "action_required") return t.workspace.todayPulseHeadlineActionRequired;
+  if (level === "preparation") return t.workspace.todayPulseHeadlinePreparation;
+  // level === "stable"
+  if (score == null) return t.workspace.todayPulseHeadlineStable;
+  if (score >= 75) return t.workspace.todayPulseHeadlineStable;
+  if (score >= 50) return t.workspace.todayPulseHeadlineStableMid;
+  return t.workspace.todayPulseHeadlineStableLow;
 }
 
 function pulseSubheadlineText(t: Translations, level: "preparation" | "stable" | "attention" | "action_required"): string {
@@ -2202,11 +2214,28 @@ function stageDetailLabel(t: Translations, stageDetail: string): string {
 }
 
 function greetingPrefix(t: Translations): string {
+  // new Date().getHours() sudah otomatis mengikuti timezone lokal browser
+  // pengguna (bukan server) — jadi "Selamat pagi/siang/sore/malam" ini
+  // sudah sesuai waktu setempat pengguna tanpa perlu logic tambahan.
   const hour = new Date().getHours();
   if (hour < 11) return t.workspace.todayGreetingMorning;
   if (hour < 15) return t.workspace.todayGreetingAfternoon;
   if (hour < 19) return t.workspace.todayGreetingEvening;
   return t.workspace.todayGreetingNight;
+}
+
+/** Sapaan personal header Today: "{Salam}, {Nama}{, Profesi} - {NamaBisnis}!"
+ * — nama/profesi opsional (fallback jujur ke email/nama bisnis kalau kosong,
+ * bukan mengarang), supaya workspace terasa hidup bukan template statis. */
+function personalGreeting(
+  t: Translations,
+  opts: { nama: string; profesi: string; businessName: string; fallbackName: string }
+): string {
+  const prefix = greetingPrefix(t);
+  const namePart = opts.nama || opts.fallbackName;
+  const profesiPart = opts.profesi ? `, ${opts.profesi}` : "";
+  const businessPart = opts.businessName ? ` - ${opts.businessName}` : "";
+  return `${prefix}, ${namePart}${profesiPart}${businessPart}! 👋`;
 }
 
 type RuleItem = { key: string; params?: Record<string, string | number>; whyKey?: string };
@@ -4282,6 +4311,14 @@ function Workspace() {
   const latestAnalysis = analyses[0] || null;
   const latestPreview = latestAnalysis?.ai_output || null;
   const latestRawInput = latestAnalysis?.raw_input || null;
+  // Sapaan personal di header Today (directive PO: "bukan template, workspace
+  // yang hidup") — nama & profesi diambil dari analisa BASELINE (identitas
+  // ditetapkan sekali saat wizard pertama, bukan diulang tiap Business
+  // Update), fallback ke analisa terbaru kalau baseline entah kenapa tidak
+  // ketemu, lalu ke string kosong (jujur — bukan mengarang "Owner" default).
+  const baselineAnalysis = analyses.find((a) => a.is_baseline) || latestAnalysis;
+  const ownerNama = ((baselineAnalysis?.raw_input as Record<string, string> | null)?.nama || "").trim();
+  const ownerProfesi = ((baselineAnalysis?.raw_input as Record<string, string> | null)?.profesi || "").trim();
   const tier = membership?.tier || "free";
   // Business Context (Business Discovery & Dual Workspace directive) —
   // "SATU FIELD, SATU STATUS" yang dibaca seluruh Workspace untuk memilih
@@ -4359,12 +4396,17 @@ function Workspace() {
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-neutral-400">
-            {greetingPrefix(t)}, {activeBusiness?.business_name || user.email || ""}! 👋
+            {personalGreeting(t, {
+              nama: ownerNama,
+              profesi: ownerProfesi,
+              businessName: activeBusiness?.business_name || "",
+              fallbackName: user.email || "",
+            })}
           </p>
           {activeMenu === "today" && todaySnapshot ? (
             <>
               <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl">
-                {pulseHeadlineText(t, todaySnapshot.pulseLevel)}
+                {pulseHeadlineText(t, todaySnapshot.pulseLevel, todaySnapshot.score)}
               </h1>
               <p className="mt-1 text-sm text-neutral-500">{pulseSubheadlineText(t, todaySnapshot.pulseLevel)}</p>
             </>
@@ -4948,7 +4990,11 @@ function Workspace() {
       )}
 
       {showAddBusiness && (
-        <AddBusinessModal onClose={() => setShowAddBusiness(false)} onCreated={handleBusinessCreated} />
+        <AddBusinessModal
+          onClose={() => setShowAddBusiness(false)}
+          onCreated={handleBusinessCreated}
+          onUpgradeClick={openUpgradeModal}
+        />
       )}
 
       {showBusinessUpdate && activeBusinessId && (

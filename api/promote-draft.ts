@@ -20,6 +20,7 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
+import { checkBusinessCap } from "../services/business/checkBusinessCap.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -93,6 +94,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const wizardData = draft.wizard_data as Record<string, string>;
+
+    // Batas jumlah usaha per akun (lihat services/business/checkBusinessCap.ts)
+    // — ini titik masuk pertama yang otentik (user sudah login) untuk alur
+    // wizard gratis di landing page, jadi di sinilah pengecekan pertama kali
+    // benar-benar bisa dilakukan dengan aman (bukan saat mengetik email di
+    // wizard anonim, yang belum tentu benar-benar pemilik email itu).
+    const capResult = await checkBusinessCap(userId);
+    if (!capResult.allowed) {
+      return res.status(403).json({
+        error: "Batas jumlah usaha untuk paket kamu saat ini sudah tercapai.",
+        capExceeded: true,
+        ...capResult,
+      });
+    }
 
     const { data: businessProfile, error: bpError } = await supabase
       .from("business_profiles")
