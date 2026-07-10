@@ -6,6 +6,7 @@ import { isValidFreeText } from "../utils/validation";
 
 type BusinessUpdateModalProps = {
   businessProfileId: string;
+  businessType: "start" | "grow";
   onClose: () => void;
   onSaved: (newlyUnlocked?: Array<Record<string, unknown>>) => void;
 };
@@ -51,9 +52,37 @@ function resolveHeadline(t: Translations, insight: UpdateInsight): string {
   return fillTemplate(template, insight.headlineParams);
 }
 
-function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUpdateModalProps) {
+function BusinessUpdateModal({ businessProfileId, businessType, onClose, onSaved }: BusinessUpdateModalProps) {
   const { t } = useLanguage();
   const { session } = useAuth();
+  // Task 11 (audit Juli 2026): bisnis yang "belum buka" (start) belum punya
+  // penjualan/omset/pelanggan sungguhan — form Business Update sebelumnya
+  // menanyakan pertanyaan yang sama persis ("kondisi penjualan?", "omset
+  // minggu ini?") ke bisnis yang belum berjalan sama sekali, terasa aneh
+  // dan tidak relevan. Sekarang label/placeholder berbeda untuk businessType
+  // "start" (fokus ke progres persiapan), field & backend TIDAK berubah.
+  const bu = t.businessUpdateModal;
+  const isStart = businessType === "start";
+  const copy = {
+    title: isStart ? bu.titleStart : bu.title,
+    subtitle: isStart ? bu.subtitleStart : bu.subtitle,
+    perkembanganLabel: isStart ? bu.perkembanganLabelStart : bu.perkembanganLabel,
+    perkembanganPlaceholder: isStart ? bu.perkembanganPlaceholderStart : bu.perkembanganPlaceholder,
+    pencapaianLabel: isStart ? bu.pencapaianLabelStart : bu.pencapaianLabel,
+    pencapaianPlaceholder: isStart ? bu.pencapaianPlaceholderStart : bu.pencapaianPlaceholder,
+    tantanganLabel: isStart ? bu.tantanganLabelStart : bu.tantanganLabel,
+    tantanganPlaceholder: isStart ? bu.tantanganPlaceholderStart : bu.tantanganPlaceholder,
+    kondisiPenjualanLabel: isStart ? bu.kondisiPenjualanLabelStart : bu.kondisiPenjualanLabel,
+    kondisiNaik: isStart ? bu.kondisiNaikStart : bu.kondisiNaik,
+    kondisiTetap: isStart ? bu.kondisiTetapStart : bu.kondisiTetap,
+    kondisiTurun: isStart ? bu.kondisiTurunStart : bu.kondisiTurun,
+    omsetLabel: isStart ? bu.omsetLabelStart : bu.omsetLabel,
+    omsetPlaceholder: isStart ? bu.omsetPlaceholderStart : bu.omsetPlaceholder,
+    pelangganBaruLabel: isStart ? bu.pelangganBaruLabelStart : bu.pelangganBaruLabel,
+    pelangganBaruPlaceholder: isStart ? bu.pelangganBaruPlaceholderStart : bu.pelangganBaruPlaceholder,
+    targetDepanLabel: isStart ? bu.targetDepanLabelStart : bu.targetDepanLabel,
+    targetDepanPlaceholder: isStart ? bu.targetDepanPlaceholderStart : bu.targetDepanPlaceholder,
+  };
 
   const [perkembangan, setPerkembangan] = useState("");
   const [pencapaian, setPencapaian] = useState("");
@@ -206,8 +235,8 @@ function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUp
           </button>
         )}
 
-        <h2 className="mb-1 text-xl font-extrabold text-white">{t.businessUpdateModal.title}</h2>
-        <p className="mb-6 text-sm text-neutral-400">{t.businessUpdateModal.subtitle}</p>
+        <h2 className="mb-1 text-xl font-extrabold text-white">{copy.title}</h2>
+        <p className="mb-6 text-sm text-neutral-400">{copy.subtitle}</p>
 
         {success ? (
           <div className="space-y-4">
@@ -241,49 +270,49 @@ function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUp
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="mb-1.5 block text-sm text-neutral-300">
-                {t.businessUpdateModal.perkembanganLabel} <span className="text-primary">*</span>
+                {copy.perkembanganLabel} <span className="text-primary">*</span>
               </label>
               <textarea
                 rows={3}
                 value={perkembangan}
                 onChange={(e) => setPerkembangan(e.target.value)}
                 onBlur={() => markTouched("perkembangan")}
-                placeholder={t.businessUpdateModal.perkembanganPlaceholder}
+                placeholder={copy.perkembanganPlaceholder}
                 className={touched.perkembangan && !perkembanganValid ? textareaErr : textareaOk}
               />
             </div>
 
             <div>
               <label className="mb-1.5 block text-sm text-neutral-300">
-                {t.businessUpdateModal.pencapaianLabel} <span className="text-primary">*</span>
+                {copy.pencapaianLabel} <span className="text-primary">*</span>
               </label>
               <textarea
                 rows={2}
                 value={pencapaian}
                 onChange={(e) => setPencapaian(e.target.value)}
                 onBlur={() => markTouched("pencapaian")}
-                placeholder={t.businessUpdateModal.pencapaianPlaceholder}
+                placeholder={copy.pencapaianPlaceholder}
                 className={touched.pencapaian && !pencapaianValid ? textareaErr : textareaOk}
               />
             </div>
 
             <div>
               <label className="mb-1.5 block text-sm text-neutral-300">
-                {t.businessUpdateModal.tantanganLabel} <span className="text-primary">*</span>
+                {copy.tantanganLabel} <span className="text-primary">*</span>
               </label>
               <textarea
                 rows={2}
                 value={tantangan}
                 onChange={(e) => setTantangan(e.target.value)}
                 onBlur={() => markTouched("tantangan")}
-                placeholder={t.businessUpdateModal.tantanganPlaceholder}
+                placeholder={copy.tantanganPlaceholder}
                 className={touched.tantangan && !tantanganValid ? textareaErr : textareaOk}
               />
             </div>
 
             <div>
               <label className="mb-2 block text-sm text-neutral-300">
-                {t.businessUpdateModal.kondisiPenjualanLabel} <span className="text-primary">*</span>
+                {copy.kondisiPenjualanLabel} <span className="text-primary">*</span>
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {(["naik", "tetap", "turun"] as Kondisi[]).map((k) => (
@@ -298,7 +327,7 @@ function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUp
                         : "border-white/15 bg-white/5 text-neutral-300 hover:border-primary/40")
                     }
                   >
-                    {k === "naik" ? t.businessUpdateModal.kondisiNaik : k === "tetap" ? t.businessUpdateModal.kondisiTetap : t.businessUpdateModal.kondisiTurun}
+                    {k === "naik" ? copy.kondisiNaik : k === "tetap" ? copy.kondisiTetap : copy.kondisiTurun}
                   </button>
                 ))}
               </div>
@@ -306,59 +335,16 @@ function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUp
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-sm text-neutral-300">{t.businessUpdateModal.omsetLabel}</label>
+                <label className="mb-1.5 block text-sm text-neutral-300">{copy.omsetLabel}</label>
                 <input
                   ref={omsetInputRef}
                   type="text"
                   inputMode="numeric"
                   value={omsetValue}
                   onChange={handleOmsetChange}
-                  placeholder={t.businessUpdateModal.omsetPlaceholder}
+                  placeholder={copy.omsetPlaceholder}
                   className={inputOk}
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm text-neutral-300">{t.businessUpdateModal.pelangganBaruLabel}</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={pelangganBaru}
-                  onChange={(e) => setPelangganBaru(e.target.value)}
-                  placeholder={t.businessUpdateModal.pelangganBaruPlaceholder}
-                  className={inputOk}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm text-neutral-300">
-                {t.businessUpdateModal.targetDepanLabel} <span className="text-primary">*</span>
-              </label>
-              <textarea
-                rows={2}
-                value={targetDepan}
-                onChange={(e) => setTargetDepan(e.target.value)}
-                onBlur={() => markTouched("targetDepan")}
-                placeholder={t.businessUpdateModal.targetDepanPlaceholder}
-                className={touched.targetDepan && !targetDepanValid ? textareaErr : textareaOk}
-              />
-            </div>
-
-            {formError && <p className="text-sm text-red-400">{t.businessUpdateModal.formError}</p>}
-            {serverError && <p className="text-sm text-red-400">{serverError}</p>}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full rounded-lg bg-primary px-4 py-3 font-bold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? t.businessUpdateModal.submitLoading : t.businessUpdateModal.submitButton}
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default BusinessUpdateModal;
+    

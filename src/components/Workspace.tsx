@@ -5037,6 +5037,7 @@ function Workspace() {
       {showBusinessUpdate && activeBusinessId && (
         <BusinessUpdateModal
           businessProfileId={activeBusinessId}
+          businessType={businessType}
           onClose={() => setShowBusinessUpdate(false)}
           onSaved={handleUpdateSaved}
         />
@@ -5079,8 +5080,4 @@ function Workspace() {
           onUpgraded={handleUpgraded}
         />
       )}
-    </section>
-  );
-}
-
-export default Workspace;
+    </secti
