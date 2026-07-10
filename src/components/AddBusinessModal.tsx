@@ -4,6 +4,7 @@ import { useLanguage } from "../i18n/LanguageContext";
 import {
   isValidBrandName,
   isValidNameLike,
+  isValidProfesi,
   isValidLocation,
   isValidFreeText,
   isValidOmset,
@@ -73,6 +74,14 @@ function AddBusinessModal({ onClose, onCreated, onUpgradeClick }: AddBusinessMod
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Nama & profesi si pengisi (BUKAN nama bisnis) — sebelumnya field ini
+  // tidak pernah ditanyakan di modal ini (nama otomatis diisi dari prefix
+  // email, profesi dikosongkan), beda dari wizard chat di landing page yang
+  // selalu menanyakan keduanya. Ini yang bikin sapaan di Today menampilkan
+  // "aldosucahyono" alih-alih nama asli. Ditanyakan sekali di sini, sama
+  // seperti wizard chat.
+  const [nama, setNama] = useState("");
+  const [profesi, setProfesi] = useState("");
   const [namaBisnis, setNamaBisnis] = useState("");
   const [jenisBisnis, setJenisBisnis] = useState("");
   const [lokasi, setLokasi] = useState("");
@@ -139,6 +148,8 @@ function AddBusinessModal({ onClose, onCreated, onUpgradeClick }: AddBusinessMod
 
   const isBaru = jenisAnalisis === "baru";
 
+  const namaValid = isValidNameLike(nama);
+  const profesiValid = isValidProfesi(profesi);
   const namaBisnisValid = isValidBrandName(namaBisnis);
   const jenisBisnisValid = isValidNameLike(jenisBisnis);
   const lokasiValid = isValidLocation(lokasi);
@@ -161,7 +172,17 @@ function AddBusinessModal({ onClose, onCreated, onUpgradeClick }: AddBusinessMod
   }
 
   function isAllValid(): boolean {
-    if (!namaBisnisValid || !jenisBisnisValid || !lokasiValid || !omsetValid || !tantanganValid || !targetValid || !ceritaVisiValid) {
+    if (
+      !namaValid ||
+      !profesiValid ||
+      !namaBisnisValid ||
+      !jenisBisnisValid ||
+      !lokasiValid ||
+      !omsetValid ||
+      !tantanganValid ||
+      !targetValid ||
+      !ceritaVisiValid
+    ) {
       return false;
     }
     if (isBaru) {
@@ -173,6 +194,8 @@ function AddBusinessModal({ onClose, onCreated, onUpgradeClick }: AddBusinessMod
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setTouched({
+      nama: true,
+      profesi: true,
       namaBisnis: true,
       jenisBisnis: true,
       lokasi: true,
@@ -195,7 +218,8 @@ function AddBusinessModal({ onClose, onCreated, onUpgradeClick }: AddBusinessMod
 
     const wizardData = {
       jenisAnalisis,
-      nama: session.user?.email?.split("@")[0] || t.addBusinessModal.defaultOwnerName,
+      nama: nama.trim() || session.user?.email?.split("@")[0] || t.addBusinessModal.defaultOwnerName,
+      profesi: profesi.trim(),
       namaBisnis,
       jenisBisnis,
       lokasi,
@@ -378,6 +402,34 @@ function AddBusinessModal({ onClose, onCreated, onUpgradeClick }: AddBusinessMod
             >
               {t.addBusinessModal.backButton}
             </button>
+
+            <div>
+              <label className="mb-1.5 block text-sm text-neutral-300">
+                {t.stepOne.namaLabel} <span className="text-primary">*</span>
+              </label>
+              <input
+                type="text"
+                value={nama}
+                onChange={(e) => setNama(e.target.value)}
+                onBlur={() => markTouched("nama")}
+                placeholder={t.stepOne.namaPlaceholder}
+                className={touched.nama && !namaValid ? inputErr : inputOk}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm text-neutral-300">
+                {t.stepOne.profesiLabel} <span className="text-primary">*</span>
+              </label>
+              <input
+                type="text"
+                value={profesi}
+                onChange={(e) => setProfesi(e.target.value)}
+                onBlur={() => markTouched("profesi")}
+                placeholder={t.stepOne.profesiPlaceholder}
+                className={touched.profesi && !profesiValid ? inputErr : inputOk}
+              />
+            </div>
 
             <div>
               <label className="mb-1.5 block text-sm text-neutral-300">
