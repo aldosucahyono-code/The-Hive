@@ -25,8 +25,13 @@ type WizardPayload = {
   rencanaLaunching?: string;
   omsetBulanan?: string;
   targetPelanggan?: string;
-  perizinanUsaha?: string;
-  jumlahTim?: string;
+  // 2 pertanyaan "bucket info" dinamis (lihat api/generate-wizard-questions.ts)
+  // — bucketQuestionN adalah teks pertanyaan yang benar-benar ditanyakan ke
+  // pengguna (AI-generated, beda tiap bisnis), bukan label statis.
+  bucketQuestion1?: string;
+  bucketAnswer1?: string;
+  bucketQuestion2?: string;
+  bucketAnswer2?: string;
   tantangan: string;
   target: string;
   ceritaVisi?: string;
@@ -147,8 +152,8 @@ ${data.sejakKapan ? `- Operating since: ${data.sejakKapan}` : ""}
 ${data.rencanaLaunching ? `- Planned launch date: ${data.rencanaLaunching}` : ""}
 ${data.omsetBulanan ? `- ${isBaru ? "Estimated starting capital" : "Average monthly revenue"} (stated by the user, not something you calculated): ${data.omsetBulanan}` : ""}
 ${data.targetPelanggan ? `- Target customers: ${data.targetPelanggan}` : ""}
-${data.perizinanUsaha ? `- Business permits/licensing status: ${data.perizinanUsaha}` : ""}
-${data.jumlahTim ? `- Team size: ${data.jumlahTim}` : ""}
+${data.bucketQuestion1 && data.bucketAnswer1 ? `- ${data.bucketQuestion1} -> ${data.bucketAnswer1}` : ""}
+${data.bucketQuestion2 && data.bucketAnswer2 ? `- ${data.bucketQuestion2} -> ${data.bucketAnswer2}` : ""}
 - Biggest challenge: ${data.tantangan}
 - 6-12 month target: ${data.target}
 ${data.ceritaVisi ? `\nUser's own story & vision (the most important source for understanding their mindset):\n"${data.ceritaVisi}"` : ""}
@@ -165,8 +170,8 @@ ${data.sejakKapan ? `- Sejak: ${data.sejakKapan}` : ""}
 ${data.rencanaLaunching ? `- Rencana tanggal launching: ${data.rencanaLaunching}` : ""}
 ${data.omsetBulanan ? `- ${isBaru ? "Estimasi modal awal" : "Rata-rata omset bulanan"} (disebutkan oleh pengguna, bukan hasil hitungan Anda): ${data.omsetBulanan}` : ""}
 ${data.targetPelanggan ? `- Target pelanggan: ${data.targetPelanggan}` : ""}
-${data.perizinanUsaha ? `- Status perizinan usaha: ${data.perizinanUsaha}` : ""}
-${data.jumlahTim ? `- Jumlah tim: ${data.jumlahTim}` : ""}
+${data.bucketQuestion1 && data.bucketAnswer1 ? `- ${data.bucketQuestion1} -> ${data.bucketAnswer1}` : ""}
+${data.bucketQuestion2 && data.bucketAnswer2 ? `- ${data.bucketQuestion2} -> ${data.bucketAnswer2}` : ""}
 - Tantangan terbesar: ${data.tantangan}
 - Target 6-12 bulan ke depan: ${data.target}
 ${data.ceritaVisi ? `\nCerita & visi dalam kata-kata pengguna sendiri (sumber insight paling penting soal cara pandang mereka):\n"${data.ceritaVisi}"` : ""}

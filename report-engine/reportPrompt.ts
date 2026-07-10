@@ -85,6 +85,13 @@ ${
   "kemitraan", "mitra", "lisensi", atau nama merek yang dikenal sebagai jaringan franchise) —
   WAJIB tambahkan satu bagian khusus "Regulasi & Perjanjian Kemitraan/Franchise" (boleh disisipkan
   di antara bagian lain, tidak menambah kuota jumlah section di luar rentang yang sudah ditentukan).
+- CARI DULU lewat web search reputasi & tren brand/jaringan franchise tersebut saat ini — apakah
+  brand ini punya rating/ulasan yang bagus dan konsisten, sedang berkembang, atau justru cuma tren
+  musiman/menurun peminatnya (banyak gerai tutup, keluhan berulang, dsb). Pakai hasil ini untuk
+  menajamkan rekomendasi Anda: brand dengan reputasi kuat & bukan sekadar tren musiman layak
+  dorongan "GO" lebih percaya diri, sedangkan brand yang tren-nya melemah atau reputasinya
+  bermasalah harus tercermin di "confidenceBasis" dan bisa jadi alasan "WAIT"/"PIVOT". Sebutkan
+  temuan riset ini secara ringkas dan jujur (bukan menakut-nakuti, tapi juga tidak menutupi red flag).
 - CARI DULU lewat web search syarat legalitas terkini yang relevan (mis. prosedur STPW/Surat Tanda
   Pendaftaran Waralaba, NIB, izin usaha, NPWP) — jangan hanya mengandalkan ingatan lama, regulasi
   bisa berubah. Bagian ini WAJIB membahas: hal-hal yang LAZIM perlu dicek pengguna di perjanjian

@@ -18,8 +18,15 @@ export type WizardData = {
   rencanaLaunching: string;
   omsetBulanan: string;
   targetPelanggan: string;
-  perizinanUsaha: string;
-  jumlahTim: string;
+  // 2 pertanyaan "bucket info" wajib — isinya DINAMIS, dihasilkan Beemo AI
+  // sesuai nama & jenis bisnis pengguna (lihat api/generate-wizard-questions.ts),
+  // bukan teks statis. bucketQuestionN menyimpan teks pertanyaan yang benar-benar
+  // ditampilkan (AI-generated atau fallback), supaya konteksnya utuh saat
+  // dikirim ke generate-preview/generate-report.
+  bucketQuestion1: string;
+  bucketAnswer1: string;
+  bucketQuestion2: string;
+  bucketAnswer2: string;
   tantangan: string;
   target: string;
   ceritaVisi: string;
@@ -38,8 +45,10 @@ const initialData: WizardData = {
   rencanaLaunching: "",
   omsetBulanan: "",
   targetPelanggan: "",
-  perizinanUsaha: "",
-  jumlahTim: "",
+  bucketQuestion1: "",
+  bucketAnswer1: "",
+  bucketQuestion2: "",
+  bucketAnswer2: "",
   tantangan: "",
   target: "",
   ceritaVisi: "",

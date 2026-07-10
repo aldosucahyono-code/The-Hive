@@ -32,8 +32,15 @@ type WizardPayload = {
   rencanaLaunching?: string;
   omsetBulanan?: string; // dipakai juga untuk "Estimasi Modal Awal" pada bisnis baru
   targetPelanggan?: string;
-  perizinanUsaha?: string;
-  jumlahTim?: string;
+  // 2 pertanyaan "bucket info" dinamis (lihat api/generate-wizard-questions.ts)
+  // — bucketQuestionN adalah teks pertanyaan yang benar-benar ditanyakan ke
+  // pengguna (AI-generated, beda tiap bisnis), bukan label statis. Kalau
+  // bisnis baru, salah satunya soal franchise/kemitraan vs bangun sendiri —
+  // manfaatkan web search di bawah untuk riset reputasi brand kalau relevan.
+  bucketQuestion1?: string;
+  bucketAnswer1?: string;
+  bucketQuestion2?: string;
+  bucketAnswer2?: string;
   tantangan: string;
   target: string;
   ceritaVisi?: string;
@@ -97,8 +104,8 @@ ${data.sejakKapan ? `- Sejak: ${data.sejakKapan}` : ""}
 ${data.rencanaLaunching ? `- Rencana tanggal launching: ${data.rencanaLaunching}` : ""}
 ${data.omsetBulanan ? `- ${isBaru ? "Estimasi modal awal" : "Rata-rata omset bulanan"} (disebutkan pengguna sendiri): ${data.omsetBulanan}` : ""}
 ${data.targetPelanggan ? `- Target pelanggan: ${data.targetPelanggan}` : ""}
-${data.perizinanUsaha ? `- Status perizinan usaha: ${data.perizinanUsaha}` : ""}
-${data.jumlahTim ? `- Jumlah tim: ${data.jumlahTim}` : ""}
+${data.bucketQuestion1 && data.bucketAnswer1 ? `- ${data.bucketQuestion1} -> ${data.bucketAnswer1}` : ""}
+${data.bucketQuestion2 && data.bucketAnswer2 ? `- ${data.bucketQuestion2} -> ${data.bucketAnswer2}` : ""}
 - Tantangan terbesar: ${data.tantangan}
 - Target 6-12 bulan ke depan: ${data.target}
 ${data.ceritaVisi ? `\nCerita & visi dalam kata-kata pengguna sendiri (sumber PALING PENTING untuk memahami cara pandang, ambisi, dan gaya bicara mereka — pakai untuk mengkalibrasi nada seluruh laporan, terutama executive summary/ringkasan):\n"${data.ceritaVisi}"` : ""}

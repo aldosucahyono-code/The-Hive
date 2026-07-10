@@ -49,9 +49,58 @@ function fill(template: string, data: WizardData): string {
 }
 
 function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { signInWithMagicLink } = useAuth();
   const isBaru = data.jenisAnalisis === "baru";
+
+  // 2 pertanyaan "bucket info" dinamis — dihasilkan Beemo AI sesuai nama &
+  // jenis bisnis pengguna (directive PO: "jangan mutlak dan mengacu saja
+  // pada code... beemo benar2 memikirkan pertanyaan apa secara otomatis
+  // sesuai dengan brand dan jenis bisnis"). Fetch dimulai sedini mungkin
+  // (begitu jenisBisnis terisi) supaya sudah siap jauh sebelum pengguna
+  // sampai ke pertanyaan ini beberapa langkah kemudian. Kalau gagal/belum
+  // siap saat pengguna sampai di situ, jatuh ke pertanyaan fallback supaya
+  // alur tidak pernah macet.
+  const [dynamicQuestions, setDynamicQuestions] = useState<
+    { question: string; placeholder: string }[] | null
+  >(null);
+  const [dynamicFetchStarted, setDynamicFetchStarted] = useState(false);
+
+  useEffect(() => {
+    if (dynamicFetchStarted) return;
+    if (!data.namaBisnis || !data.jenisBisnis || !data.jenisAnalisis) return;
+    setDynamicFetchStarted(true);
+
+    (async () => {
+      try {
+        const res = await fetch("/api/generate-wizard-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jenisAnalisis: data.jenisAnalisis,
+            namaBisnis: data.namaBisnis,
+            jenisBisnis: data.jenisBisnis,
+            lang,
+          }),
+        });
+        const json = await res.json();
+        if (res.ok && Array.isArray(json.questions) && json.questions.length === 2) {
+          setDynamicQuestions(json.questions);
+        }
+      } catch (err) {
+        console.error("generate-wizard-questions error:", err);
+        // Diamkan — pertanyaan fallback di bawah tetap membuat alur jalan.
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.namaBisnis, data.jenisBisnis, data.jenisAnalisis, dynamicFetchStarted]);
+
+  const fallbackBucketQuestion1 = isBaru
+    ? t.chatFlow.dynamicFallbackFranchiseQuestion
+    : t.chatFlow.dynamicFallbackLegalQuestion;
+  const fallbackBucketPlaceholder1 = isBaru
+    ? t.stepTwo.dynamicFallbackFranchisePlaceholder
+    : t.stepTwo.dynamicFallbackLegalPlaceholder;
 
   const questions: Question[] = [
     {
@@ -147,27 +196,30 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       invalidNudge: t.chatFlow.invalidGenericNudge,
       phase: "kondisi",
     },
-    // Dua pertanyaan tambahan (directive PO: "maksimal dua pertanyaan...
-    // sebagai analisa pull bucket info untuk mendukung keputusanmu" — wajib,
-    // berlaku bisnis baru maupun berjalan). Perizinan -> masukan peran
-    // Legal. Jumlah tim -> masukan peran HRD. Validasi longgar (isValidFreeText
-    // 1-3 kata) supaya jawaban singkat seperti "belum ada" tetap lolos — ini
-    // fakta objektif bisnis, bukan cerita panjang seperti tantangan/target.
+    // Dua pertanyaan "bucket info" wajib (directive PO: "maksimal dua
+    // pertanyaan... sebagai analisa pull bucket info untuk mendukung
+    // keputusanmu" — wajib, berlaku bisnis baru maupun berjalan). Isinya
+    // DINAMIS dari Beemo AI (lihat dynamicQuestions di atas), bukan teks
+    // statis — beda tiap nama/jenis bisnis. Kalau AI belum siap saat
+    // pengguna sampai di sini, pakai fallback supaya alur tetap jalan.
+    // Validasi longgar (isValidFreeText 3 karakter/1 kata) supaya jawaban
+    // singkat seperti "belum ada" tetap lolos — ini fakta objektif bisnis,
+    // bukan cerita panjang seperti tantangan/target.
     {
-      field: "perizinanUsaha",
-      prompt: () => t.chatFlow.askPerizinanUsaha,
+      field: "bucketAnswer1",
+      prompt: () => dynamicQuestions?.[0]?.question || fallbackBucketQuestion1,
       inputType: "textarea",
-      placeholder: t.stepTwo.perizinanUsahaPlaceholder,
+      placeholder: dynamicQuestions?.[0]?.placeholder || fallbackBucketPlaceholder1,
       validate: (v: string) => isValidFreeText(v, 3, 1),
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "kondisi",
     },
     {
-      field: "jumlahTim",
-      prompt: () => t.chatFlow.askJumlahTim,
-      inputType: "text",
-      placeholder: t.stepTwo.jumlahTimPlaceholder,
-      validate: (v: string) => isValidFreeText(v, 1, 1),
+      field: "bucketAnswer2",
+      prompt: () => dynamicQuestions?.[1]?.question || t.chatFlow.dynamicFallbackGenericQuestion2,
+      inputType: "textarea",
+      placeholder: dynamicQuestions?.[1]?.placeholder || t.stepTwo.dynamicFallbackGenericPlaceholder2,
+      validate: (v: string) => isValidFreeText(v, 3, 1),
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "kondisi",
     },
@@ -346,6 +398,15 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
     setShowError(false);
     updateField(activeQuestion.field, value);
+    // Simpan teks pertanyaan yang benar-benar ditampilkan (AI-generated atau
+    // fallback) supaya konteksnya utuh saat dikirim ke generate-preview/
+    // generate-report — activeQuestion.prompt(data) dievaluasi sekarang,
+    // sebelum data berubah.
+    if (activeQuestion.field === "bucketAnswer1") {
+      updateField("bucketQuestion1", activeQuestion.prompt(data));
+    } else if (activeQuestion.field === "bucketAnswer2") {
+      updateField("bucketQuestion2", activeQuestion.prompt(data));
+    }
 
     if (editingField) {
       setEditingField(null);
@@ -492,8 +553,8 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       label: isBaru ? t.chatFlow.modalAwalLabel : t.chatFlow.omsetLabel,
       field: "omsetBulanan",
     },
-    { group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.perizinanUsahaLabel, field: "perizinanUsaha" },
-    { group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.jumlahTimLabel, field: "jumlahTim" },
+    { group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.bucketLabel1, field: "bucketAnswer1" },
+    { group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.bucketLabel2, field: "bucketAnswer2" },
     { group: t.chatFlow.tantanganTargetTitle, label: t.chatFlow.tantanganLabel, field: "tantangan" },
     { group: t.chatFlow.tantanganTargetTitle, label: t.chatFlow.targetLabel, field: "target" },
     { group: t.chatFlow.ceritaVisiTitle, label: t.chatFlow.ceritaVisiTitle, field: "ceritaVisi" },
