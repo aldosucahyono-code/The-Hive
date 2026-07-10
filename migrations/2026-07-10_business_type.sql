@@ -1,0 +1,32 @@
+-- Migration: business_type (Business Discovery & Dual Workspace directive)
+-- Domain: business_profiles
+-- Date: 2026-07-10
+--
+-- ADDITIVE ONLY. Satu kolom baru di tabel yang sudah ada (business_profiles),
+-- RLS tabel ini sudah ada sebelumnya dan sudah mencakup kolom baru ini
+-- secara otomatis (policy select-own tidak berbasis kolom tertentu).
+--
+-- business_type adalah "SATU FIELD, SATU STATUS" yang diminta Product Owner:
+-- menyimpan niat pelanggan saat Business Discovery — apakah dia membuka
+-- USAHA BARU ("start") atau mengembangkan USAHA YANG SUDAH BERJALAN
+-- ("grow"). Ini SENGAJA dipisah dari business_stage (kolom lama, sudah ada,
+-- nilainya "idea"/"starting"/"running"/"scaling") karena:
+--   - business_type: niat awal pelanggan, ditentukan SEKALI saat Discovery,
+--     tidak berubah lagi (dipakai seluruh platform untuk memilih "versi
+--     mentor" mana yang ditampilkan — bukan cuma di Today, tapi di seluruh
+--     Workspace/Chat/PDF).
+--   - business_stage: sinyal operasional yang BOLEH berkembang seiring waktu
+--     (dipakai services/stage/determineStage.ts, independen dari file ini).
+--
+-- Nullable dengan sengaja (backfill-safe) — pelanggan lama yang belum punya
+-- nilai ini TIDAK ditebak paksa di database (jangan mengarang data). Fallback
+-- untuk baris lama dilakukan di lapisan baca (services/memory/getBusinessMemory.ts),
+-- bukan di database, supaya jelas mana yang "data asli" vs "derived default".
+--
+-- Cara pakai: jalankan file ini SENDIRI lewat Supabase SQL editor. Claude
+-- tidak menjalankan ini secara langsung terhadap database.
+--
+-- Rollback (kalau perlu dibatalkan): ALTER TABLE business_profiles DROP COLUMN business_type;
+
+alter table business_profiles
+  add column if not exists business_type text check (business_type in ('start', 'grow'));

@@ -177,6 +177,7 @@ function AddBusinessModal({ onClose, onCreated }: AddBusinessModalProps) {
           businessName: namaBisnis,
           industry: jenisBisnis,
           businessStage: isBaru ? "idea" : "running",
+          businessType: isBaru ? "start" : "grow",
         }),
       });
       const bizJson = await bizResponse.json();

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useLanguage } from "../i18n/LanguageContext";
+import { useLanguage, fillTemplate } from "../i18n/LanguageContext";
+import type { Translations } from "../i18n/translations";
 import { isValidFreeText } from "../utils/validation";
 
 type BusinessUpdateModalProps = {
@@ -10,6 +11,45 @@ type BusinessUpdateModalProps = {
 };
 
 type Kondisi = "naik" | "tetap" | "turun";
+
+// Business Update Engine: hasil klasifikasi dari services/updateEngine/classify.ts
+// (dikirim balik oleh api/workspace action "submitUpdate"). Kunci i18n +
+// params, bukan kalimat jadi, supaya bilingual tetap ikut kalau bahasa
+// ditoggle.
+type UpdateInsight = {
+  category: "sales" | "marketing" | "finance" | "customer" | "operations" | "brand";
+  severity: "low" | "medium" | "high";
+  headlineKey: string;
+  headlineParams: Record<string, string | number>;
+  actionKey: string;
+};
+
+const ACTION_KEY_MAP: Record<UpdateInsight["actionKey"], keyof Translations["workspace"]> = {
+  updateActionSales: "updateActionSales",
+  updateActionMarketing: "updateActionMarketing",
+  updateActionFinance: "updateActionFinance",
+  updateActionCustomer: "updateActionCustomer",
+  updateActionOperations: "updateActionOperations",
+  updateActionBrand: "updateActionBrand",
+};
+
+const SEVERITY_LABEL_MAP: Record<UpdateInsight["severity"], keyof Translations["workspace"]> = {
+  low: "updateSeverityLow",
+  medium: "updateSeverityMedium",
+  high: "updateSeverityHigh",
+};
+
+const SEVERITY_STYLE: Record<UpdateInsight["severity"], string> = {
+  low: "bg-white/10 text-neutral-400",
+  medium: "bg-amber-500/15 text-amber-300",
+  high: "bg-red-500/15 text-red-300",
+};
+
+function resolveHeadline(t: Translations, insight: UpdateInsight): string {
+  const template = (t.workspace as unknown as Record<string, string>)[insight.headlineKey];
+  if (!template) return "";
+  return fillTemplate(template, insight.headlineParams);
+}
 
 function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUpdateModalProps) {
   const { t } = useLanguage();
@@ -28,6 +68,8 @@ function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUp
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [insightResult, setInsightResult] = useState<UpdateInsight | null>(null);
+  const [newlyUnlockedResult, setNewlyUnlockedResult] = useState<Array<Record<string, unknown>> | undefined>(undefined);
   const omsetInputRef = useRef<HTMLInputElement>(null);
 
   function handleOmsetChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -135,11 +177,15 @@ function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUp
         return;
       }
 
+      // Business Update Engine: Beemo langsung "berpikir" begitu update
+      // tersimpan — tampilkan reaksinya dulu (bukan auto-close 1.2 detik
+      // seperti sebelumnya), baru refresh data lain saat pengguna klik
+      // Lanjutkan. Ini yang membuat update terasa hidup, bukan cuma
+      // form yang menghilang.
+      setInsightResult(json.insight || null);
+      setNewlyUnlockedResult(json.newlyUnlocked);
       setSuccess(true);
       setSubmitting(false);
-      setTimeout(() => {
-        onSaved(json.newlyUnlocked);
-      }, 1200);
     } catch (err) {
       console.error("submitUpdate error:", err);
       setServerError(t.businessUpdateModal.networkError);
@@ -164,8 +210,32 @@ function BusinessUpdateModal({ businessProfileId, onClose, onSaved }: BusinessUp
         <p className="mb-6 text-sm text-neutral-400">{t.businessUpdateModal.subtitle}</p>
 
         {success ? (
-          <div className="rounded-xl border border-primary/30 bg-primary/10 p-5 text-center">
-            <p className="text-sm text-neutral-100">{t.businessUpdateModal.successMessage}</p>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-primary/30 bg-primary/10 p-5 text-center">
+              <p className="text-sm text-neutral-100">{t.businessUpdateModal.successMessage}</p>
+            </div>
+
+            {insightResult && (
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{t.workspace.updateInsightCardTitle}</p>
+                  <span className={"rounded-full px-2 py-0.5 text-[10px] font-bold " + SEVERITY_STYLE[insightResult.severity]}>
+                    {t.workspace[SEVERITY_LABEL_MAP[insightResult.severity]]}
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed text-neutral-200">{resolveHeadline(t, insightResult)}</p>
+                <p className="mt-2 text-xs leading-relaxed text-neutral-400">
+                  {t.workspace[ACTION_KEY_MAP[insightResult.actionKey as UpdateInsight["actionKey"]]] || ""}
+                </p>
+              </div>
+            )}
+
+            <button
+              onClick={() => onSaved(newlyUnlockedResult)}
+              className="w-full rounded-lg bg-primary px-4 py-3 font-bold text-black transition-opacity hover:opacity-90"
+            >
+              {t.businessUpdateModal.continueButton}
+            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

@@ -33,6 +33,15 @@ function guessBusinessStage(jenisAnalisis: string | undefined): "idea" | "runnin
   return jenisAnalisis === "baru" ? "idea" : "running";
 }
 
+/** business_type (Business Context — Business Discovery & Dual Workspace
+ * directive): "SATU FIELD, SATU STATUS" yang dibaca seluruh platform
+ * (Workspace/Chat/PDF) untuk memilih versi mentor mana yang ditampilkan.
+ * Ditentukan SEKALI di sini, dari jawaban Business Discovery yang sama
+ * dengan guessBusinessStage — tidak berubah lagi setelahnya. */
+function resolveBusinessType(jenisAnalisis: string | undefined): "start" | "grow" {
+  return jenisAnalisis === "baru" ? "start" : "grow";
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -92,6 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         business_name: wizardData.namaBisnis || "Bisnis Tanpa Nama",
         industry: wizardData.jenisBisnis || null,
         business_stage: guessBusinessStage(wizardData.jenisAnalisis),
+        business_type: resolveBusinessType(wizardData.jenisAnalisis),
       })
       .select("id")
       .single();

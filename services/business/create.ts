@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
 const VALID_STAGES = ["idea", "starting", "running", "scaling"];
+const VALID_BUSINESS_TYPES = ["start", "grow"];
 
 export type ServiceResult = { status: number; body: Record<string, unknown> };
 
@@ -16,12 +17,24 @@ export async function createBusiness(userId: string, payload: Record<string, unk
   const businessName = payload.businessName;
   const industry = payload.industry;
   const businessStage = payload.businessStage;
+  const businessType = payload.businessType;
 
   if (!businessName || typeof businessName !== "string" || !businessName.trim()) {
     return { status: 400, body: { error: "Nama bisnis wajib diisi" } };
   }
 
   const stage = VALID_STAGES.includes(businessStage as string) ? businessStage : "idea";
+  // business_type (Business Context — Business Discovery & Dual Workspace
+  // directive): "SATU FIELD, SATU STATUS" yang menentukan versi mentor mana
+  // yang ditampilkan di seluruh platform. Kalau caller belum kirim eksplisit
+  // (jalur lama), turunkan dari stage seperti sebelumnya supaya tidak ada
+  // regresi — tapi caller baru (AddBusinessModal, promote-draft) sebaiknya
+  // selalu mengirim eksplisit.
+  const resolvedType = VALID_BUSINESS_TYPES.includes(businessType as string)
+    ? businessType
+    : stage === "idea" || stage === "starting"
+      ? "start"
+      : "grow";
 
   const { data: businessProfile, error } = await supabase
     .from("business_profiles")
@@ -30,6 +43,7 @@ export async function createBusiness(userId: string, payload: Record<string, unk
       business_name: businessName.trim(),
       industry: typeof industry === "string" && industry.trim() ? industry.trim() : null,
       business_stage: stage,
+      business_type: resolvedType,
     })
     .select("id")
     .single();

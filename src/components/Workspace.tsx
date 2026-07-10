@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage, fillTemplate, LOCALE_MAP } from "../i18n/LanguageContext";
 import { supabase } from "../lib/supabaseClient";
@@ -10,6 +9,16 @@ import BusinessUpdateModal from "./BusinessUpdateModal";
 import UpgradeModal from "./UpgradeModal";
 import type { Translations } from "../i18n/translations";
 import beemoMascot from "../assets/mascot/beemo.png";
+import {
+  WorkspaceCard,
+  SectionHeader,
+  WorkspaceSection,
+  RetryButton,
+  ErrorCard,
+  SkeletonCard,
+  UpgradeLockCard,
+  EmptyState,
+} from "./WorkspaceDesignSystem";
 
 type MenuKey =
   | "today"
@@ -32,6 +41,12 @@ type BusinessProfileRow = {
   id: string;
   business_name: string;
   industry: string | null;
+  // Business Context (Business Discovery & Dual Workspace directive) —
+  // "start" = usaha baru, "grow" = usaha yang sudah berjalan. Nullable
+  // karena pelanggan lama (sebelum migrasi business_type) belum punya
+  // nilai ini — fallback ke "grow" dilakukan di titik pemakaian, BUKAN
+  // ditebak di sini, supaya jelas mana data asli vs default.
+  business_type?: "start" | "grow" | null;
 };
 
 type AnalysisRow = {
@@ -192,237 +207,85 @@ function AccessStatusCard({
   );
 }
 
-function HistoryList({ analyses, t, lang }: { analyses: AnalysisRow[]; t: Translations; lang: "id" | "en" }) {
-  if (analyses.length === 0) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
-        <p className="text-neutral-400">{t.workspace.historyEmpty}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {analyses.map((item) => {
-        const namaBisnis = item.raw_input?.namaBisnis || t.workspace.historyUnnamedBusiness;
-        const jenisBisnis = item.raw_input?.jenisBisnis || "";
-        return (
-          <div
-            key={item.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface p-4"
-          >
-            <div>
-              <p className="font-semibold text-neutral-100">{namaBisnis}</p>
-              {jenisBisnis && <p className="text-xs text-neutral-500">{jenisBisnis}</p>}
-              <p className="mt-1 text-xs text-neutral-500">{formatDate(item.created_at, lang)}</p>
-            </div>
-            {item.is_baseline && (
-              <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs font-bold uppercase text-neutral-300">
-                {t.workspace.historyBaselineBadge}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// =====================================================================
-// WORKSPACE DESIGN SYSTEM — primitives bersama untuk SELURUH Workspace,
-// bukan cuma satu halaman. Today adalah referensi tokennya (radius 24/
-// 20/16/full, border white/10, warna semantik primary/hijau/amber/merah,
-// focus-visible ring, motion-reduce). Mulai dari Business Score, semua
-// halaman berikutnya (Report, Target, Competitor, Journey, History, Chat,
-// Settings) memakai primitives ini alih-alih menulis ulang kelas Tailwind
-// per halaman. Sengaja dibuat SEDIKIT komponen generik (dengan props/
-// variant) daripada banyak komponen spesifik-halaman.
-//
-// Prinsip performa (berlaku untuk semua primitive baru di bawah ini):
-// tanpa blur/backdrop-filter, tanpa shadow bertumpuk (border tipis dulu),
-// transform+opacity saja untuk animasi (bukan animasi layout), dan semua
-// tombol baru sengaja TIDAK pakai hover:scale (instant > animasi) kecuali
-// yang sudah ada di Today (frozen, tidak diutak-atik lagi).
-// =====================================================================
-
-type CardVariant = "hero" | "default" | "compact";
-type CardTone = "neutral" | "primary" | "success" | "warning" | "danger";
-
-const CARD_TONE_CLASSES: Record<CardTone, string> = {
-  neutral: "border-white/10 bg-surface",
-  primary: "border-primary/20 bg-primary/5",
-  success: "border-green-500/20 bg-green-500/5",
-  warning: "border-amber-500/20 bg-amber-500/5",
-  danger: "border-red-500/20 bg-red-500/5",
-};
-
-/** WorkspaceCard — SATU kartu generik untuk seluruh Workspace, bukan
- * kartu-per-halaman (BusinessScoreCard, ReportCard, dst). `variant`
- * mengatur radius+padding (hero = 24px, sepadan Mission Today; default =
- * 20px, sepadan kartu standar Today; compact = kartu kecil bersarang
- * seperti tile metrik/dimensi). `tone` mengatur warna aksen border/bg. */
-function WorkspaceCard({
-  variant = "default",
-  tone = "neutral",
-  className = "",
-  children,
-}: {
-  variant?: CardVariant;
-  tone?: CardTone;
-  className?: string;
-  children: ReactNode;
-}) {
-  const radius = variant === "hero" ? "rounded-3xl" : variant === "compact" ? "rounded-xl" : "rounded-[20px]";
-  const padding = variant === "hero" ? "p-8 sm:p-10" : variant === "compact" ? "p-4" : "p-6";
-  return <div className={`border ${radius} ${padding} ${CARD_TONE_CLASSES[tone]} ${className}`}>{children}</div>;
-}
-
-/** SectionHeader — identitas tiap halaman Workspace (judul + kalimat
- * singkat yang menjelaskan fungsi halaman). Dipasang sekali di atas
- * konten tiap halaman, dipakai ulang, bukan ditulis manual per halaman. */
-function SectionHeader({ title, description }: { title: string; description?: string }) {
-  return (
-    <div>
-      <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">{title}</h2>
-      {description && <p className="mt-1 text-sm leading-relaxed text-neutral-400">{description}</p>}
-    </div>
-  );
-}
-
-/** WorkspaceSection — pembungkus ritme vertikal (jarak antar section)
- * yang konsisten. Dipasang sekali per halaman membungkus SectionHeader +
- * seluruh konten di bawahnya, supaya spacing antar bagian tidak ditulis
- * manual berbeda-beda di tiap halaman. */
-function WorkspaceSection({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`space-y-6 ${className}`}>{children}</div>;
-}
-
-/** RetryButton — tombol retry generik, dipakai ErrorCard (dan bisa berdiri
- * sendiri kalau perlu). Sengaja instant (tanpa hover:scale) sesuai prinsip
- * performa baru: pilih instant daripada animasi kalau harus memilih. */
-function RetryButton({ label, onRetry }: { label: string; onRetry: () => void }) {
-  return (
-    <button
-      onClick={onRetry}
-      className="mt-5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black transition-colors duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-    >
-      {label}
-    </button>
-  );
-}
-
-/** ErrorCard — state error generik per-section (BUKAN reload seluruh
- * halaman). Setiap halaman yang fetch datanya sendiri-sendiri (Business
- * Score, Report, Target, dst) memakai kartu ini + retry yang cuma
- * memuat ulang data section itu saja, pola yang sama dengan yang sudah
- * dipakai di Today. */
-function ErrorCard({
-  title,
-  description,
-  retryLabel,
+/** History — menjawab satu pertanyaan: "apa saja yang sudah saya
+ * lakukan?" Murni membaca `analyses` yang sudah difetch di Workspace()
+ * (sumber sama dengan Report/Target) — error/retry-nya REUSE
+ * analysesError/reloadAnalyses, tidak ada fetch baru. */
+function HistoryList({
+  analyses,
+  t,
+  lang,
+  loading,
+  error,
   onRetry,
+  onOpenUpdateModal,
 }: {
-  title: string;
-  description: string;
-  retryLabel: string;
+  analyses: AnalysisRow[];
+  t: Translations;
+  lang: "id" | "en";
+  loading: boolean;
+  error: boolean;
   onRetry: () => void;
+  onOpenUpdateModal: () => void;
 }) {
   return (
-    <WorkspaceCard tone="danger" className="flex flex-col items-center text-center">
-      <div className="mb-1 text-2xl" aria-hidden="true">⚠️</div>
-      <p className="text-base font-bold text-neutral-100">{title}</p>
-      <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-neutral-400">{description}</p>
-      <RetryButton label={retryLabel} onRetry={onRetry} />
-    </WorkspaceCard>
-  );
-}
+    <WorkspaceSection>
+      <SectionHeader title={t.workspace.menuHistory} description={t.workspace.historySectionDesc} />
 
-/** SkeletonCard — pulse ringan (Tailwind `animate-pulse` bawaan, BUKAN
- * shimmer/gradient bergerak) menggantikan teks "Memuat..." polos yang
- * dipakai bersama oleh semua halaman non-Today. `motion-reduce:animate-none`
- * supaya pengguna reduced-motion melihat blok statis, bukan berkedip. */
-function SkeletonCard({ variant = "default", className = "" }: { variant?: CardVariant; className?: string }) {
-  const radius = variant === "hero" ? "rounded-3xl" : variant === "compact" ? "rounded-xl" : "rounded-[20px]";
-  const height = variant === "hero" ? "h-40" : variant === "compact" ? "h-16" : "h-24";
-  return (
-    <div
-      aria-hidden="true"
-      className={`animate-pulse motion-reduce:animate-none border border-white/10 bg-surface/60 ${radius} ${height} ${className}`}
-    />
-  );
-}
+      {error && !loading ? (
+        <ErrorCard
+          title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.menuHistory })}
+          description={t.workspace.workspaceSectionErrorDesc}
+          retryLabel={t.workspace.workspaceRetryButton}
+          onRetry={onRetry}
+        />
+      ) : loading ? (
+        <>
+          <SkeletonCard variant="default" />
+          <SkeletonCard variant="default" />
+          <SkeletonCard variant="default" />
+        </>
+      ) : analyses.length === 0 ? (
+        <EmptyState
+          variant="default"
+          icon="🗂️"
+          title={t.workspace.historyEmptyTitle}
+          description={t.workspace.historyEmpty}
+          ctaLabel={t.workspace.startAnalysisButton}
+          onCtaClick={() => hardNavigate("")}
+        />
+      ) : (
+        <>
+          <div className="space-y-3">
+            {analyses.map((item) => {
+              const namaBisnis = item.raw_input?.namaBisnis || t.workspace.historyUnnamedBusiness;
+              const jenisBisnis = item.raw_input?.jenisBisnis || "";
+              return (
+                <WorkspaceCard key={item.id} variant="compact" className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-neutral-100">{namaBisnis}</p>
+                    {jenisBisnis && <p className="text-xs text-neutral-500">{jenisBisnis}</p>}
+                    <p className="mt-1 text-xs text-neutral-500">{formatDate(item.created_at, lang)}</p>
+                  </div>
+                  {item.is_baseline && (
+                    <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs font-bold uppercase text-neutral-300">
+                      {t.workspace.historyBaselineBadge}
+                    </span>
+                  )}
+                </WorkspaceCard>
+              );
+            })}
+          </div>
 
-/** UpgradeLockCard — pola upsell Free-tier yang SEBELUMNYA cuma ada di
- * Competitor & Growth (ditulis manual 2x, identik persis). Sekarang jadi
- * satu komponen dipakai ulang di Competitor, Growth, DAN Business Score,
- * supaya Free tier selalu tahu kenapa sebuah bagian tersembunyi + selalu
- * dapat CTA upgrade yang jelas — bukan cuma bagian yang hilang diam-diam. */
-function UpgradeLockCard({
-  description,
-  buttonLabel,
-  onUpgradeClick,
-}: {
-  description: string;
-  buttonLabel: string;
-  onUpgradeClick: () => void;
-}) {
-  return (
-    <WorkspaceCard className="text-center">
-      <div className="mb-3 text-2xl" aria-hidden="true">🔒</div>
-      <p className="mx-auto max-w-sm text-sm text-neutral-400">{description}</p>
-      <RetryButton label={buttonLabel} onRetry={onUpgradeClick} />
-    </WorkspaceCard>
-  );
-}
-
-/** EmptyState — generalisasi dari ComingSoon lama: satu komponen untuk
- * SEMUA kondisi "belum ada data/fitur" di Workspace (Coming Soon penuh
- * halaman seperti Business Updates/Decision Journal, MAUPUN "belum ada
- * analisis" di tengah halaman Business Score, Target, dst). `variant`
- * "hero" = perlakuan penuh (dipakai Coming Soon, radius 24px, ikon
- * besar), "default" = kartu biasa di tengah halaman (radius 20px). CTA
- * opsional — kalau ada aksi nyata (mis. "Mulai Analisis"), kalau tidak
- * ada cukup `note` seperti sebelumnya. */
-function EmptyState({
-  variant = "hero",
-  icon = "🐝",
-  badge,
-  title,
-  description,
-  note,
-  ctaLabel,
-  onCtaClick,
-}: {
-  variant?: "hero" | "default";
-  icon?: string;
-  badge?: string;
-  title: string;
-  description: string;
-  note?: string;
-  ctaLabel?: string;
-  onCtaClick?: () => void;
-}) {
-  const isHero = variant === "hero";
-  return (
-    <WorkspaceCard variant={isHero ? "hero" : "default"} className="text-center">
-      <div
-        aria-hidden="true"
-        className={`mx-auto flex items-center justify-center rounded-2xl bg-primary/10 ${
-          isHero ? "h-16 w-16 text-3xl" : "h-12 w-12 text-2xl"
-        }`}
-      >
-        {icon}
-      </div>
-      {badge && (
-        <span className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary">
-          {badge}
-        </span>
+          {/* CTA penutup — pola sama seperti Target/Report/Journey. */}
+          <WorkspaceCard tone="primary" className="text-center">
+            <h3 className="mb-2 text-sm font-bold text-primary">{t.workspace.targetCtaTitle}</h3>
+            <p className="mx-auto max-w-md text-sm leading-relaxed text-neutral-300">{t.workspace.historyCtaDesc}</p>
+            <RetryButton label={t.workspace.updateBusinessButton} onRetry={onOpenUpdateModal} />
+          </WorkspaceCard>
+        </>
       )}
-      <p className={`mt-4 font-black text-white ${isHero ? "text-2xl" : "text-lg"}`}>{title}</p>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-neutral-400">{description}</p>
-      {note && <p className="mt-4 text-xs font-semibold text-neutral-600">{note}</p>}
-      {ctaLabel && onCtaClick && <RetryButton label={ctaLabel} onRetry={onCtaClick} />}
-    </WorkspaceCard>
+    </WorkspaceSection>
   );
 }
 
@@ -460,6 +323,7 @@ function BusinessScorePanel({
   preview,
   health,
   tier,
+  businessType,
   t,
   lang,
   loading,
@@ -470,6 +334,7 @@ function BusinessScorePanel({
   preview: PreviewOutput | null;
   health: { dimensions: Record<string, number> | null; overall: number | null };
   tier: Tier;
+  businessType: "start" | "grow";
   t: Translations;
   lang: "id" | "en";
   loading: boolean;
@@ -480,13 +345,22 @@ function BusinessScorePanel({
   const hasHealthData = health.overall !== null && health.dimensions !== null;
   const score = hasHealthData ? (health.overall as number) : preview?.businessHealthScore;
 
+  // Business Context: skor dan cara hitungnya SAMA PERSIS untuk start/grow
+  // (tidak ada logic baru) — yang berbeda HANYA judul & deskripsi halaman,
+  // supaya usaha yang belum buka membaca ini sebagai "seberapa siap saya
+  // membuka usaha ini", bukan "kesehatan bisnis" yang belum relevan buat
+  // mereka (arahan directive: "Business Score tetap ada, tapi konteksnya
+  // Kesiapan Membuka Usaha, bukan Kesehatan Bisnis").
+  const sectionTitle = businessType === "start" ? t.workspace.scoreSectionTitleStart : t.workspace.scoreSectionTitle;
+  const sectionDesc = businessType === "start" ? t.workspace.scoreSectionDescStart : t.workspace.scoreSectionDesc;
+
   // Identitas halaman — dipasang SEKALI di sini lewat SectionHeader,
   // dipakai juga oleh Report/Target/Competitor/dst berikutnya. Dibungkus
   // WorkspaceSection supaya jarak antar bagian konsisten tanpa spacing
   // manual per halaman.
   return (
     <WorkspaceSection>
-      <SectionHeader title={t.workspace.scoreSectionTitle} description={t.workspace.scoreSectionDesc} />
+      <SectionHeader title={sectionTitle} description={sectionDesc} />
 
       {/* Error state — retry HANYA memuat ulang Business Health (lihat
           reloadBusinessHealth di Workspace()), bukan reload seluruh
@@ -494,7 +368,7 @@ function BusinessScorePanel({
           data basi yang tampil diam-diam saat fetch gagal. */}
       {error && !loading ? (
         <ErrorCard
-          title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.scoreSectionTitle })}
+          title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: sectionTitle })}
           description={t.workspace.workspaceSectionErrorDesc}
           retryLabel={t.workspace.workspaceRetryButton}
           onRetry={onRetry}
@@ -963,34 +837,335 @@ function TargetPanel({
  * dibanding pesaing?" (siapa mereka, kekuatan mereka, peluang yang bisa
  * dimanfaatkan). SectionHeader menjelaskan pertanyaan itu di atas, supaya
  * pengguna langsung paham fungsi halaman ini WALAU datanya belum ada.
- * Free tetap terkunci total (upsell). PRO/PLATINUM: TIDAK ADA data
- * kompetitor sama sekali di backend saat ini (belum ada field apapun,
- * berbeda dari Target yang masih punya target teks + Business Score) —
- * jadi ini murni EmptyState "Coming Soon" yang jujur, BUKAN insight
- * kompetitor yang dikarang. Begitu Tahap B (analisa kompetitor) selesai,
- * tinggal ganti EmptyState ini dengan konten asli tanpa mengubah struktur
- * halaman. */
-function CompetitorPanel({ tier, t, onUpgradeClick }: { tier: Tier; t: Translations; onUpgradeClick: () => void }) {
-  return (
-    <WorkspaceSection>
-      <SectionHeader title={t.workspace.menuCompetitor} description={t.workspace.competitorSectionDesc} />
+ * Free tetap terkunci total (upsell).
+ *
+ * Master Product Directive Fase 2: Competitor bukan lagi halaman statis,
+ * tapi Engine sungguhan (services/competitor/*) — provider (Google Places/
+ * OpenStreetMap/Mock) -> normalizer -> Competitor Engine -> Opportunity
+ * Engine -> Recommendation Engine, semuanya dengan evidence, tidak ada
+ * insight yang dikarang. Kalau lokasi/industri bisnis belum lengkap, atau
+ * pipeline gagal, halaman ini menampilkan Empty/Error State yang jujur —
+ * BUKAN data kompetitor palsu. */
+type CompetitorRecordData = {
+  id: string;
+  name: string;
+  address: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+  category: string | null;
+  priceLevel: number | null;
+  distanceLabel: string | null;
+};
+type OpportunityData = {
+  id: string;
+  title: string;
+  businessValue: string;
+  difficulty: string;
+  impact: string;
+  priority: "critical" | "high" | "medium" | "low";
+  reason: string;
+  action: string;
+  source: string;
+  evidence: string;
+};
+type RecommendationData = {
+  id: string;
+  bucket: "today" | "this_week" | "this_month" | "next_90_days";
+  title: string;
+  reason: string;
+  action: string;
+  source: string;
+};
+type FormattedInsightData = {
+  id: string;
+  category: "market_position" | "strength" | "weakness" | "opportunity" | "recommendation";
+  categoryLabelId: string;
+  categoryLabelEn: string;
+  headline: string;
+  evidenceSummary: string;
+  evidenceDetail: string;
+  priority?: "critical" | "high" | "medium" | "low";
+  bucket?: "today" | "this_week" | "this_month" | "next_90_days";
+};
+type CompetitorAnalysisData = {
+  competitor: {
+    dataSource: "google_places" | "openstreetmap" | "mock";
+    marketSummary: { totalCompetitorsFound: number; averageRating: number | null; averageReviewCount: number | null };
+    competitors: CompetitorRecordData[];
+    marketPosition: "leader" | "competitive" | "developing" | "unknown";
+    marketPositionReason: string;
+    competitorStrengths: Array<{ text: string; evidence: string }>;
+    competitorWeaknesses: Array<{ text: string; evidence: string }>;
+    userStrengths: Array<{ text: string; evidence: string }>;
+    fetchedAt: string;
+  };
+  opportunities: OpportunityData[];
+  recommendations: RecommendationData[];
+  insights: FormattedInsightData[];
+};
 
-      {tier === "free" ? (
+const RECOMMENDATION_BUCKET_ORDER: RecommendationData["bucket"][] = [
+  "today",
+  "this_week",
+  "this_month",
+  "next_90_days",
+];
+
+function CompetitorPanel({
+  tier,
+  t,
+  lang,
+  onUpgradeClick,
+  data,
+  loading,
+  error,
+  notReadyMessage,
+  onRetry,
+}: {
+  tier: Tier;
+  t: Translations;
+  lang: "id" | "en";
+  onUpgradeClick: () => void;
+  data: CompetitorAnalysisData | null;
+  loading: boolean;
+  error: boolean;
+  notReadyMessage: string | null;
+  onRetry: () => void;
+}) {
+  if (tier === "free") {
+    return (
+      <WorkspaceSection>
+        <SectionHeader title={t.workspace.menuCompetitor} description={t.workspace.competitorSectionDesc} />
         <UpgradeLockCard
           description={t.workspace.competitorLockedDesc}
           buttonLabel={t.workspace.competitorUpgradeButton}
           onUpgradeClick={onUpgradeClick}
         />
-      ) : (
+      </WorkspaceSection>
+    );
+  }
+
+  if (loading) {
+    return (
+      <WorkspaceSection>
+        <SectionHeader title={t.workspace.menuCompetitor} description={t.workspace.competitorSectionDesc} />
+        <SkeletonCard />
+        <SkeletonCard />
+      </WorkspaceSection>
+    );
+  }
+
+  if (error) {
+    return (
+      <WorkspaceSection>
+        <SectionHeader title={t.workspace.menuCompetitor} description={t.workspace.competitorSectionDesc} />
+        <ErrorCard
+          title={t.workspace.workspaceSectionErrorTitle}
+          description={t.workspace.workspaceSectionErrorDesc}
+          retryLabel={t.workspace.workspaceRetryButton}
+          onRetry={onRetry}
+        />
+      </WorkspaceSection>
+    );
+  }
+
+  if (notReadyMessage) {
+    return (
+      <WorkspaceSection>
+        <SectionHeader title={t.workspace.menuCompetitor} description={t.workspace.competitorSectionDesc} />
+        <EmptyState variant="default" icon="🔍" title={t.workspace.competitorEmptyTitle} description={notReadyMessage} />
+      </WorkspaceSection>
+    );
+  }
+
+  if (!data) {
+    return (
+      <WorkspaceSection>
+        <SectionHeader title={t.workspace.menuCompetitor} description={t.workspace.competitorSectionDesc} />
         <EmptyState
           variant="default"
           icon="🔍"
-          badge={t.workspace.comingSoonBadge}
           title={t.workspace.competitorEmptyTitle}
           description={t.workspace.competitorProPlatinumMessage}
         />
+      </WorkspaceSection>
+    );
+  }
+
+  const { competitor, insights } = data;
+  const isMock = competitor.dataSource === "mock";
+
+  const marketPositionInsight = insights.find((i) => i.category === "market_position") || null;
+  const strengthInsights = insights.filter((i) => i.category === "strength");
+  const weaknessInsights = insights.filter((i) => i.category === "weakness");
+  const opportunityInsights = insights.filter((i) => i.category === "opportunity");
+  const recommendationInsights = insights.filter((i) => i.category === "recommendation");
+
+  return (
+    <WorkspaceSection>
+      <SectionHeader title={t.workspace.menuCompetitor} description={t.workspace.competitorSectionDesc} />
+
+      {isMock && (
+        <WorkspaceCard tone="warning">
+          <p className="text-sm font-semibold text-amber-300">{t.workspace.competitorMockDataBadge}</p>
+          <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.competitorMockDataDesc}</p>
+        </WorkspaceCard>
       )}
+
+      <WorkspaceCard>
+        <h3 className="mb-1 text-sm font-bold text-white">{t.workspace.competitorMarketSummaryTitle}</h3>
+        <p className="text-xs text-neutral-400">
+          {fillTemplate(t.workspace.competitorTotalFound, { count: String(competitor.marketSummary.totalCompetitorsFound) })}
+          {competitor.marketSummary.averageRating != null &&
+            ` · ${fillTemplate(t.workspace.competitorAverageRating, { rating: competitor.marketSummary.averageRating.toFixed(1) })}`}
+        </p>
+      </WorkspaceCard>
+
+      {marketPositionInsight && (
+        <InsightGroup
+          t={t}
+          title={lang === "id" ? marketPositionInsight.categoryLabelId : marketPositionInsight.categoryLabelEn}
+          insightList={[marketPositionInsight]}
+          lang={lang}
+        />
+      )}
+
+      {competitor.competitors.length > 0 && (
+        <WorkspaceCard>
+          <h3 className="mb-3 text-sm font-bold text-white">{t.workspace.competitorListTitle}</h3>
+          <div className="space-y-2">
+            {competitor.competitors.slice(0, 8).map((c) => (
+              <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">{c.name}</p>
+                  {c.address && <p className="text-xs text-neutral-500">{c.address}</p>}
+                </div>
+                <div className="text-right text-xs text-neutral-400">
+                  {c.rating != null ? `${c.rating}★` : t.workspace.competitorNoRatingData}
+                  {c.reviewCount != null && ` · ${c.reviewCount} ${t.workspace.competitorReviewsLabel}`}
+                </div>
+              </div>
+            ))}
+          </div>
+        </WorkspaceCard>
+      )}
+
+      {strengthInsights.length > 0 && (
+        <InsightGroup t={t} title={lang === "id" ? strengthInsights[0].categoryLabelId : strengthInsights[0].categoryLabelEn} insightList={strengthInsights} lang={lang} tone="success" />
+      )}
+
+      {weaknessInsights.length > 0 && (
+        <InsightGroup t={t} title={lang === "id" ? weaknessInsights[0].categoryLabelId : weaknessInsights[0].categoryLabelEn} insightList={weaknessInsights} lang={lang} />
+      )}
+
+      {opportunityInsights.length > 0 && (
+        <InsightGroup t={t} title={lang === "id" ? opportunityInsights[0].categoryLabelId : opportunityInsights[0].categoryLabelEn} insightList={opportunityInsights} lang={lang} showPriority />
+      )}
+
+      {recommendationInsights.length > 0 && (
+        <WorkspaceCard>
+          <h3 className="mb-3 text-sm font-bold text-white">{lang === "id" ? recommendationInsights[0].categoryLabelId : recommendationInsights[0].categoryLabelEn}</h3>
+          <div className="space-y-4">
+            {RECOMMENDATION_BUCKET_ORDER.filter((bucket) => recommendationInsights.some((r) => r.bucket === bucket)).map((bucket) => {
+              const bucketLabelMap: Record<RecommendationData["bucket"], string> = {
+                today: t.workspace.competitorBucketToday,
+                this_week: t.workspace.competitorBucketThisWeek,
+                this_month: t.workspace.competitorBucketThisMonth,
+                next_90_days: t.workspace.competitorBucketNext90Days,
+              };
+              return (
+                <div key={bucket}>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">{bucketLabelMap[bucket]}</p>
+                  <InsightList t={t} insightList={recommendationInsights.filter((r) => r.bucket === bucket)} lang={lang} />
+                </div>
+              );
+            })}
+          </div>
+        </WorkspaceCard>
+      )}
+
+      <p className="text-center text-[11px] text-neutral-600">
+        {fillTemplate(t.workspace.competitorLastUpdated, { date: new Date(competitor.fetchedAt).toLocaleDateString(lang === "id" ? "id-ID" : "en-US") })}
+      </p>
     </WorkspaceSection>
+  );
+}
+
+const INSIGHT_PRIORITY_LABEL: Record<NonNullable<FormattedInsightData["priority"]>, keyof Translations["workspace"]> = {
+  critical: "competitorPriorityCritical",
+  high: "competitorPriorityHigh",
+  medium: "competitorPriorityMedium",
+  low: "competitorPriorityLow",
+};
+
+const INSIGHT_PRIORITY_STYLE: Record<NonNullable<FormattedInsightData["priority"]>, string> = {
+  critical: "bg-red-500/15 text-red-300",
+  high: "bg-amber-500/15 text-amber-300",
+  medium: "bg-primary/15 text-primary",
+  low: "bg-white/10 text-neutral-400",
+};
+
+/** Satu insight: kalimat manusia dulu (headline), lalu tombol "Lihat Data
+ * Pendukung" yang membuka evidence mentah — supaya tampilan utama selalu
+ * bahasa sederhana (arahan directive §BAHASA), sementara evidence tetap
+ * bisa diverifikasi pengguna yang penasaran, tidak disembunyikan permanen. */
+function InsightItem({ t, insight, showPriority }: { t: Translations; insight: FormattedInsightData; showPriority?: boolean }) {
+  const [showEvidence, setShowEvidence] = useState(false);
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+      {showPriority && insight.priority && (
+        <span className={"mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold " + INSIGHT_PRIORITY_STYLE[insight.priority]}>
+          {t.workspace[INSIGHT_PRIORITY_LABEL[insight.priority]]}
+        </span>
+      )}
+      <p className="text-sm leading-relaxed text-neutral-200">{insight.headline}</p>
+      <button
+        onClick={() => setShowEvidence((v) => !v)}
+        className="mt-2 text-xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+      >
+        {showEvidence ? t.workspace.competitorHideEvidence : t.workspace.competitorShowEvidence}
+      </button>
+      {showEvidence && <p className="mt-2 text-xs leading-relaxed text-neutral-500">{insight.evidenceDetail}</p>}
+    </div>
+  );
+}
+
+function InsightList({ t, insightList, lang }: { t: Translations; insightList: FormattedInsightData[]; lang: "id" | "en" }) {
+  void lang;
+  return (
+    <div className="space-y-2">
+      {insightList.map((insight) => (
+        <InsightItem key={insight.id} t={t} insight={insight} showPriority={insight.category === "opportunity"} />
+      ))}
+    </div>
+  );
+}
+
+function InsightGroup({
+  t,
+  title,
+  insightList,
+  lang,
+  tone,
+  showPriority,
+}: {
+  t: Translations;
+  title: string;
+  insightList: FormattedInsightData[];
+  lang: "id" | "en";
+  tone?: "success";
+  showPriority?: boolean;
+}) {
+  void lang;
+  return (
+    <WorkspaceCard tone={tone}>
+      <h3 className="mb-3 text-sm font-bold text-white">{title}</h3>
+      <div className="space-y-2">
+        {insightList.map((insight) => (
+          <InsightItem key={insight.id} t={t} insight={insight} showPriority={showPriority} />
+        ))}
+      </div>
+    </WorkspaceCard>
   );
 }
 
@@ -1399,6 +1574,203 @@ function GrowthPanel({
   );
 }
 
+/** Settings — menjawab satu pertanyaan: "bagaimana saya mengatur Workspace
+ * dan akun saya?" Murni konsolidasi UI dari aksi/data yang SUDAH ADA di
+ * tempat lain (AccessStatusCard, dropdown header untuk Keluar/Hapus Bisnis,
+ * setLang dari LanguageContext, ringkasan Business Score/Update/Achievement
+ * yang sudah difetch Workspace()) — bukan fitur baru, tidak ada logic atau
+ * fetch baru. Field yang TIDAK ada di data model (lokasi bisnis, status
+ * bisnis, tanggal mulai membership) sengaja TIDAK ditampilkan, bukan
+ * dikarang — konsisten dengan aturan data-honesty yang sama dipakai di
+ * Target Hero Card. Edit Profil/ubah password/dll belum ada, jadi CTA-nya
+ * jujur "Segera Hadir", bukan editor palsu. */
+function SettingsPanel({
+  t,
+  lang,
+  setLang,
+  activeBusiness,
+  membership,
+  tier,
+  businessHealth,
+  updateHistory,
+  achievements,
+  progressData,
+  onUpgradeClick,
+  onSignOut,
+  onDeleteBusiness,
+}: {
+  t: Translations;
+  lang: "id" | "en";
+  setLang: (lang: "id" | "en") => void;
+  activeBusiness: BusinessProfileRow | null;
+  membership: Membership | null;
+  tier: Tier;
+  businessHealth: { dimensions: Record<string, number> | null; overall: number | null };
+  updateHistory: Array<Record<string, unknown>>;
+  achievements: { unlocked: Array<Record<string, unknown>>; nextMilestone: Record<string, unknown> | null };
+  progressData: {
+    journey: { baselineScore: number; currentScore: number; delta: number } | null;
+    period: { previousScore: number; currentScore: number; delta: number } | null;
+  };
+  onUpgradeClick: () => void;
+  onSignOut: () => void;
+  onDeleteBusiness: () => void;
+}) {
+  const latestUpdate = [...updateHistory].sort(
+    (a, b) => new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime()
+  )[0];
+
+  return (
+    <WorkspaceSection>
+      <SectionHeader title={t.workspace.menuSettings} description={t.workspace.settingsSectionDesc} />
+
+      <WorkspaceCard>
+        <h3 className="mb-4 text-sm font-bold text-neutral-200">{t.workspace.settingsProfileTitle}</h3>
+        {activeBusiness ? (
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-base font-bold text-white">{activeBusiness.business_name}</p>
+              <p className="mt-1 text-xs text-neutral-500">
+                {t.workspace.settingsProfileIndustryLabel}: {activeBusiness.industry || t.workspace.settingsProfileIndustryEmpty}
+              </p>
+            </div>
+            <button
+              disabled
+              className="cursor-not-allowed rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-neutral-500"
+            >
+              {t.workspace.settingsEditProfileButton}
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-neutral-500">{t.workspace.settingsProfileIndustryEmpty}</p>
+        )}
+      </WorkspaceCard>
+
+      <WorkspaceCard>
+        <h3 className="mb-1 text-sm font-bold text-neutral-200">{t.workspace.settingsMembershipTitle}</h3>
+        <p className="mb-4 text-xs italic text-neutral-500">
+          {tier === "platinum"
+            ? t.workspace.membershipTaglinePlatinum
+            : tier === "pro"
+              ? t.workspace.membershipTaglinePro
+              : t.workspace.membershipTaglineFree}
+        </p>
+        <AccessStatusCard membership={membership} t={t} lang={lang} />
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{t.workspace.settingsMembershipTierLabel}</p>
+            <p className="mt-1 text-sm font-bold text-white">{(membership?.tier || "free").toUpperCase()}</p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{t.workspace.settingsMembershipStatusLabel}</p>
+            <p className="mt-1 text-sm font-bold text-white">
+              {!membership || membership.status === "free"
+                ? t.workspace.settingsMembershipStatusFree
+                : membership.status === "expired"
+                  ? t.workspace.settingsMembershipStatusExpired
+                  : t.workspace.settingsMembershipStatusActive}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{t.workspace.settingsMembershipExpiresLabel}</p>
+            <p className="mt-1 text-sm font-bold text-white">
+              {membership?.expiresAt ? formatDate(membership.expiresAt, lang) : t.workspace.settingsMembershipNoExpiry}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4">
+          {tier === "platinum" ? (
+            <span className="inline-flex items-center rounded-full bg-purple-500/15 px-4 py-2 text-xs font-bold text-purple-300">
+              {t.workspace.settingsMembershipActiveBadge}
+            </span>
+          ) : (
+            <RetryButton
+              label={tier === "pro" ? t.workspace.settingsUpgradeToPlatinum : t.workspace.settingsUpgradeViewPlans}
+              onRetry={onUpgradeClick}
+            />
+          )}
+        </div>
+      </WorkspaceCard>
+
+      <WorkspaceCard>
+        <h3 className="mb-1 text-sm font-bold text-neutral-200">{t.workspace.settingsLanguageTitle}</h3>
+        <p className="mb-4 text-xs text-neutral-500">{t.workspace.settingsLanguageDesc}</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setLang("id")}
+            aria-pressed={lang === "id"}
+            className={
+              "rounded-full px-4 py-2.5 text-xs font-bold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black " +
+              (lang === "id" ? "bg-primary text-black" : "border border-white/15 text-neutral-300 hover:text-white")
+            }
+          >
+            {t.workspace.settingsLangIndonesian}
+          </button>
+          <button
+            onClick={() => setLang("en")}
+            aria-pressed={lang === "en"}
+            className={
+              "rounded-full px-4 py-2.5 text-xs font-bold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black " +
+              (lang === "en" ? "bg-primary text-black" : "border border-white/15 text-neutral-300 hover:text-white")
+            }
+          >
+            {t.workspace.settingsLangEnglish}
+          </button>
+        </div>
+      </WorkspaceCard>
+
+      <WorkspaceCard>
+        <h3 className="mb-4 text-sm font-bold text-neutral-200">{t.workspace.settingsWorkspaceTitle}</h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{t.workspace.settingsWorkspaceScoreLabel}</p>
+            <p className="mt-1 text-lg font-bold text-white">
+              {businessHealth.overall != null ? Math.round(businessHealth.overall) : t.workspace.settingsWorkspaceScoreEmpty}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{t.workspace.settingsWorkspaceJourneyLabel}</p>
+            <p className="mt-1 text-lg font-bold text-white">
+              {progressData.journey ? Math.round(progressData.journey.currentScore) : t.workspace.settingsWorkspaceJourneyEmpty}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{t.workspace.settingsWorkspaceUpdateLabel}</p>
+            <p className="mt-1 text-lg font-bold text-white">
+              {latestUpdate ? formatDate(latestUpdate.created_at as string, lang) : t.workspace.settingsWorkspaceUpdateEmpty}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{t.workspace.settingsWorkspaceUpdateCountLabel}</p>
+            <p className="mt-1 text-lg font-bold text-white">{updateHistory.length}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{t.workspace.settingsWorkspaceAchievementLabel}</p>
+            <p className="mt-1 text-lg font-bold text-white">{achievements.unlocked.length}</p>
+          </div>
+        </div>
+      </WorkspaceCard>
+
+      <WorkspaceCard>
+        <h3 className="mb-4 text-sm font-bold text-neutral-200">{t.workspace.settingsSecurityTitle}</h3>
+        <RetryButton label={t.workspace.signOutButton} onRetry={onSignOut} />
+      </WorkspaceCard>
+
+      {activeBusiness && (
+        <WorkspaceCard tone="danger">
+          <h3 className="mb-4 text-sm font-bold text-neutral-200">{t.workspace.settingsAccountTitle}</h3>
+          <button
+            onClick={onDeleteBusiness}
+            className="rounded-full bg-red-500/15 px-4 py-2.5 text-xs font-bold text-red-300 transition-colors duration-150 hover:bg-red-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          >
+            {t.workspace.deleteBusinessButton}
+          </button>
+        </WorkspaceCard>
+      )}
+    </WorkspaceSection>
+  );
+}
+
 /** Business Pulse — bukan skor baru, bukan chart. Ambang sederhana atas
  * data yang sudah dihitung Business Engine (lihat services/today/computeSnapshot.ts
  * §4.2 dokumen arsitektur). Warna & kalimat dipilih dari `pulseLevel`, satu-
@@ -1441,6 +1813,32 @@ function pulseSubheadlineText(t: Translations, level: "preparation" | "stable" |
         : t.workspace.todaySubheadlinePreparation;
 }
 
+// Living Business Loop: label tampilan untuk stageDetail granular dari Stage
+// Engine (services/stage/determineStage.ts) — murni lookup i18n, TIDAK ada
+// logic penentuan stage di frontend (itu semua di backend, berbasis event).
+function stageDetailLabel(t: Translations, stageDetail: string): string {
+  const map: Record<string, string> = {
+    idea: t.workspace.stageDetailIdea,
+    validasi: t.workspace.stageDetailValidasi,
+    persiapan: t.workspace.stageDetailPersiapan,
+    supplier: t.workspace.stageDetailSupplier,
+    legalitas: t.workspace.stageDetailLegalitas,
+    branding: t.workspace.stageDetailBranding,
+    marketing: t.workspace.stageDetailMarketing,
+    soft_opening: t.workspace.stageDetailSoftOpening,
+    grand_opening: t.workspace.stageDetailGrandOpening,
+    operasional: t.workspace.stageDetailOperasional,
+    growth: t.workspace.stageDetailGrowth,
+    stabil: t.workspace.stageDetailStabil,
+    bertumbuh: t.workspace.stageDetailBertumbuh,
+    optimasi: t.workspace.stageDetailOptimasi,
+    ekspansi: t.workspace.stageDetailEkspansi,
+    scale: t.workspace.stageDetailScale,
+    systemize: t.workspace.stageDetailSystemize,
+  };
+  return map[stageDetail] || stageDetail;
+}
+
 function greetingPrefix(t: Translations): string {
   const hour = new Date().getHours();
   if (hour < 11) return t.workspace.todayGreetingMorning;
@@ -1449,10 +1847,14 @@ function greetingPrefix(t: Translations): string {
   return t.workspace.todayGreetingNight;
 }
 
-type RuleItem = { key: string; params?: Record<string, string | number> };
+type RuleItem = { key: string; params?: Record<string, string | number>; whyKey?: string };
 
 type TodaySnapshotPayload = {
   stageGroup: "preparation" | "running";
+  // Living Business Loop: stage rinci (11 langkah start / 6 langkah grow)
+  // dari Stage Engine — string bebas (bukan union ketat di FE) supaya daftar
+  // stage bisa berkembang tanpa menyentuh tipe frontend setiap kali.
+  stageDetail: string;
   pulseLevel: "preparation" | "stable" | "attention" | "action_required";
   pulseReasons: Array<{ key: string; params?: Record<string, string | number> }>;
   score: number | null;
@@ -1469,9 +1871,45 @@ type TodaySnapshotPayload = {
   opportunity: RuleItem | null;
   whatChanged: Array<{ dimension: string; delta: number }> | null;
   nextMilestone: { titleId: string; titleEn: string; remaining: number; unitId: string; unitEn: string } | null;
+  // Business OS Engine — peluang bersumber Competitor Engine (Evidence/
+  // Reason/Action teks bebas per-kompetitor, pengecualian yang sudah
+  // dijustifikasi sejak Living Business Loop) + target minggu/bulan ini.
+  competitorOpportunity: { title: string; reason: string; action: string; evidence: string } | null;
+  targetThisWeek: string | null;
+  targetThisMonth: string | null;
 };
 
-const PREPARATION_CHECKLIST_KEYS = ["prep1", "prep2", "prep3", "prep4", "prep5", "prep6"] as const;
+// Business OS Engine — Weekly Review: rekap rule-based 7-hari-berjalan,
+// di-cache backend (business_weekly_review), murni ditampilkan di sini.
+type WeeklyReviewPayload = {
+  weekStart: string;
+  weekEnd: string;
+  targetsCompleted: number;
+  decisionsMade: number;
+  scoreDelta: number | null;
+  newOpportunities: number;
+  newRisks: number;
+};
+
+// Urutan ini mengikuti directive "Business Discovery & Dual Workspace" —
+// mission mentor membuka usaha (Cari supplier -> Pelajari regulasi ->
+// Analisa lokasi -> Bandingkan franchise -> Hitung modal -> Google Business
+// -> nama/logo -> Soft Opening -> Grand Opening -> harga jual). Ini panduan
+// umum yang berlaku untuk semua jenis usaha baru — bukan data yang dikarang
+// spesifik untuk satu bisnis (data honesty tetap utuh: ini saran langkah,
+// bukan klaim fakta).
+const PREPARATION_CHECKLIST_KEYS = [
+  "prep1",
+  "prep2",
+  "prep3",
+  "prep4",
+  "prep5",
+  "prep6",
+  "prep7",
+  "prep8",
+  "prep9",
+  "prep10",
+] as const;
 const RUNNING_CHECKLIST_KEYS = ["run1", "run2", "run3", "run4", "run5"] as const;
 
 function checklistLabel(t: Translations, key: string): string {
@@ -1482,6 +1920,10 @@ function checklistLabel(t: Translations, key: string): string {
     prep4: t.workspace.todayChecklistPrep4,
     prep5: t.workspace.todayChecklistPrep5,
     prep6: t.workspace.todayChecklistPrep6,
+    prep7: t.workspace.todayChecklistPrep7,
+    prep8: t.workspace.todayChecklistPrep8,
+    prep9: t.workspace.todayChecklistPrep9,
+    prep10: t.workspace.todayChecklistPrep10,
     run1: t.workspace.todayChecklistRun1,
     run2: t.workspace.todayChecklistRun2,
     run3: t.workspace.todayChecklistRun3,
@@ -1500,6 +1942,7 @@ function checklistLabel(t: Translations, key: string): string {
 function TodayPanel({
   t,
   lang,
+  businessProfileId,
   snapshot,
   snapshotLoading,
   snapshotError,
@@ -1507,9 +1950,14 @@ function TodayPanel({
   onOpenUpdateModal,
   onNavigateToInsights,
   onOpenChat,
+  onOpenCompetitor,
+  onOpenDecisions,
+  onOpenTarget,
+  weeklyReview,
 }: {
   t: Translations;
   lang: "id" | "en";
+  businessProfileId: string;
   snapshot: TodaySnapshotPayload | null;
   snapshotLoading: boolean;
   snapshotError: boolean;
@@ -1517,21 +1965,101 @@ function TodayPanel({
   onOpenUpdateModal: () => void;
   onNavigateToInsights: () => void;
   onOpenChat: () => void;
+  // Business OS Engine: cross-linking — Today jadi "satu cerita terhubung"
+  // (Mission/Peluang/Keputusan bisa diklik menuju halaman terkait), BUKAN
+  // UI/halaman baru — hanya navigasi ke tab yang sudah ada.
+  onOpenCompetitor: () => void;
+  onOpenDecisions: () => void;
+  onOpenTarget: () => void;
+  weeklyReview: WeeklyReviewPayload | null;
 }) {
-  // Checklist & tombol "Tandai Selesai" di sini SENGAJA hanya state lokal
-  // (per sesi, hilang saat reload) — belum ada tabel checklist tersimpan
-  // (itu Fase 2 "Mission Today" di roadmap). Diberi catatan kecil di UI
-  // supaya jujur ke pengguna, bukan berpura-pura sudah persisten.
+  const { session } = useAuth();
   const [missionDone, setMissionDone] = useState(false);
+  // Living Business Loop: checklist SEKARANG persisten di backend
+  // (business_checklist_progress) — dimuat sekali per bisnis, dan setiap
+  // toggle memicu Today Snapshot forceRecompute (Stage/Mission ikut
+  // berubah), bukan lagi state lokal yang hilang saat reload.
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  const [expandedWhy, setExpandedWhy] = useState<Set<number>>(new Set());
 
-  function toggleChecklistItem(key: string) {
+  useEffect(() => {
+    let cancelled = false;
+    async function loadChecklistProgress() {
+      if (!businessProfileId || !session?.access_token) return;
+      try {
+        const response = await fetch("/api/workspace", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ action: "getChecklistProgress", businessProfileId }),
+        });
+        const json = await response.json();
+        if (!cancelled && response.ok) {
+          setCheckedItems(new Set((json.completedKeys as string[]) || []));
+        }
+      } catch (err) {
+        console.error("getChecklistProgress error:", err);
+      }
+    }
+    loadChecklistProgress();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessProfileId, session?.access_token]);
+
+  async function toggleChecklistItem(key: string) {
+    const wasCompleted = checkedItems.has(key);
     setCheckedItems((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
+
+    if (!session?.access_token) return;
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "toggleChecklistItem", businessProfileId, itemKey: key, completed: !wasCompleted }),
+      });
+      if (response.ok) {
+        // Event Pipeline: checklist ikut memicu Stage/Mission recompute di
+        // backend — muat ulang snapshot supaya Workspace ikut berubah SAAT
+        // ITU JUGA, bukan menunggu buka halaman lain.
+        onRetrySnapshot();
+      } else {
+        // Gagal tersimpan di server — kembalikan tampilan ke kondisi semula
+        // supaya tidak menampilkan status yang tidak benar-benar tersimpan.
+        setCheckedItems((prev) => {
+          const next = new Set(prev);
+          if (wasCompleted) next.add(key);
+          else next.delete(key);
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error("toggleChecklistItem error:", err);
+    }
+  }
+
+  function toggleWhy(index: number) {
+    setExpandedWhy((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function whyText(item: { whyKey?: string; params?: Record<string, string | number> }): string | null {
+    if (!item.whyKey) return null;
+    const template = (t.workspace as unknown as Record<string, string>)[item.whyKey];
+    if (!template) return null;
+    const params = { ...item.params };
+    if (params.dimension) {
+      params.dimension = DIMENSION_LABELS[params.dimension as string]?.[lang] || (params.dimension as string);
+    }
+    return item.params ? fillTemplate(template, params) : template;
   }
 
   // Error state — kalau getTodaySnapshot gagal dimuat, JANGAN diam di
@@ -1620,9 +2148,19 @@ function TodayPanel({
         ? t.workspace.todayFocusStartFirstUpdate
         : item.key === "fillBusinessUpdate"
           ? t.workspace.todayFocusFillBusinessUpdate
-          : item.key === "focusWeakDimension"
-            ? t.workspace.todayFocusWeakDimension
-            : t.workspace.todayFocusKeepGoing;
+          : item.key === "inactivityWarning"
+            ? t.workspace.todayFocusInactivityWarning
+            : item.key === "celebrateAchievement"
+              ? t.workspace.todayFocusCelebrateAchievement
+              : item.key === "decisionFollowUp"
+                ? t.workspace.todayFocusDecisionFollowUp
+                : item.key === "targetStalled"
+                  ? t.workspace.todayFocusTargetStalled
+                  : item.key === "newCompetitorDetected"
+                    ? t.workspace.todayFocusNewCompetitorDetected
+                    : item.key === "focusWeakDimension"
+                      ? t.workspace.todayFocusWeakDimension
+                      : t.workspace.todayFocusKeepGoing;
     return fillTemplate(template, params);
   }
 
@@ -1976,18 +2514,118 @@ function TodayPanel({
                   const levelLabel =
                     i === 0 ? t.workspace.todayPriorityHigh : i === 1 ? t.workspace.todayPriorityMedium : t.workspace.todayPriorityLow;
                   const borderColor = i === 0 ? "border-l-red-400" : i === 1 ? "border-l-amber-400" : "border-l-green-400";
+                  const why = whyText(p);
+                  const isExpanded = expandedWhy.has(i);
+                  // Business OS Engine — cross-linking: item Mission/Prioritas
+                  // yang berkaitan dengan halaman lain bisa diklik langsung
+                  // menuju sana ("satu cerita terhubung"), bukan cuma teks.
+                  const crossLink =
+                    p.key === "decisionFollowUp"
+                      ? onOpenDecisions
+                      : p.key === "newCompetitorDetected"
+                        ? onOpenCompetitor
+                        : p.key === "targetStalled"
+                          ? onOpenTarget
+                          : null;
                   return (
-                    <div key={i} className={`flex items-start gap-4 rounded-xl border-l-4 bg-white/[0.03] p-4 ${borderColor}`}>
-                      <span className="text-lg font-black text-neutral-600">{i + 1}</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-white">{priorityText(p)}</p>
-                        <span className="mt-1 inline-block text-[11px] font-bold uppercase tracking-wide text-neutral-500">
-                          {levelLabel}
-                        </span>
+                    <div
+                      key={i}
+                      onClick={crossLink || undefined}
+                      role={crossLink ? "button" : undefined}
+                      tabIndex={crossLink ? 0 : undefined}
+                      onKeyDown={
+                        crossLink
+                          ? (e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                crossLink();
+                              }
+                            }
+                          : undefined
+                      }
+                      className={`rounded-xl border-l-4 bg-white/[0.03] p-4 ${borderColor} ${
+                        crossLink ? "cursor-pointer transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70" : ""
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <span className="text-lg font-black text-neutral-600">{i + 1}</span>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-white">{priorityText(p)}</p>
+                          <span className="mt-1 inline-block text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+                            {levelLabel}
+                          </span>
+                          {/* Why Card (directive "CONTINUE — LIVING BUSINESS LOOP"):
+                              penjelasan "mengapa ini penting" — bukan cuma daftar
+                              tugas, supaya Workspace terasa seperti mentor yang
+                              menjelaskan, bukan aplikasi checklist. */}
+                          {why && (
+                            <div className="mt-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleWhy(i);
+                                }}
+                                className="text-[11px] font-semibold text-primary hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                              >
+                                {isExpanded ? t.workspace.todayWhyCardHide : t.workspace.todayWhyCardShow}
+                              </button>
+                              {isExpanded && (
+                                <p className="mt-2 text-xs leading-relaxed text-neutral-400">{why}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Weekly Review (Business OS Engine) — rekap rule-based 7-hari-
+              berjalan, di-cache backend (business_weekly_review). Angka
+              JUJUR: score-delta null ditampilkan sebagai "-", bukan 0 palsu,
+              kalau data pembanding belum cukup. */}
+          {weeklyReview && (
+            <div className="rounded-[20px] border border-white/10 bg-surface p-6">
+              <h3 className="mb-1 text-sm font-bold text-neutral-100">{t.workspace.weeklyReviewTitle}</h3>
+              <p className="mb-4 text-xs text-neutral-500">
+                {fillTemplate(t.workspace.weeklyReviewRange, { start: weeklyReview.weekStart, end: weeklyReview.weekEnd })}
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
+                  <p className="text-lg font-black text-white">{weeklyReview.targetsCompleted}</p>
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                    {t.workspace.weeklyReviewTargetsCompleted}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
+                  <p className="text-lg font-black text-white">{weeklyReview.decisionsMade}</p>
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                    {t.workspace.weeklyReviewDecisionsMade}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
+                  <p className={`text-lg font-black ${(weeklyReview.scoreDelta ?? 0) > 0 ? "text-green-400" : (weeklyReview.scoreDelta ?? 0) < 0 ? "text-red-400" : "text-white"}`}>
+                    {weeklyReview.scoreDelta === null ? "-" : weeklyReview.scoreDelta > 0 ? `+${weeklyReview.scoreDelta}` : weeklyReview.scoreDelta}
+                  </p>
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                    {t.workspace.weeklyReviewScoreDelta}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
+                  <p className="text-lg font-black text-white">{weeklyReview.newOpportunities}</p>
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                    {t.workspace.weeklyReviewNewOpportunities}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
+                  <p className="text-lg font-black text-white">{weeklyReview.newRisks}</p>
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                    {t.workspace.weeklyReviewNewRisks}
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -2086,12 +2724,32 @@ function TodayPanel({
                 </span>
                 <h3 className="text-sm font-bold text-neutral-100">{t.workspace.todayOpportunityTitle}</h3>
               </div>
-              <p className="text-sm leading-relaxed text-neutral-300">
-                {opportunityText(snapshot.opportunity) || t.workspace.opportunityGeneric}
-              </p>
-              <button onClick={onNavigateToInsights} className="mt-4 rounded text-xs font-semibold text-green-400 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400/70">
-                {t.workspace.todayOpportunityCta}
-              </button>
+              {/* Business OS Engine: kalau ada peluang bersumber Competitor
+                  Engine (contoh PO: "Kompetitor baru belum memiliki Google
+                  Business"), utamakan itu — teksnya memang bebas per-
+                  kompetitor (exception yang sudah dijustifikasi), dan CTA-nya
+                  menuju halaman Competitor (cross-link), bukan Insights. */}
+              {snapshot.competitorOpportunity ? (
+                <>
+                  <p className="text-sm font-semibold text-neutral-100">{snapshot.competitorOpportunity.title}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-neutral-300">{snapshot.competitorOpportunity.reason}</p>
+                  <button
+                    onClick={onOpenCompetitor}
+                    className="mt-4 rounded text-xs font-semibold text-green-400 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400/70"
+                  >
+                    {t.workspace.todayOpportunityCta}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm leading-relaxed text-neutral-300">
+                    {opportunityText(snapshot.opportunity) || t.workspace.opportunityGeneric}
+                  </p>
+                  <button onClick={onNavigateToInsights} className="mt-4 rounded text-xs font-semibold text-green-400 hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400/70">
+                    {t.workspace.todayOpportunityCta}
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -2283,7 +2941,7 @@ function MenuIcon({ name }: { name: MenuKey }) {
 
 function Workspace() {
   const { user, session, loading, signOut } = useAuth();
-  const { t, lang } = useLanguage();
+  const { t, lang, setLang } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("today");
   const [businesses, setBusinesses] = useState<BusinessProfileRow[]>([]);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
@@ -2331,12 +2989,35 @@ function Workspace() {
   // state gabungan karena Timeline butuh KEDUA sumber ini sekaligus.
   const [updateHistoryError, setUpdateHistoryError] = useState(false);
   const [achievementsError, setAchievementsError] = useState(false);
+  // Business Memory (Master Product Directive, Fase 1) — fakta yang
+  // diusulkan Beemo lewat Chat dan masih menunggu persetujuan pemilik
+  // bisnis. Dimuat saat tab Chat Beemo dibuka, pola sama dengan
+  // achievements di Growth.
+  const [pendingMemoryFacts, setPendingMemoryFacts] = useState<
+    Array<{ id: string; factKey: string; factValue: unknown; proposedAt: string }>
+  >([]);
+  const [pendingMemoryFactsLoading, setPendingMemoryFactsLoading] = useState(false);
+  const [pendingMemoryFactsError, setPendingMemoryFactsError] = useState(false);
+  const [reviewingFactId, setReviewingFactId] = useState<string | null>(null);
+  // Competitor Engine (Master Product Directive, Fase 2) — dimuat saat tab
+  // Competitor dibuka, pola sama dengan loadAchievements/loadPendingMemoryFacts.
+  // null = belum dimuat/tidak ada data; competitorAnalysisNotReady membedakan
+  // "gagal memuat" (error, bisa dicoba lagi) dari "belum lengkap datanya"
+  // (lokasi/industri belum ada — bukan error, jangan tampilkan sebagai error).
+  const [competitorAnalysis, setCompetitorAnalysis] = useState<CompetitorAnalysisData | null>(null);
+  const [competitorLoading, setCompetitorLoading] = useState(false);
+  const [competitorError, setCompetitorError] = useState(false);
+  const [competitorNotReadyMessage, setCompetitorNotReadyMessage] = useState<string | null>(null);
   const [todaySnapshot, setTodaySnapshot] = useState<TodaySnapshotPayload | null>(null);
   const [todaySnapshotLoading, setTodaySnapshotLoading] = useState(false);
   // Error state Today — supaya gagal memuat snapshot tidak tampil sebagai
   // skeleton selamanya, dan Reminder tidak salah menampilkan "Aman" padahal
   // datanya gagal dimuat (bukan benar-benar aman). Lihat reloadTodaySnapshot.
   const [todaySnapshotError, setTodaySnapshotError] = useState(false);
+  // Business OS Engine — dimuat bersamaan dengan Today Snapshot lewat action
+  // getBusinessOS (satu panggilan, satu object), lihat services/businessOS/
+  // getBusinessOS.ts.
+  const [weeklyReview, setWeeklyReview] = useState<WeeklyReviewPayload | null>(null);
   const [newlyUnlocked, setNewlyUnlocked] = useState<Array<Record<string, unknown>>>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
@@ -2400,7 +3081,7 @@ function Workspace() {
       const [profilesRes, prefsRes, deletedCountRes] = await Promise.all([
         supabase
           .from("business_profiles")
-          .select("id, business_name, industry")
+          .select("id, business_name, industry, business_type")
           .eq("active", true)
           .order("created_at", { ascending: true }),
         supabase
@@ -2528,7 +3209,7 @@ function Workspace() {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${session.access_token}`,
               },
-              body: JSON.stringify({ action: "getTodaySnapshot", businessProfileId: activeBusinessId }),
+              body: JSON.stringify({ action: "getBusinessOS", businessProfileId: activeBusinessId }),
             }),
           ]);
           const healthJson = await healthResponse.json();
@@ -2565,6 +3246,7 @@ function Workspace() {
             }
             if (todayResponse.ok) {
               setTodaySnapshot(todayJson.snapshot as TodaySnapshotPayload);
+              setWeeklyReview((todayJson.weeklyReview as WeeklyReviewPayload) || null);
               setTodaySnapshotError(false);
             } else {
               console.error("Gagal memuat Today snapshot:", todayJson.error);
@@ -2608,11 +3290,12 @@ function Workspace() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ action: "getTodaySnapshot", businessProfileId: activeBusinessId }),
+        body: JSON.stringify({ action: "getBusinessOS", businessProfileId: activeBusinessId }),
       });
       const json = await response.json();
       if (response.ok) {
         setTodaySnapshot(json.snapshot as TodaySnapshotPayload);
+        setWeeklyReview((json.weeklyReview as WeeklyReviewPayload) || null);
       } else {
         console.error("Gagal memuat ulang Today snapshot:", json.error);
         setTodaySnapshotError(true);
@@ -2973,6 +3656,97 @@ function Workspace() {
     setAchievementsLoading(false);
   }
 
+  // Business Memory (Master Product Directive, Fase 1) — muat fakta yang
+  // diusulkan Beemo dan masih menunggu persetujuan, setiap kali tab Chat
+  // dibuka (pola sama dengan loadAchievements di Growth).
+  async function loadPendingMemoryFacts() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setPendingMemoryFactsLoading(true);
+    setPendingMemoryFactsError(false);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "getPendingMemoryFacts", businessProfileId: activeBusinessId }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setPendingMemoryFacts(json.pending || []);
+      } else {
+        console.error("getPendingMemoryFacts error:", json.error);
+        setPendingMemoryFactsError(true);
+      }
+    } catch (err) {
+      console.error("getPendingMemoryFacts error:", err);
+      setPendingMemoryFactsError(true);
+    }
+    setPendingMemoryFactsLoading(false);
+  }
+
+  // Competitor Engine (Master Product Directive, Fase 2) — dimuat saat tab
+  // Competitor dibuka. Pipeline penuh (provider->normalizer->engine->
+  // opportunity->recommendation) dijalankan di server (lihat
+  // services/competitor/getCompetitorAnalysis.ts); di sini murni menampilkan
+  // hasilnya. status 422 ("lokasi/industri belum lengkap") BUKAN error teknis
+  // — dibedakan supaya tidak menampilkan ErrorCard "Coba Lagi" untuk sesuatu
+  // yang retry tidak akan memperbaiki.
+  async function loadCompetitorAnalysis(forceRefresh?: boolean) {
+    if (!activeBusinessId || !session?.access_token) return;
+    setCompetitorLoading(true);
+    setCompetitorError(false);
+    setCompetitorNotReadyMessage(null);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "getCompetitorAnalysis", businessProfileId: activeBusinessId, forceRefresh: Boolean(forceRefresh), lang }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setCompetitorAnalysis(json as CompetitorAnalysisData);
+      } else if (response.status === 422) {
+        setCompetitorNotReadyMessage(json.error || t.workspace.competitorProPlatinumMessage);
+      } else {
+        console.error("getCompetitorAnalysis error:", json.error);
+        setCompetitorError(true);
+      }
+    } catch (err) {
+      console.error("getCompetitorAnalysis error:", err);
+      setCompetitorError(true);
+    }
+    setCompetitorLoading(false);
+  }
+
+  async function reviewMemoryFactDecision(factId: string, decision: "approve" | "reject") {
+    if (!session?.access_token) return;
+    setReviewingFactId(factId);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "reviewMemoryFact", factId, decision }),
+      });
+      if (response.ok) {
+        setPendingMemoryFacts((prev) => prev.filter((f) => f.id !== factId));
+      } else {
+        const json = await response.json();
+        console.error("reviewMemoryFact error:", json.error);
+      }
+    } catch (err) {
+      console.error("reviewMemoryFact error:", err);
+    }
+    setReviewingFactId(null);
+  }
+
   // Reload Timeline (updates + achievements) SAJA — dipakai tombol "Coba
   // Lagi" di ErrorCard bagian Timeline/Achievements/Next Milestone Journey.
   // Satu fungsi retry karena Timeline butuh kedua sumber sekaligus.
@@ -3003,13 +3777,16 @@ function Workspace() {
       fetch("/api/workspace", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ action: "getTodaySnapshot", businessProfileId: activeBusinessId, forceRecompute: true }),
+        body: JSON.stringify({ action: "getBusinessOS", businessProfileId: activeBusinessId, forceRecompute: true }),
       })
         .then((res) => res.json().then((json) => ({ ok: res.ok, json })))
         .then(({ ok, json }) => {
-          if (ok) setTodaySnapshot(json.snapshot as TodaySnapshotPayload);
+          if (ok) {
+            setTodaySnapshot(json.snapshot as TodaySnapshotPayload);
+            setWeeklyReview((json.weeklyReview as WeeklyReviewPayload) || null);
+          }
         })
-        .catch((err) => console.error("getTodaySnapshot forceRecompute error:", err))
+        .catch((err) => console.error("getBusinessOS forceRecompute error:", err))
         .finally(() => setTodaySnapshotLoading(false));
     }
   }
@@ -3026,6 +3803,12 @@ function Workspace() {
       }
       loadAchievements();
     }
+    if (activeMenu === "chat") {
+      loadPendingMemoryFacts();
+    }
+    if (activeMenu === "competitor" && tier !== "free" && !competitorAnalysis && !competitorLoading) {
+      loadCompetitorAnalysis();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenu]);
 
@@ -3035,7 +3818,7 @@ function Workspace() {
     // Ambil ulang daftar lengkap dari server supaya nama/industry akurat.
     supabase
       .from("business_profiles")
-      .select("id, business_name, industry")
+      .select("id, business_name, industry, business_type")
       .eq("active", true)
       .order("created_at", { ascending: true })
       .then(({ data }) => {
@@ -3080,6 +3863,12 @@ function Workspace() {
   const latestPreview = latestAnalysis?.ai_output || null;
   const latestRawInput = latestAnalysis?.raw_input || null;
   const tier = membership?.tier || "free";
+  // Business Context (Business Discovery & Dual Workspace directive) —
+  // "SATU FIELD, SATU STATUS" yang dibaca seluruh Workspace untuk memilih
+  // versi mentor. Pelanggan lama tanpa business_type (sebelum migrasi)
+  // fallback ke "grow" — bukan ditebak sebagai fakta baru, hanya supaya
+  // Workspace tidak kosong/rusak untuk mereka.
+  const businessType: "start" | "grow" = activeBusiness?.business_type === "start" ? "start" : "grow";
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-10">
@@ -3096,9 +3885,50 @@ function Workspace() {
               <p className="mt-1 text-sm text-neutral-500">{pulseSubheadlineText(t, todaySnapshot.pulseLevel)}</p>
             </>
           ) : (
-            <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl">
-              {fillTemplate(t.workspace.greetingHello, { name: activeBusiness?.business_name || user.email || "" })}
-            </h1>
+            <>
+              <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl">
+                {fillTemplate(t.workspace.greetingHello, { name: activeBusiness?.business_name || user.email || "" })}
+              </h1>
+              {/* Master Product Directive Fase 2 (Business Discovery Split):
+                  Workspace harus "berubah mengikuti tipe bisnis" — Start
+                  Business = mentor membuka usaha, Grow Business = mentor
+                  mengembangkan usaha. Kita reuse stageGroup yang SUDAH
+                  dihitung Business Stage Engine (services/stage/determineStage.ts,
+                  sudah dipakai Today) — bukan membangun sinyal baru — dan
+                  menerapkannya sebagai satu baris framing di header, bukan
+                  mengubah struktur menu/Design System. */}
+              {todaySnapshot && (
+                <p className="mt-1 text-sm text-neutral-500">
+                  {todaySnapshot.stageGroup === "preparation" ? t.workspace.mentorTonePreparation : t.workspace.mentorToneRunning}
+                </p>
+              )}
+              {/* Living Business Loop: stage rinci (Stage Engine) — badge
+                  kecil terpisah dari kalimat mentor tone di atas, supaya
+                  pelanggan lihat progresnya berubah berdasarkan event
+                  nyata, bukan cuma dua kelompok kasar. */}
+              {todaySnapshot && (
+                <span className="mt-2 inline-block rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
+                  {stageDetailLabel(t, todaySnapshot.stageDetail)}
+                </span>
+              )}
+              {/* Business OS Engine — "Target minggu ini" / "Target bulan
+                  ini" dari Business Daily Brief. JUJUR: tidak tampil sama
+                  sekali kalau belum ada data (bukan placeholder karangan). */}
+              {todaySnapshot && (todaySnapshot.targetThisWeek || todaySnapshot.targetThisMonth) && (
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-400">
+                  {todaySnapshot.targetThisWeek && (
+                    <span>
+                      <span className="font-semibold text-neutral-300">{t.workspace.targetThisWeekLabel}:</span> {todaySnapshot.targetThisWeek}
+                    </span>
+                  )}
+                  {todaySnapshot.targetThisMonth && (
+                    <span>
+                      <span className="font-semibold text-neutral-300">{t.workspace.targetThisMonthLabel}:</span> {todaySnapshot.targetThisMonth}
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
         {/* Semua kontrol di baris ini pakai tinggi h-10 (40px) yang sama
@@ -3337,6 +4167,7 @@ function Workspace() {
             <TodayPanel
               t={t}
               lang={lang}
+              businessProfileId={activeBusinessId || ""}
               snapshot={todaySnapshot}
               snapshotLoading={todaySnapshotLoading}
               snapshotError={todaySnapshotError}
@@ -3344,14 +4175,27 @@ function Workspace() {
               onOpenUpdateModal={() => setShowBusinessUpdate(true)}
               onNavigateToInsights={() => setActiveMenu("score")}
               onOpenChat={() => setActiveMenu("chat")}
+              onOpenCompetitor={() => setActiveMenu("competitor")}
+              onOpenDecisions={() => setActiveMenu("decisionJournal")}
+              onOpenTarget={() => setActiveMenu("target")}
+              weeklyReview={weeklyReview}
             />
           ) : activeMenu === "history" ? (
-            <HistoryList analyses={analyses} t={t} lang={lang} />
+            <HistoryList
+              analyses={analyses}
+              t={t}
+              lang={lang}
+              loading={analysesLoading}
+              error={analysesError}
+              onRetry={reloadAnalyses}
+              onOpenUpdateModal={() => setShowBusinessUpdate(true)}
+            />
           ) : activeMenu === "score" ? (
             <BusinessScorePanel
               preview={latestPreview}
               health={businessHealth}
               tier={tier}
+              businessType={businessType}
               t={t}
               lang={lang}
               loading={businessHealthLoading}
@@ -3385,7 +4229,17 @@ function Workspace() {
               onOpenUpdateModal={() => setShowBusinessUpdate(true)}
             />
           ) : activeMenu === "competitor" ? (
-            <CompetitorPanel tier={tier} t={t} onUpgradeClick={openUpgradeModal} />
+            <CompetitorPanel
+              tier={tier}
+              t={t}
+              lang={lang}
+              onUpgradeClick={openUpgradeModal}
+              data={competitorAnalysis}
+              loading={competitorLoading}
+              error={competitorError}
+              notReadyMessage={competitorNotReadyMessage}
+              onRetry={() => loadCompetitorAnalysis(true)}
+            />
           ) : activeMenu === "growth" ? (
             <GrowthPanel
               tier={tier}
@@ -3411,11 +4265,37 @@ function Workspace() {
               <ChatBeemoPanel
                 businessProfileId={activeBusinessId}
                 tier={tier}
+                businessType={businessType}
                 t={t}
                 lang={lang}
                 onUpgradeClick={openUpgradeModal}
+                pendingMemoryFacts={pendingMemoryFacts}
+                pendingMemoryFactsLoading={pendingMemoryFactsLoading}
+                pendingMemoryFactsError={pendingMemoryFactsError}
+                reviewingFactId={reviewingFactId}
+                onReviewMemoryFact={reviewMemoryFactDecision}
+                onRetryPendingMemoryFacts={loadPendingMemoryFacts}
               />
             )
+          ) : activeMenu === "settings" ? (
+            <SettingsPanel
+              t={t}
+              lang={lang}
+              setLang={setLang}
+              activeBusiness={activeBusiness}
+              membership={membership}
+              tier={tier}
+              businessHealth={businessHealth}
+              updateHistory={updateHistory}
+              achievements={achievements}
+              progressData={progressData}
+              onUpgradeClick={openUpgradeModal}
+              onSignOut={handleSignOut}
+              onDeleteBusiness={() => {
+                setConfirmingDelete(true);
+                setDeleteError(null);
+              }}
+            />
           ) : (
             <EmptyState
               variant="hero"

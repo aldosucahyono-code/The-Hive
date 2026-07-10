@@ -31,6 +31,7 @@ import { getBusinessHealth } from "../workspace/getBusinessHealth.js";
 import { getProgress } from "../workspace/getProgress.js";
 import { getAchievements } from "../workspace/getAchievements.js";
 import { determineStageInternal } from "../stage/determineStage.js";
+import { getCompetitorOpportunitySignal, getNewCompetitorSignal } from "../businessOS/competitorSignal.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -54,8 +55,45 @@ const DIMENSION_OPPORTUNITY_KEY: Record<string, string> = {
   brand: "opportunityBrand",
 };
 
+// Why Card (directive "CONTINUE — LIVING BUSINESS LOOP"): setiap RuleItem
+// BOLEH punya whyKey — kunci i18n terpisah berisi penjelasan "mengapa ini
+// penting" yang lebih panjang, dipakai params yang SAMA dengan item-nya.
+// Template-based (bukan AI) supaya konsisten dengan seluruh Rule Engine di
+// file ini — tapi tetap terasa personal karena memakai params nyata
+// (dimensi, jumlah hari, dsb), bukan kalimat generik satu-untuk-semua.
+type RuleItemWithWhy = RuleItem & { whyKey?: string };
+
+const WHY_KEY: Record<string, string> = {
+  startFirstUpdate: "whyStartFirstUpdate",
+  fillBusinessUpdate: "whyFillBusinessUpdate",
+  inactivityWarning: "whyInactivityWarning",
+  focusWeakDimension: "whyFocusWeakDimension",
+  achievementNudge: "whyAchievementNudge",
+  keepGoing: "whyKeepGoing",
+  decisionFollowUp: "whyDecisionFollowUp",
+  celebrateAchievement: "whyCelebrateAchievement",
+  riskUpdateOverdue: "whyRiskUpdateOverdue",
+  riskScoreDown: "whyRiskScoreDown",
+  riskWeakDimension: "whyRiskWeakDimension",
+  opportunityMarketing: "whyOpportunityMarketing",
+  opportunitySales: "whyOpportunitySales",
+  opportunityFinance: "whyOpportunityFinance",
+  opportunityCustomer: "whyOpportunityCustomer",
+  opportunityOperations: "whyOpportunityOperations",
+  opportunityBrand: "whyOpportunityBrand",
+  opportunityGeneric: "whyOpportunityGeneric",
+  targetStalled: "whyTargetStalled",
+  newCompetitorDetected: "whyNewCompetitorDetected",
+};
+
+function withWhy(item: RuleItem): RuleItemWithWhy {
+  const whyKey = WHY_KEY[item.key];
+  return whyKey ? { ...item, whyKey } : item;
+}
+
 export type TodaySnapshotPayload = {
   stageGroup: "preparation" | "running";
+  stageDetail: string;
   stageSource: "auto" | "manual_override";
   pulseLevel: PulseLevel;
   pulseReasons: PulseReason[];
@@ -64,11 +102,13 @@ export type TodaySnapshotPayload = {
   periodDelta: number | null;
   daysSinceUpdate: number | null;
   lastUpdateAt: string | null;
-  // Sampai 3 item, diurutkan berdasarkan urgensi — semua rule-based dari
-  // Business Engine (data freshness, dimensi terlemah, kedekatan achievement).
-  priorities: RuleItem[];
-  topRisk: RuleItem | null;
-  opportunity: RuleItem | null;
+  // Mission Engine (Living Business Loop): maksimal 5 item, diurutkan
+  // berdasarkan urgensi — semua rule-based dari Business Engine + Decision
+  // Memory + Business Update terbaru (data freshness, dimensi terlemah,
+  // kedekatan achievement, follow-up keputusan, apresiasi pencapaian).
+  priorities: RuleItemWithWhy[];
+  topRisk: RuleItemWithWhy | null;
+  opportunity: RuleItemWithWhy | null;
   whatChanged: Array<{ dimension: string; delta: number }> | null;
   nextMilestone: {
     titleId: string;
@@ -77,6 +117,16 @@ export type TodaySnapshotPayload = {
     unitId: string;
     unitEn: string;
   } | null;
+  // Business OS Engine (directive "CONTINUE — BUSINESS OS ENGINE"): peluang
+  // yang bersumber dari Competitor Engine (bukan dimensi Business Health
+  // terlemah seperti `opportunity` di atas). SENGAJA teks jadi (bukan
+  // key+params) — pengecualian yang sama seperti Insight Formatter
+  // Competitor: teksnya inherently variabel (tergantung kompetitor mana),
+  // reuse opportunity.title/reason/action/evidence yang sudah dihasilkan
+  // Opportunity Engine, tidak dikarang di sini.
+  competitorOpportunity: { title: string; reason: string; action: string; evidence: string } | null;
+  targetThisWeek: string | null;
+  targetThisMonth: string | null;
 };
 
 function daysBetween(iso: string, now: Date): number {
@@ -85,8 +135,6 @@ function daysBetween(iso: string, now: Date): number {
 }
 
 async function buildSnapshot(userId: string, businessProfileId: string): Promise<TodaySnapshotPayload> {
-  const stage = await determineStageInternal(businessProfileId);
-
   // Reuse service Business Engine yang SUDAH ADA — tidak menghitung ulang.
   // getAchievements ikut dipanggil di sini (bukan cuma dari tab Growth) —
   // ini AMAN karena evaluateAchievements() di baliknya sudah idempotent &
@@ -114,9 +162,19 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
     } | null;
   };
 
+  // Stage Engine dipanggil SETELAH Business Health/Progress/Achievement
+  // selesai dihitung, supaya sinyal businessType='grow' (overallScore,
+  // journeyDelta, achievementsUnlockedCount) dikirim apa adanya — bukan
+  // dihitung ulang kedua kalinya di dalam Stage Engine.
+  const stage = await determineStageInternal(businessProfileId, {
+    overallScore: health.overall,
+    journeyDelta: progress.journey?.delta ?? null,
+    achievementsUnlockedCount: (achievementsRes.body as { unlocked: unknown[] }).unlocked?.length || 0,
+  });
+
   const { data: latestUpdate } = await supabase
     .from("business_updates")
-    .select("created_at")
+    .select("created_at, pencapaian")
     .eq("business_profile_id", businessProfileId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -124,6 +182,73 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
 
   const now = new Date();
   const daysSinceUpdate = latestUpdate ? daysBetween(latestUpdate.created_at as string, now) : null;
+
+  // Decision Follow Up (Living Business Loop): keputusan besar yang masih
+  // "open" dan sudah >=7 hari sejak diajukan, yang BELUM pernah ditanyakan
+  // follow-up-nya — ditandai follow_up_prompted_at supaya tidak muncul
+  // berulang setiap hari untuk keputusan yang sama.
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: pendingFollowUp } = await supabase
+    .from("business_decisions")
+    .select("id, question")
+    .eq("business_profile_id", businessProfileId)
+    .eq("status", "open")
+    .is("follow_up_prompted_at", null)
+    .lte("created_at", sevenDaysAgo)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (pendingFollowUp) {
+    await supabase
+      .from("business_decisions")
+      .update({ follow_up_prompted_at: new Date().toISOString() })
+      .eq("id", pendingFollowUp.id);
+  }
+
+  // Business OS Engine — Smart Reminder "target belum bergerak 2 minggu":
+  // bandingkan target_depan pada 3 Business Update terakhir. Kalau semuanya
+  // sama persis (setelah trim+lowercase) DAN update PALING AWAL dari 3 itu
+  // sudah >=14 hari lalu, berarti pengguna belum mengganti targetnya sejak
+  // dua minggu — sinyal nyata dari data, bukan tebakan.
+  const { data: recentTargetRows } = await supabase
+    .from("business_updates")
+    .select("target_depan, created_at")
+    .eq("business_profile_id", businessProfileId)
+    .order("created_at", { ascending: false })
+    .limit(3);
+
+  let targetStalled = false;
+  if (recentTargetRows && recentTargetRows.length === 3) {
+    const normalized = recentTargetRows.map((r) => (r.target_depan as string || "").trim().toLowerCase());
+    const allSame = normalized.every((t) => t && t === normalized[0]);
+    const oldestOfThree = recentTargetRows[recentTargetRows.length - 1].created_at as string;
+    if (allSame && daysBetween(oldestOfThree, now) >= 14) targetStalled = true;
+  }
+
+  // Business OS Engine — peluang bersumber Competitor Engine + deteksi
+  // kompetitor baru (murni baca cache, tidak memanggil provider/engine).
+  const [competitorOpportunity, newCompetitor] = await Promise.all([
+    getCompetitorOpportunitySignal(businessProfileId),
+    getNewCompetitorSignal(businessProfileId),
+  ]);
+
+  // Business OS Engine — "Target minggu ini" (target_depan Business Update
+  // terbaru, sudah ada di recentTargetRows) vs "Target bulan ini" (aspirasi
+  // awal dari Business Discovery, raw_input.target) — DUA hal yang berbeda,
+  // sama seperti pemisahan di getBusinessMemory.ts.
+  const targetThisWeek = (recentTargetRows?.[0]?.target_depan as string) || null;
+  const { data: discoveryRows } = await supabase
+    .from("analyses")
+    .select("raw_input, created_at")
+    .eq("business_profile_id", businessProfileId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  const discoveryRowWithTarget = (discoveryRows || []).find(
+    (a) => (a.raw_input as Record<string, unknown> | null)?.target
+  );
+  const targetThisMonth =
+    ((discoveryRowWithTarget?.raw_input as Record<string, unknown> | undefined)?.target as string) || null;
 
   // --- Business Pulse: ambang sederhana, bukan skor baru (§4.2) ---
   let pulseLevel: PulseLevel;
@@ -169,9 +294,51 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
     // terpisah di UI dari template statis (bukan dari Today Engine).
     priorities.push({ key: "startFirstUpdate" });
   } else {
-    if (daysSinceUpdate === null || daysSinceUpdate > 7) {
-      priorities.push({ key: "fillBusinessUpdate", params: { days: daysSinceUpdate ?? 0 } });
+    // Proactive Mentor: peringatan tidak aktif — kata-kata persis sesuai
+    // contoh PO ("Sudah 10 hari tidak ada Business Update...") dipakai di
+    // >=10 hari (bukan cuma pengingat umum). 7-9 hari tetap dapat pengingat
+    // yang lebih lembut.
+    if (daysSinceUpdate === null || daysSinceUpdate >= 10) {
+      priorities.push({ key: "inactivityWarning", params: { days: daysSinceUpdate ?? 0 } });
+    } else if (daysSinceUpdate > 7) {
+      priorities.push({ key: "fillBusinessUpdate", params: { days: daysSinceUpdate } });
     }
+
+    // Proactive Mentor: apresiasi pencapaian — kalau Business Update
+    // TERBARU (dalam 2 hari terakhir) menyertakan pencapaian nyata (bukan
+    // "belum ada"/kosong), Workspace merayakannya dulu sebelum lanjut ke
+    // saran berikutnya. Ambang sama dengan validasi form (>=10 karakter,
+    // >=2 kata) — bukan menebak makna teksnya, cuma memastikan isinya
+    // substantif.
+    if (
+      daysSinceUpdate !== null &&
+      daysSinceUpdate <= 2 &&
+      latestUpdate?.pencapaian &&
+      typeof latestUpdate.pencapaian === "string" &&
+      latestUpdate.pencapaian.trim().split(/\s+/).length >= 2 &&
+      latestUpdate.pencapaian.trim().length >= 10
+    ) {
+      priorities.push({ key: "celebrateAchievement" });
+    }
+
+    // Decision Follow Up: keputusan besar yang sudah >=7 hari tanpa
+    // follow-up, ditandai di query sebelumnya — masuk sebagai prioritas
+    // supaya benar-benar terlihat, bukan cuma tersimpan diam di riwayat.
+    if (pendingFollowUp) {
+      priorities.push({ key: "decisionFollowUp", params: { question: (pendingFollowUp.question as string).slice(0, 120) } });
+    }
+
+    // Business OS Engine — Smart Reminder: target belum bergerak 2 minggu.
+    if (targetStalled) {
+      priorities.push({ key: "targetStalled" });
+    }
+
+    // Business OS Engine — Smart Reminder: kompetitor baru muncul di
+    // sekitar lokasi (dibandingkan snapshot sebelumnya).
+    if (newCompetitor) {
+      priorities.push({ key: "newCompetitorDetected", params: { name: newCompetitor.name } });
+    }
+
     if (weakestEntry) {
       priorities.push({ key: "focusWeakDimension", params: { dimension: weakestEntry[0], score: weakestEntry[1] } });
     }
@@ -186,6 +353,10 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
       });
     }
     if (priorities.length === 0) priorities.push({ key: "keepGoing" });
+
+    // Mission Engine: maksimal 5 item (sesuai directive), urutan di atas
+    // SUDAH diprioritaskan dari yang paling mendesak (inactivity/apresiasi
+    // dulu, baru dimensi/achievement) — cukup potong, tidak perlu sort ulang.
 
     // Risiko terbesar — SATU sinyal negatif paling mendesak, urutan tetap:
     // data basi > skor turun > dimensi sangat rendah. Kalau tidak ada yang
@@ -204,6 +375,10 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
       opportunity = { key: DIMENSION_OPPORTUNITY_KEY[weakestEntry[0]] || "opportunityGeneric" };
     }
   }
+
+  const cappedPriorities = priorities.slice(0, 5).map(withWhy);
+  const finalTopRisk = topRisk ? withWhy(topRisk) : null;
+  const finalOpportunity = opportunity ? withWhy(opportunity) : null;
 
   // --- Yang berubah sejak periode lalu: presentasi ulang getHealthTrend ---
   let whatChanged: Array<{ dimension: string; delta: number }> | null = null;
@@ -243,6 +418,7 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
 
   return {
     stageGroup: stage.stageGroup,
+    stageDetail: stage.stageDetail,
     stageSource: stage.source,
     pulseLevel,
     pulseReasons: reasons,
@@ -251,11 +427,14 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
     periodDelta: progress.period?.delta ?? null,
     daysSinceUpdate,
     lastUpdateAt: (latestUpdate?.created_at as string) || null,
-    priorities,
-    topRisk,
-    opportunity,
+    priorities: cappedPriorities,
+    topRisk: finalTopRisk,
+    opportunity: finalOpportunity,
     whatChanged,
     nextMilestone,
+    competitorOpportunity,
+    targetThisWeek,
+    targetThisMonth,
   };
 }
 
@@ -309,11 +488,8 @@ export async function getTodaySnapshot(userId: string, payload: Record<string, u
   return { status: 200, body: { snapshot: saved.payload, computedAt: saved.computed_at } };
 }
 
-// CATATAN Fase lanjutan (belum dikerjakan di Fase 1, dicatat supaya tidak
-// lupa): submitUpdate.ts sebaiknya memanggil getTodaySnapshot(...,
-// { forceRecompute: true }) setelah Business Engine selesai recalculate,
-// persis pola yang sama seperti pemicu evaluateAchievements() — supaya
-// Today berubah SAAT ITU JUGA, bukan menunggu snapshot besok. Sengaja TIDAK
-// disambungkan di Fase 1 supaya perubahan ke submitUpdate.ts (file inti
-// Business Engine) ditinjau terpisah, bukan ikut menumpang perubahan Today
-// Engine yang murni additive.
+// Living Business Loop: submitUpdate.ts dan
+// services/workspace/checklistProgress.ts SEKARANG memanggil
+// getTodaySnapshot(..., { forceRecompute: true }) setelah Business Engine
+// selesai recalculate — Event Pipeline ini yang membuat Mission/Stage/Pulse
+// berubah SAAT ITU JUGA, bukan menunggu snapshot besok atau refresh manual.

@@ -16,6 +16,14 @@ import { getAchievements } from "../services/workspace/getAchievements.js";
 import { getLatestPayment } from "../services/workspace/getLatestPayment.js";
 import { getMembership } from "../services/workspace/getMembership.js";
 import { getTodaySnapshot } from "../services/today/computeSnapshot.js";
+import { getPendingMemoryFacts } from "../services/memory/getPendingMemoryFacts.js";
+import { reviewMemoryFact } from "../services/memory/reviewMemoryFact.js";
+import { getCompetitorAnalysis } from "../services/competitor/getCompetitorAnalysis.js";
+import { proposeDecision } from "../services/decision/proposeDecision.js";
+import { listDecisions } from "../services/decision/listDecisions.js";
+import { getChecklistProgress, toggleChecklistItem } from "../services/workspace/checklistProgress.js";
+import { getBusinessOS } from "../services/businessOS/getBusinessOS.js";
+import { getWeeklyReview } from "../services/businessOS/weeklyReview.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -65,6 +73,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "getTodaySnapshot":
       result = await getTodaySnapshot(userId, payload);
+      break;
+    case "getPendingMemoryFacts":
+      result = await getPendingMemoryFacts(userId, payload);
+      break;
+    case "reviewMemoryFact":
+      result = await reviewMemoryFact(userId, payload);
+      break;
+    case "getCompetitorAnalysis":
+      result = await getCompetitorAnalysis(userId, payload);
+      break;
+    case "proposeDecision":
+      result = await proposeDecision(userId, payload);
+      break;
+    case "listDecisions":
+      result = await listDecisions(userId, payload);
+      break;
+    case "getChecklistProgress":
+      result = await getChecklistProgress(userId, payload);
+      break;
+    case "toggleChecklistItem":
+      result = await toggleChecklistItem(userId, payload);
+      break;
+    case "getBusinessOS":
+      result = await getBusinessOS(userId, payload);
+      break;
+    case "getWeeklyReview":
+      result = await getWeeklyReview(userId, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });

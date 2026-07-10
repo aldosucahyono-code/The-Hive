@@ -107,6 +107,9 @@ function UpgradeModal({ businessProfileId, businessName, onClose, onUpgraded }: 
                 <span className="font-bold">{PLAN_INFO[plan].label}</span>
                 <span className="font-bold">{PLAN_INFO[plan].priceLabel}</span>
               </div>
+              <p className="mt-1 text-xs text-neutral-400">
+                {plan === "platinum" ? t.workspace.membershipTaglinePlatinum : t.workspace.membershipTaglinePro}
+              </p>
               {processingPlan === plan && (
                 <p className="mt-1 text-xs text-neutral-400">{t.workspace.upgradeProcessing}</p>
               )}
