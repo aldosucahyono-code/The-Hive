@@ -74,9 +74,14 @@ function roleBlockFor(tier: "pro" | "platinum", lang: "id" | "en"): string {
 
 // Kuota & kedalaman per tier — SATU-SATUNYA tempat angka ini didefinisikan
 // (jangan hardcode ulang di tempat lain). Chat: PRO 40 pesan/periode akses,
-// PLATINUM 200. Riset per jawaban: PRO 1x pencarian, PLATINUM 5x.
+// PLATINUM 200. Riset per jawaban: PRO 1x pencarian, PLATINUM 3x (diturunkan
+// dari 5x saat audit biaya Juli 2026 — di kuota 200 pesan/bulan, 5x riset per
+// pesan bisa membuat margin PLATINUM negatif di skenario pemakaian maksimal
+// terus-menerus di harga early bird Rp349.000/bulan. 3x tetap jauh di atas
+// PRO, bedanya masih terasa nyata, tapi ongkos skenario terburuk turun cukup
+// besar).
 const CHAT_QUOTA: Record<"pro" | "platinum", number> = { pro: 40, platinum: 200 };
-const CHAT_SEARCH_MAX_USES: Record<"pro" | "platinum", number> = { pro: 1, platinum: 5 };
+const CHAT_SEARCH_MAX_USES: Record<"pro" | "platinum", number> = { pro: 1, platinum: 3 };
 
 function systemPromptId(tier: "pro" | "platinum"): string {
   return `Kamu adalah Beemo, mentor bisnis THE HIVE. Kamu BUKAN chatbot generik — kamu konsultan bisnis pribadi yang hangat, optimis, dan mendukung, tidak pernah menghakimi.

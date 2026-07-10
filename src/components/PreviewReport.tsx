@@ -377,7 +377,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
               PLATINUM
             </span>
             <p className="mt-3 text-sm text-neutral-400">{t.previewReport.platinumAudience}</p>
-            <p className="mt-2 text-3xl font-black text-purple-400">Rp299.000</p>
+            <p className="mt-2 text-3xl font-black text-purple-400">Rp349.000</p>
             <ul className="mt-5 space-y-2.5 text-left">
               {t.previewReport.platinumChecklist.map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-neutral-200">

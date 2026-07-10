@@ -608,6 +608,15 @@ function NoBusinessYet({ t }: { t: Translations }) {
 
 type Tier = "free" | "pro" | "platinum";
 
+// Sinyal mentah per dimensi dari services/workspace/getBusinessHealth.ts —
+// dipakai untuk menyusun kalimat "kenapa skor ini segini + solusinya apa"
+// (audit Juli 2026: sebelumnya cuma teks statis dari analisa AI hari
+// pertama, tidak pernah berubah walau Business Update/checklist terisi).
+type DimensionSignal =
+  | { type: "checklist"; done: number; total: number }
+  | { type: "update"; hasUpdate: boolean; trend?: string | null; omsetTrend?: string | null; pelangganBaru?: number | null };
+type DimensionSignals = Record<string, DimensionSignal> | null;
+
 /** Business Score — gratis lihat ringkasan (skor+status saja), PRO lihat
  * lengkap, PLATINUM lengkap + Insight Beemo. */
 const DIMENSION_LABELS: Record<string, { id: string; en: string; icon: string }> = {
@@ -618,6 +627,44 @@ const DIMENSION_LABELS: Record<string, { id: string; en: string; icon: string }>
   customer: { id: "Pelanggan", en: "Customer", icon: "🧑‍🤝‍🧑" },
   brand: { id: "Brand", en: "Brand", icon: "✨" },
 };
+
+/** Menyusun kalimat "kenapa skor dimensi ini segini + apa yang bisa
+ * dilakukan" dari sinyal MENTAH (dimensionSignals, lihat
+ * services/workspace/getBusinessHealth.ts) — bukan AI, murni template +
+ * data nyata, supaya otomatis berubah begitu Business Update/checklist baru
+ * masuk (audit Juli 2026: sebelumnya "Ringkasan Singkat"/"Insight Beemo"
+ * yang tampil di sini adalah teks AI statis dari hari pertama, sama persis
+ * tiap kali dibuka). */
+function dimensionReasonText(t: Translations, lang: "id" | "en", dim: string, signal: DimensionSignal | undefined): string {
+  const dimensionLabel = DIMENSION_LABELS[dim]?.[lang] || dim;
+  if (!signal) return "";
+  if (signal.type === "checklist") {
+    if (signal.total === 0) return "";
+    if (signal.done === 0) return fillTemplate(t.workspace.healthReasonChecklistNone, { dimension: dimensionLabel });
+    if (signal.done < signal.total)
+      return fillTemplate(t.workspace.healthReasonChecklistPartial, { dimension: dimensionLabel, done: signal.done, total: signal.total });
+    return fillTemplate(t.workspace.healthReasonChecklistDone, { dimension: dimensionLabel });
+  }
+  // type "update"
+  if (!signal.hasUpdate) return t.workspace.healthReasonNoUpdate;
+  if (dim === "sales") {
+    if (signal.trend === "naik") return t.workspace.healthReasonSalesUp;
+    if (signal.trend === "turun") return t.workspace.healthReasonSalesDown;
+    return t.workspace.healthReasonSalesFlat;
+  }
+  if (dim === "finance") {
+    if (!signal.omsetTrend) return t.workspace.healthReasonFinanceNoData;
+    if (signal.omsetTrend === "up") return t.workspace.healthReasonFinanceUp;
+    if (signal.omsetTrend === "down") return t.workspace.healthReasonFinanceDown;
+    return t.workspace.healthReasonFinanceFlat;
+  }
+  if (dim === "customer") {
+    if (signal.pelangganBaru == null) return t.workspace.healthReasonCustomerNoData;
+    if (signal.pelangganBaru > 0) return fillTemplate(t.workspace.healthReasonCustomerUp, { count: signal.pelangganBaru });
+    return t.workspace.healthReasonCustomerNone;
+  }
+  return "";
+}
 
 function BusinessScorePanel({
   preview,
@@ -632,7 +679,7 @@ function BusinessScorePanel({
   onUpgradeClick,
 }: {
   preview: PreviewOutput | null;
-  health: { dimensions: Record<string, number> | null; overall: number | null };
+  health: { dimensions: Record<string, number> | null; overall: number | null; dimensionSignals?: DimensionSignals };
   tier: Tier;
   businessType: "start" | "grow";
   t: Translations;
@@ -689,7 +736,6 @@ function BusinessScorePanel({
         />
       ) : (
         <ScoreContent
-          preview={preview}
           health={health}
           hasHealthData={hasHealthData}
           score={score}
@@ -707,7 +753,6 @@ function BusinessScorePanel({
  * dipisah dari BusinessScorePanel murni supaya percabangan loading/error/
  * empty di atas tetap ringkas dan mudah dibaca. */
 function ScoreContent({
-  preview,
   health,
   hasHealthData,
   score,
@@ -716,8 +761,7 @@ function ScoreContent({
   lang,
   onUpgradeClick,
 }: {
-  preview: PreviewOutput | null;
-  health: { dimensions: Record<string, number> | null; overall: number | null };
+  health: { dimensions: Record<string, number> | null; overall: number | null; dimensionSignals?: DimensionSignals };
   hasHealthData: boolean;
   score: number;
   tier: Tier;
@@ -737,6 +781,13 @@ function ScoreContent({
         ? t.workspace.healthStatusNeedsAttention
         : t.workspace.healthStatusNeedsSeriousAttention;
 
+  const dimensionEntries = health.dimensions ? Object.entries(health.dimensions) : [];
+  // Teaser Gratis (audit Juli 2026: kunci total membuat user "beli buta" —
+  // sekarang Gratis lihat 1 dimensi LENGKAP dengan penjelasannya, sisanya
+  // dikunci dengan jelas, supaya kualitasnya kelihatan dulu sebelum bayar).
+  const freePreviewDim = dimensionEntries[0];
+  const lockedDimCount = Math.max(dimensionEntries.length - 1, 0);
+
   return (
     <>
       <WorkspaceCard variant="hero" className="text-center">
@@ -751,44 +802,42 @@ function ScoreContent({
         {hasHealthData && <p className="mt-3 text-xs text-neutral-500">{t.workspace.healthCalculatedNote}</p>}
       </WorkspaceCard>
 
-      {tier === "free" ? (
+      {hasHealthData && health.dimensions && (
+        <WorkspaceCard>
+          <h3 className="mb-1 text-sm font-bold text-neutral-200">{t.workspace.healthBreakdownTitle}</h3>
+          <p className="mb-4 text-xs leading-relaxed text-neutral-500">{t.workspace.healthBreakdownSubtitle}</p>
+          <div className="space-y-3">
+            {(tier === "free" ? dimensionEntries.slice(0, 1) : dimensionEntries).map(([dim, dimScore]) => (
+              <div key={dim} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base" aria-hidden="true">{DIMENSION_LABELS[dim]?.icon}</span>
+                    <p className="text-sm font-bold text-neutral-100">{DIMENSION_LABELS[dim]?.[lang] || dim}</p>
+                  </div>
+                  <p className="text-lg font-black text-white">{dimScore}</p>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-neutral-400">
+                  {dimensionReasonText(t, lang, dim, health.dimensionSignals?.[dim])}
+                </p>
+              </div>
+            ))}
+          </div>
+        </WorkspaceCard>
+      )}
+
+      {tier === "free" && (
         <UpgradeLockCard
-          description={t.workspace.scoreLockedDesc}
+          description={
+            lockedDimCount > 0
+              ? fillTemplate(t.workspace.scoreTeaserLockedDesc, {
+                  count: lockedDimCount,
+                  dimension: freePreviewDim ? DIMENSION_LABELS[freePreviewDim[0]]?.[lang] || "" : "",
+                })
+              : t.workspace.scoreLockedDesc
+          }
           buttonLabel={t.workspace.competitorUpgradeButton}
           onUpgradeClick={onUpgradeClick}
         />
-      ) : (
-        <>
-          {hasHealthData && health.dimensions && (
-            <WorkspaceCard>
-              <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.workspace.healthBreakdownTitle}</h3>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {Object.entries(health.dimensions).map(([dim, dimScore]) => (
-                  <WorkspaceCard key={dim} variant="compact" className="text-center">
-                    <div className="text-lg" aria-hidden="true">{DIMENSION_LABELS[dim]?.icon}</div>
-                    <p className="mt-1 text-xs text-neutral-400">{DIMENSION_LABELS[dim]?.[lang] || dim}</p>
-                    <p className="text-lg font-bold text-white">{dimScore}</p>
-                  </WorkspaceCard>
-                ))}
-              </div>
-            </WorkspaceCard>
-          )}
-
-          {preview?.summary && (
-            <WorkspaceCard>
-              <h3 className="mb-2 text-sm font-bold text-neutral-200">{t.previewReport.summaryTitle}</h3>
-              <p className="text-sm leading-relaxed text-neutral-400">{preview.summary}</p>
-            </WorkspaceCard>
-          )}
-
-          {tier === "platinum" && (preview?.improvements || preview?.opportunity) && (
-            <WorkspaceCard tone="primary">
-              <h3 className="mb-2 text-sm font-bold text-primary">{t.workspace.insightBeemoTitle}</h3>
-              {preview?.improvements && <p className="text-sm leading-relaxed text-neutral-200">{preview.improvements}</p>}
-              {preview?.opportunity && <p className="mt-2 text-sm leading-relaxed text-neutral-200">{preview.opportunity}</p>}
-            </WorkspaceCard>
-          )}
-        </>
       )}
     </>
   );
@@ -1232,19 +1281,6 @@ function CompetitorPanel({
   notReadyMessage: string | null;
   onRetry: () => void;
 }) {
-  if (tier === "free") {
-    return (
-      <WorkspaceSection>
-        <SectionHeader title={t.workspace.menuCompetitor} description={t.workspace.competitorSectionDesc} />
-        <UpgradeLockCard
-          description={t.workspace.competitorLockedDesc}
-          buttonLabel={t.workspace.competitorUpgradeButton}
-          onUpgradeClick={onUpgradeClick}
-        />
-      </WorkspaceSection>
-    );
-  }
-
   if (loading) {
     return (
       <WorkspaceSection>
@@ -1321,20 +1357,15 @@ function CompetitorPanel({
         </p>
       </WorkspaceCard>
 
-      {marketPositionInsight && (
-        <InsightGroup
-          t={t}
-          title={lang === "id" ? marketPositionInsight.categoryLabelId : marketPositionInsight.categoryLabelEn}
-          insightList={[marketPositionInsight]}
-          lang={lang}
-        />
-      )}
-
+      {/* Teaser Gratis (audit Juli 2026): sebelumnya halaman ini terkunci
+          TOTAL untuk Gratis (0 data terlihat) — sekarang Gratis tetap lihat
+          1 kompetitor asli lengkap (bukti kualitas data sebelum bayar),
+          sisanya + analisa kekuatan/kelemahan/peluang dikunci jelas. */}
       {competitor.competitors.length > 0 && (
         <WorkspaceCard>
           <h3 className="mb-3 text-sm font-bold text-white">{t.workspace.competitorListTitle}</h3>
           <div className="space-y-2">
-            {competitor.competitors.slice(0, 8).map((c) => (
+            {competitor.competitors.slice(0, tier === "free" ? 1 : 8).map((c) => (
               <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
                 <div>
                   <p className="text-sm font-semibold text-white">{c.name}</p>
@@ -1350,38 +1381,61 @@ function CompetitorPanel({
         </WorkspaceCard>
       )}
 
-      {strengthInsights.length > 0 && (
-        <InsightGroup t={t} title={lang === "id" ? strengthInsights[0].categoryLabelId : strengthInsights[0].categoryLabelEn} insightList={strengthInsights} lang={lang} tone="success" />
-      )}
+      {tier === "free" ? (
+        <UpgradeLockCard
+          description={
+            competitor.competitors.length > 1
+              ? fillTemplate(t.workspace.competitorTeaserLockedDesc, { count: competitor.competitors.length - 1 })
+              : t.workspace.competitorLockedDesc
+          }
+          buttonLabel={t.workspace.competitorUpgradeButton}
+          onUpgradeClick={onUpgradeClick}
+        />
+      ) : (
+        <>
+          {marketPositionInsight && (
+            <InsightGroup
+              t={t}
+              title={lang === "id" ? marketPositionInsight.categoryLabelId : marketPositionInsight.categoryLabelEn}
+              insightList={[marketPositionInsight]}
+              lang={lang}
+            />
+          )}
 
-      {weaknessInsights.length > 0 && (
-        <InsightGroup t={t} title={lang === "id" ? weaknessInsights[0].categoryLabelId : weaknessInsights[0].categoryLabelEn} insightList={weaknessInsights} lang={lang} />
-      )}
+          {strengthInsights.length > 0 && (
+            <InsightGroup t={t} title={lang === "id" ? strengthInsights[0].categoryLabelId : strengthInsights[0].categoryLabelEn} insightList={strengthInsights} lang={lang} tone="success" />
+          )}
 
-      {opportunityInsights.length > 0 && (
-        <InsightGroup t={t} title={lang === "id" ? opportunityInsights[0].categoryLabelId : opportunityInsights[0].categoryLabelEn} insightList={opportunityInsights} lang={lang} showPriority />
-      )}
+          {weaknessInsights.length > 0 && (
+            <InsightGroup t={t} title={lang === "id" ? weaknessInsights[0].categoryLabelId : weaknessInsights[0].categoryLabelEn} insightList={weaknessInsights} lang={lang} />
+          )}
 
-      {recommendationInsights.length > 0 && (
-        <WorkspaceCard>
-          <h3 className="mb-3 text-sm font-bold text-white">{lang === "id" ? recommendationInsights[0].categoryLabelId : recommendationInsights[0].categoryLabelEn}</h3>
-          <div className="space-y-4">
-            {RECOMMENDATION_BUCKET_ORDER.filter((bucket) => recommendationInsights.some((r) => r.bucket === bucket)).map((bucket) => {
-              const bucketLabelMap: Record<RecommendationData["bucket"], string> = {
-                today: t.workspace.competitorBucketToday,
-                this_week: t.workspace.competitorBucketThisWeek,
-                this_month: t.workspace.competitorBucketThisMonth,
-                next_90_days: t.workspace.competitorBucketNext90Days,
-              };
-              return (
-                <div key={bucket}>
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">{bucketLabelMap[bucket]}</p>
-                  <InsightList t={t} insightList={recommendationInsights.filter((r) => r.bucket === bucket)} lang={lang} />
-                </div>
-              );
-            })}
-          </div>
-        </WorkspaceCard>
+          {opportunityInsights.length > 0 && (
+            <InsightGroup t={t} title={lang === "id" ? opportunityInsights[0].categoryLabelId : opportunityInsights[0].categoryLabelEn} insightList={opportunityInsights} lang={lang} showPriority />
+          )}
+
+          {recommendationInsights.length > 0 && (
+            <WorkspaceCard>
+              <h3 className="mb-3 text-sm font-bold text-white">{lang === "id" ? recommendationInsights[0].categoryLabelId : recommendationInsights[0].categoryLabelEn}</h3>
+              <div className="space-y-4">
+                {RECOMMENDATION_BUCKET_ORDER.filter((bucket) => recommendationInsights.some((r) => r.bucket === bucket)).map((bucket) => {
+                  const bucketLabelMap: Record<RecommendationData["bucket"], string> = {
+                    today: t.workspace.competitorBucketToday,
+                    this_week: t.workspace.competitorBucketThisWeek,
+                    this_month: t.workspace.competitorBucketThisMonth,
+                    next_90_days: t.workspace.competitorBucketNext90Days,
+                  };
+                  return (
+                    <div key={bucket}>
+                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">{bucketLabelMap[bucket]}</p>
+                      <InsightList t={t} insightList={recommendationInsights.filter((r) => r.bucket === bucket)} lang={lang} />
+                    </div>
+                  );
+                })}
+              </div>
+            </WorkspaceCard>
+          )}
+        </>
       )}
 
       <p className="text-center text-[11px] text-neutral-600">
@@ -2301,7 +2355,21 @@ const PREPARATION_CHECKLIST_KEYS = [
   "prep9",
   "prep10",
 ] as const;
-const RUNNING_CHECKLIST_KEYS = ["run1", "run2", "run3", "run4", "run5"] as const;
+const RUNNING_CHECKLIST_KEYS = ["run1", "run2", "run3", "run4", "run5", "run6", "run7"] as const;
+
+// Sama persis dengan services/business/checklistDimensionMap.ts (backend,
+// yang benar-benar menghitung skor) — salinan di sini MURNI untuk
+// menampilkan ikon dimensi di sebelah tiap checklist, supaya user langsung
+// lihat korelasinya ("centang ini -> dimensi ini yang bergerak"), bukan
+// sumber perhitungan. run4 sengaja tidak dipetakan (lihat catatan backend).
+const CHECKLIST_DIMENSION_DISPLAY: Record<string, string> = {
+  run1: "customer",
+  run2: "finance",
+  run3: "operations",
+  run5: "operations",
+  run6: "marketing",
+  run7: "brand",
+};
 
 function checklistLabel(t: Translations, key: string): string {
   const map: Record<string, string> = {
@@ -2320,6 +2388,8 @@ function checklistLabel(t: Translations, key: string): string {
     run3: t.workspace.todayChecklistRun3,
     run4: t.workspace.todayChecklistRun4,
     run5: t.workspace.todayChecklistRun5,
+    run6: t.workspace.todayChecklistRun6,
+    run7: t.workspace.todayChecklistRun7,
   };
   return map[key] || key;
 }
@@ -2843,9 +2913,21 @@ function TodayPanel({
                       >
                         ✓
                       </span>
-                      <span className={`text-sm ${done ? "text-neutral-600 line-through" : "text-neutral-300"}`}>
+                      <span className={`flex-1 text-sm ${done ? "text-neutral-600 line-through" : "text-neutral-300"}`}>
                         {checklistLabel(t, key)}
                       </span>
+                      {/* Ikon dimensi — jujur menunjukkan checklist ini terhubung ke
+                          dimensi Business Score mana (audit Juli 2026: sebelumnya
+                          checklist tidak terlihat berdampak apa-apa ke skor). */}
+                      {CHECKLIST_DIMENSION_DISPLAY[key] && (
+                        <span
+                          aria-hidden="true"
+                          title={DIMENSION_LABELS[CHECKLIST_DIMENSION_DISPLAY[key]]?.[lang]}
+                          className="flex-none text-xs opacity-60"
+                        >
+                          {DIMENSION_LABELS[CHECKLIST_DIMENSION_DISPLAY[key]]?.icon}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -3344,9 +3426,14 @@ function Workspace() {
   const [analysesError, setAnalysesError] = useState(false);
   const [analysesLoading, setAnalysesLoading] = useState(false);
   const [membership, setMembership] = useState<Membership | null>(null);
-  const [businessHealth, setBusinessHealth] = useState<{ dimensions: Record<string, number> | null; overall: number | null }>({
+  const [businessHealth, setBusinessHealth] = useState<{
+    dimensions: Record<string, number> | null;
+    overall: number | null;
+    dimensionSignals: DimensionSignals;
+  }>({
     dimensions: null,
     overall: null,
+    dimensionSignals: null,
   });
   // Error/retry state Business Score — sebelumnya getBusinessHealth yang
   // gagal cuma diam (tidak ada console.error sekalipun) dan diam-diam jatuh
@@ -3602,7 +3689,7 @@ function Workspace() {
           const todayJson = await todayResponse.json();
           if (!cancelled) {
             if (healthResponse.ok) {
-              setBusinessHealth({ dimensions: healthJson.dimensions, overall: healthJson.overall });
+              setBusinessHealth({ dimensions: healthJson.dimensions, overall: healthJson.overall, dimensionSignals: healthJson.dimensionSignals ?? null });
               setBusinessHealthError(false);
             } else {
               console.error("Gagal memuat Business Health:", healthJson.error);
@@ -3710,7 +3797,7 @@ function Workspace() {
       });
       const json = await response.json();
       if (response.ok) {
-        setBusinessHealth({ dimensions: json.dimensions, overall: json.overall });
+        setBusinessHealth({ dimensions: json.dimensions, overall: json.overall, dimensionSignals: json.dimensionSignals ?? null });
       } else {
         console.error("Gagal memuat ulang Business Health:", json.error);
         setBusinessHealthError(true);
@@ -4249,7 +4336,13 @@ function Workspace() {
     if (activeMenu === "chat") {
       loadPendingMemoryFacts();
     }
-    if (activeMenu === "competitor" && tier !== "free" && !competitorAnalysis && !competitorLoading) {
+    // Audit Juli 2026: Gratis dulu dikunci total (fetch di-skip sebelum
+    // sampai ke server) — sekarang tetap diambil (OpenStreetMap gratis,
+    // tidak ada biaya tambahan) supaya Gratis bisa lihat 1 kompetitor asli
+    // sebagai teaser sebelum upgrade, bukan beli buta. Kalau nanti Google
+    // Places (berbayar) diaktifkan, pertimbangkan ulang baris ini supaya
+    // Gratis tetap hanya memakai sumber gratis.
+    if (activeMenu === "competitor" && !competitorAnalysis && !competitorLoading) {
       loadCompetitorAnalysis();
     }
     if (activeMenu === "businessUpdates" && !showUpdateHistory && updateHistory.length === 0 && !updateHistoryLoading) {

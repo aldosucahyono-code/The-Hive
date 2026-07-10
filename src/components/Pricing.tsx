@@ -14,7 +14,7 @@ function Pricing({ onStart, animate }: PricingProps) {
       <div className="mx-auto max-w-5xl px-6">
         <div className={"mb-10 text-center " + fade("0ms")}>
           <span className="mb-4 inline-block rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold text-primary">
-            {t.pricing.badge}
+            {t.pricing.earlyBirdBadge}
           </span>
           <h2 className="text-2xl font-extrabold sm:text-3xl">
             {t.pricing.title}
@@ -34,7 +34,12 @@ function Pricing({ onStart, animate }: PricingProps) {
             <p className="mt-2 text-sm text-neutral-400">
               {t.pricing.proDesc}
             </p>
-            <p className="mt-4 text-3xl font-black text-blue-400">Rp99.000</p>
+            <p className="mt-4 text-3xl font-black text-blue-400">
+              {t.pricing.proPriceMonthly}
+              <span className="text-base font-normal text-neutral-500">{t.pricing.proPriceMonthlyUnit}</span>
+            </p>
+            <p className="mt-1.5 text-xs font-semibold text-blue-300">{t.pricing.proPriceAnnual}</p>
+            <p className="mt-0.5 text-[11px] text-neutral-500">{t.pricing.proPriceAnnualNote}</p>
             <ul className="mx-auto mt-6 max-w-sm space-y-2.5 text-left">
               {t.pricing.proChecklist.map((item) => (
                 <li key={item} className="flex items-start gap-2.5 text-sm text-neutral-200">
@@ -56,7 +61,12 @@ function Pricing({ onStart, animate }: PricingProps) {
             <p className="mt-2 text-sm text-neutral-400">
               {t.pricing.platinumDesc}
             </p>
-            <p className="mt-4 text-3xl font-black text-purple-400">Rp299.000</p>
+            <p className="mt-4 text-3xl font-black text-purple-400">
+              {t.pricing.platinumPriceMonthly}
+              <span className="text-base font-normal text-neutral-500">{t.pricing.platinumPriceMonthlyUnit}</span>
+            </p>
+            <p className="mt-1.5 text-xs font-semibold text-purple-300">{t.pricing.platinumPriceAnnual}</p>
+            <p className="mt-0.5 text-[11px] text-neutral-500">{t.pricing.platinumPriceAnnualNote}</p>
             <p className="mt-6 text-left text-xs font-bold uppercase tracking-wide text-purple-300">
               {t.pricing.platinumIncludesNote}
             </p>

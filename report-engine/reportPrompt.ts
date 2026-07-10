@@ -139,7 +139,7 @@ Anda boleh mencari (web search) dulu untuk bagian yang butuh data terkini, TAPI 
 
   return `${shared}
 
-TARGET: Paket PLATINUM (Rp299.000) — untuk perusahaan, startup, investor, pengambil keputusan strategis.
+TARGET: Paket PLATINUM (Rp349.000) — untuk perusahaan, startup, investor, pengambil keputusan strategis.
 GAYA: Setara laporan konsultan McKinsey/BCG kelas menengah — mendalam, terstruktur, tapi tetap actionable, bukan sekadar akademis.
 JUMLAH BAGIAN (sections): 10-13 bagian, masing-masing lebih dalam dari PRO (insight 2-3 kalimat, ada "analysis" tambahan kalau perlu).
 WAJIB ADA: executiveSummary (ringkasan 1 halaman di depan semua bagian), ceoRecommendation (5 keputusan konkret berurutan prioritas), appendix (referensi, glossary, data confidence matrix, data yang dibutuhkan, catatan AI).

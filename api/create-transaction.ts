@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const TIER_PRICES: Record<string, { amount: number; label: string }> = {
   pro: { amount: 99000, label: 'THE HIVE - Laporan PRO' },
-  platinum: { amount: 299000, label: 'THE HIVE - Laporan PLATINUM' },
+  platinum: { amount: 349000, label: 'THE HIVE - Laporan PLATINUM' },
 };
 
 export default async function handler(req: any, res: any) {

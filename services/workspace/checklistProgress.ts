@@ -15,6 +15,9 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "../business/create.js";
+import { nudgeBusinessHealthDimension } from "../business/recalculateHealth.js";
+import { CHECKLIST_DIMENSION_MAP } from "../business/checklistDimensionMap.js";
+import { recalculateProgress } from "../business/recalculateProgress.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -68,6 +71,17 @@ export async function toggleChecklistItem(userId: string, payload: Record<string
   }
 
   if (completed) {
+    // Cek dulu apakah item ini SUDAH pernah selesai sebelumnya — supaya
+    // dorongan skor dimensi (di bawah) hanya terjadi sekali per penyelesaian
+    // asli, tidak bisa "dipompa" dengan uncheck+check berulang.
+    const { data: existing } = await supabase
+      .from("business_checklist_progress")
+      .select("item_key")
+      .eq("business_profile_id", businessProfileId)
+      .eq("item_key", itemKey)
+      .maybeSingle();
+    const isFreshCompletion = !existing;
+
     const { error } = await supabase
       .from("business_checklist_progress")
       .upsert(
@@ -77,6 +91,22 @@ export async function toggleChecklistItem(userId: string, payload: Record<string
     if (error) {
       console.error("services/workspace/checklistProgress toggle (complete) error:", error);
       return { status: 500, body: { error: "Gagal menyimpan progres checklist." } };
+    }
+
+    // Living Business Loop (audit Juli 2026): checklist yang terpetakan ke
+    // satu dimensi Business Health ikut mendorong skor dimensi itu — supaya
+    // marketing/operations/brand (yang sebelumnya beku selamanya, tidak
+    // pernah dapat sinyal) ikut bergerak dari aksi nyata, bukan cuma dari
+    // Business Update. Kegagalan di sini tidak membatalkan checklist yang
+    // sudah tersimpan, cukup dicatat.
+    const dimension = CHECKLIST_DIMENSION_MAP[itemKey];
+    if (isFreshCompletion && dimension) {
+      try {
+        const overallScore = await nudgeBusinessHealthDimension(businessProfileId, dimension, 4);
+        await recalculateProgress(businessProfileId, overallScore);
+      } catch (err) {
+        console.error("services/workspace/checklistProgress: nudgeBusinessHealthDimension gagal:", err);
+      }
     }
   } else {
     const { error } = await supabase

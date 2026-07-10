@@ -33,11 +33,10 @@ function clamp(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-export async function recalculateBusinessHealth(businessProfileId: string): Promise<number> {
-  // 1. Ambil skor terakhir per dimensi (kalau belum pernah ada, mulai dari
-  //    businessHealthScore hasil analisa AI pertama sebagai titik awal —
-  //    itu satu-satunya "input AI" yang dipakai, sebagai TITIK AWAL saja,
-  //    bukan dihitung ulang oleh AI setiap saat).
+/** Diekstrak dari recalculateBusinessHealth supaya bisa dipakai ulang oleh
+ * nudgeBusinessHealthDimension (dipanggil checklistProgress.ts) — SATU
+ * logika "ambil skor terkini per dimensi", bukan disalin ulang. */
+async function getCurrentDimensionScores(businessProfileId: string): Promise<Record<Dimension, number>> {
   const { data: latestHealthRows } = await supabase
     .from("business_health")
     .select("dimension, score, evaluated_at")
@@ -78,6 +77,41 @@ export async function recalculateBusinessHealth(businessProfileId: string): Prom
       }
     }
   }
+
+  return currentScores;
+}
+
+/** Dipanggil checklistProgress.ts saat item checklist yang terpetakan ke
+ * satu dimensi (lihat services/business/checklistDimensionMap.ts) BARU SAJA
+ * diselesaikan — supaya marketing/operations/brand (dimensi yang sebelumnya
+ * beku selamanya, tidak pernah dapat sinyal apapun) ikut bergerak dari aksi
+ * nyata yang dilakukan user, bukan cuma dari Business Update. Hanya naik
+ * (tidak turun saat item di-uncheck) supaya tidak bisa "dipompa" dengan
+ * centang-hapus berulang, dan tidak menghukum user yang mengubah pikiran. */
+export async function nudgeBusinessHealthDimension(businessProfileId: string, dimension: Dimension, delta: number): Promise<number> {
+  const currentScores = await getCurrentDimensionScores(businessProfileId);
+  const updatedScores: Record<Dimension, number> = {
+    ...currentScores,
+    [dimension]: clamp(currentScores[dimension] + delta),
+  };
+  const rowsToInsert = DIMENSIONS.map((dim) => ({
+    business_profile_id: businessProfileId,
+    dimension: dim,
+    score: updatedScores[dim],
+  }));
+  const { error } = await supabase.from("business_health").insert(rowsToInsert);
+  if (error) {
+    console.error("services/business/recalculateHealth nudgeBusinessHealthDimension error:", error);
+  }
+  return Math.round(DIMENSIONS.reduce((sum, dim) => sum + updatedScores[dim], 0) / DIMENSIONS.length);
+}
+
+export async function recalculateBusinessHealth(businessProfileId: string): Promise<number> {
+  // 1. Ambil skor terakhir per dimensi (kalau belum pernah ada, mulai dari
+  //    businessHealthScore hasil analisa AI pertama sebagai titik awal —
+  //    itu satu-satunya "input AI" yang dipakai, sebagai TITIK AWAL saja,
+  //    bukan dihitung ulang oleh AI setiap saat).
+  const currentScores = await getCurrentDimensionScores(businessProfileId);
 
   // 2. Ambil 2 Business Update terakhir untuk menghitung tren (sekarang vs
   //    sebelumnya).

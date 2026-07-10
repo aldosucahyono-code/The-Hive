@@ -31,7 +31,10 @@ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SE
 // dalam, PRO dapat satu peran paling relevan + riset lebih terbatas. Kuota
 // jumlah keputusan/periode akses juga dibedakan (DECISION_QUOTA).
 const DECISION_QUOTA: Record<"pro" | "platinum", number> = { pro: 3, platinum: 15 };
-const DECISION_SEARCH_MAX_USES: Record<"pro" | "platinum", number> = { pro: 1, platinum: 4 };
+// Diturunkan 4x -> 3x bersamaan dengan CHAT_SEARCH_MAX_USES (lihat
+// services/beemo/chat.ts) — bagian dari audit biaya Juli 2026 supaya margin
+// PLATINUM tetap aman di harga early bird Rp349.000/bulan.
+const DECISION_SEARCH_MAX_USES: Record<"pro" | "platinum", number> = { pro: 1, platinum: 3 };
 
 const ROLE_RESEARCH_BLOCK_PLATINUM_ID = `PERAN GANDA & RISET SUNGGUHAN (WAJIB): Ambil peran yang paling relevan dengan keputusan ini — Akuntan, HRD, Legal, Marketing/Sales, atau Operasional — SEKALIGUS kalau keputusan ini menyentuh lebih dari satu bidang, sesuai kebutuhan. Kalau keputusan ini menyentuh hal yang butuh data terkini/spesifik (mis. syarat izin usaha, aturan pajak, prosedur legal kemitraan/franchise), CARI DULU lewat web search sebelum menjawab — jangan menebak dari ingatan lama kalau bisa diverifikasi. "risk"/"recommendation" TIDAK BOLEH cuma bilang "konsultasikan dengan ahli" — beri langkah konkret (ke mana harus pergi/menghubungi siapa/dokumen apa), verifikasi profesional hanya disebut untuk langkah yang memang butuh tanda tangan/sertifikasi resmi.`;
 

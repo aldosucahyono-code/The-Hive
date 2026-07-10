@@ -37,7 +37,7 @@ const PLAN_INFO: Record<PlanId, PlanInfo> = {
   },
   platinum: {
     label: "PLATINUM",
-    price: "Rp299.000",
+    price: "Rp349.000",
     accent: "border-purple-500/40",
     accentText: "text-purple-400",
     accentBg: "bg-purple-500",

@@ -19,7 +19,7 @@ type UpgradeModalProps = {
 
 const PLAN_INFO: Record<PlanId, { label: string; price: string; priceLabel: string; accent: string }> = {
   pro: { label: "PRO", price: "99000", priceLabel: "Rp99.000", accent: "border-blue-500/40 bg-blue-500/10 text-blue-300" },
-  platinum: { label: "PLATINUM", price: "299000", priceLabel: "Rp299.000", accent: "border-purple-500/40 bg-purple-500/10 text-purple-300" },
+  platinum: { label: "PLATINUM", price: "349000", priceLabel: "Rp349.000", accent: "border-purple-500/40 bg-purple-500/10 text-purple-300" },
 };
 
 function UpgradeModal({ businessProfileId, businessName, onClose, onUpgraded }: UpgradeModalProps) {

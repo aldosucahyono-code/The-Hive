@@ -184,7 +184,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const today = new Date();
     const reportData: ReportData = {
       tier,
-      price: tier === "pro" ? "Rp99.000" : "Rp299.000",
+      price: tier === "pro" ? "Rp99.000" : "Rp349.000",
       tagline:
         tier === "pro"
           ? "AI Business Advisor — solusi praktis, langsung bisa diterapkan"
