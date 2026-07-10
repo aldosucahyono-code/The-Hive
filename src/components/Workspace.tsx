@@ -1589,6 +1589,7 @@ function SettingsPanel({
   lang,
   setLang,
   activeBusiness,
+  activeBusinessId,
   membership,
   tier,
   businessHealth,
@@ -1603,6 +1604,7 @@ function SettingsPanel({
   lang: "id" | "en";
   setLang: (lang: "id" | "en") => void;
   activeBusiness: BusinessProfileRow | null;
+  activeBusinessId: string | null;
   membership: Membership | null;
   tier: Tier;
   businessHealth: { dimensions: Record<string, number> | null; overall: number | null };
@@ -1619,6 +1621,49 @@ function SettingsPanel({
   const latestUpdate = [...updateHistory].sort(
     (a, b) => new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime()
   )[0];
+
+  // Laporan Bulanan (Platinum-only, on-request): fetch PDF langsung dari
+  // endpoint dedicated (api/generate-monthly-report.ts) — BUKAN wizard/
+  // baseline report, murni narasi di atas data yang sudah dihitung Business
+  // OS Engine (business_monthly_snapshot). Tombol ini hanya tampil untuk
+  // tier platinum aktif; endpoint tetap menge-gate ulang di server.
+  const [monthlyReportState, setMonthlyReportState] = useState<"idle" | "loading" | "error">("idle");
+
+  async function handleDownloadMonthlyReport() {
+    if (!activeBusinessId) return;
+    setMonthlyReportState("loading");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        setMonthlyReportState("error");
+        return;
+      }
+      const response = await fetch("/api/generate-monthly-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ businessProfileId: activeBusinessId, lang }),
+      });
+      if (!response.ok) {
+        setMonthlyReportState("error");
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `THE-HIVE-Laporan-Bulanan-${activeBusiness?.business_name || "bisnis"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setMonthlyReportState("idle");
+    } catch (err) {
+      console.error("handleDownloadMonthlyReport error:", err);
+      setMonthlyReportState("error");
+    }
+  }
 
   return (
     <WorkspaceSection>
@@ -1691,6 +1736,23 @@ function SettingsPanel({
           )}
         </div>
       </WorkspaceCard>
+
+      {tier === "platinum" && (
+        <WorkspaceCard>
+          <h3 className="mb-1 text-sm font-bold text-neutral-200">{t.workspace.settingsMonthlyReportTitle}</h3>
+          <p className="mb-4 text-xs text-neutral-500">{t.workspace.settingsMonthlyReportDesc}</p>
+          <button
+            onClick={handleDownloadMonthlyReport}
+            disabled={monthlyReportState === "loading"}
+            className="rounded-full bg-purple-500 px-5 py-2.5 text-xs font-bold text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {monthlyReportState === "loading" ? t.workspace.settingsMonthlyReportLoading : t.workspace.settingsMonthlyReportButton}
+          </button>
+          {monthlyReportState === "error" && (
+            <p className="mt-3 text-xs text-red-400">{t.workspace.settingsMonthlyReportError}</p>
+          )}
+        </WorkspaceCard>
+      )}
 
       <WorkspaceCard>
         <h3 className="mb-1 text-sm font-bold text-neutral-200">{t.workspace.settingsLanguageTitle}</h3>
@@ -4283,6 +4345,7 @@ function Workspace() {
               lang={lang}
               setLang={setLang}
               activeBusiness={activeBusiness}
+              activeBusinessId={activeBusinessId}
               membership={membership}
               tier={tier}
               businessHealth={businessHealth}

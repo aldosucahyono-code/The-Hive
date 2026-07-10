@@ -12,10 +12,12 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import Anthropic from "@anthropic-ai/sdk";
+import { sendFreeSummaryEmail } from "../services/email/sendFreeSummaryEmail.js";
 
 type WizardPayload = {
   jenisAnalisis: "baru" | "berjalan" | "";
   nama: string;
+  email?: string;
   namaBisnis: string;
   jenisBisnis: string;
   lokasi: string;
@@ -173,6 +175,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error("generate-preview: raw response:", raw);
       throw parseErr;
     }
+
+    // Free summary email (best-effort, tidak memblokir respons ke wizard):
+    // "ketika users mendapatkan email untuk masuk ke workspace: Gratis
+    // (ringkasannya bisnisnya, apa tantanganya dan apa harapannya)" — lihat
+    // services/email/sendFreeSummaryEmail.ts untuk catatan API key provider.
+    sendFreeSummaryEmail({
+      toEmail: wizardData.email || "",
+      toName: wizardData.nama,
+      businessName: wizardData.namaBisnis,
+      tantangan: wizardData.tantangan,
+      target: wizardData.target,
+      summary: preview.summary,
+      businessHealthScore: preview.businessHealthScore,
+      statusLabel: preview.statusLabel,
+      lang: activeLang,
+    }).catch((err) => console.error("generate-preview: sendFreeSummaryEmail gagal:", err));
 
     return res.status(200).json({ preview });
   } catch (err) {

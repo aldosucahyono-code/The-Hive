@@ -70,6 +70,28 @@ ${
 - "Business Health Score" bermakna sebenarnya: seberapa sehat operasional bisnis ini SEKARANG.
 - Kompetitor dianalisis sebagai posisi bisnis ini SAAT INI dibanding pesaing yang sudah beroperasi
   di sekitarnya.`
+}
+
+${
+  isBaru
+    ? `ATURAN KEMITRAAN/FRANCHISE (WAJIB DICEK, PENTING UNTUK KEPUTUSAN LAYAK/TIDAK LAYAK):
+- Baca "Jenis bisnis" dan cerita/visi pengguna. Kalau ada indikasi bisnis ini adalah KEMITRAAN,
+  WARALABA/FRANCHISE, atau lisensi merek pihak lain (kata kunci seperti "franchise", "waralaba",
+  "kemitraan", "mitra", "lisensi", atau nama merek yang dikenal sebagai jaringan franchise) —
+  WAJIB tambahkan satu bagian khusus "Regulasi & Perjanjian Kemitraan/Franchise" (boleh disisipkan
+  di antara bagian lain, tidak menambah kuota jumlah section di luar rentang yang sudah ditentukan).
+- Bagian ini WAJIB membahas secara kualitatif (bukan mengarang klausul spesifik pihak tertentu):
+  hal-hal yang LAZIM perlu dicek pengguna di perjanjian kemitraan/franchise (mis. masa berlaku &
+  perpanjangan, wilayah eksklusivitas, royalti/fee berkelanjutan, kewajiban pasokan dari pusat,
+  hak keluar/terminasi, sanksi wanprestasi), kewajiban legalitas dasar di Indonesia yang umumnya
+  relevan (mis. STPW/Surat Tanda Pendaftaran Waralaba, NIB, izin usaha, NPWP) tanpa mengarang
+  nomor pasal/undang-undang yang presisi, dan REKOMENDASI TEGAS untuk berkonsultasi dengan
+  notaris/konsultan hukum SEBELUM menandatangani apa pun — laporan ini alat bantu keputusan,
+  BUKAN pengganti nasihat hukum profesional. Sebutkan batasan ini secara eksplisit dan jujur.
+- Keputusan "decision" (GO/WAIT/PIVOT/STOP) di bagian ini harus mempertimbangkan risiko legal —
+  kalau data dari pengguna tidak cukup untuk menilai kelayakan perjanjian, "WAIT" dengan alasan
+  "perlu dokumen perjanjian resmi + review hukum" adalah jawaban yang jujur, bukan menebak "GO".`
+    : ""
 }`;
 
   if (tier === "pro") {
