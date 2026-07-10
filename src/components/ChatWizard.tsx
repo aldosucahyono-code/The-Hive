@@ -18,6 +18,8 @@ export type WizardData = {
   rencanaLaunching: string;
   omsetBulanan: string;
   targetPelanggan: string;
+  perizinanUsaha: string;
+  jumlahTim: string;
   tantangan: string;
   target: string;
   ceritaVisi: string;
@@ -36,6 +38,8 @@ const initialData: WizardData = {
   rencanaLaunching: "",
   omsetBulanan: "",
   targetPelanggan: "",
+  perizinanUsaha: "",
+  jumlahTim: "",
   tantangan: "",
   target: "",
   ceritaVisi: "",

@@ -147,6 +147,30 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       invalidNudge: t.chatFlow.invalidGenericNudge,
       phase: "kondisi",
     },
+    // Dua pertanyaan tambahan (directive PO: "maksimal dua pertanyaan...
+    // sebagai analisa pull bucket info untuk mendukung keputusanmu" — wajib,
+    // berlaku bisnis baru maupun berjalan). Perizinan -> masukan peran
+    // Legal. Jumlah tim -> masukan peran HRD. Validasi longgar (isValidFreeText
+    // 1-3 kata) supaya jawaban singkat seperti "belum ada" tetap lolos — ini
+    // fakta objektif bisnis, bukan cerita panjang seperti tantangan/target.
+    {
+      field: "perizinanUsaha",
+      prompt: () => t.chatFlow.askPerizinanUsaha,
+      inputType: "textarea",
+      placeholder: t.stepTwo.perizinanUsahaPlaceholder,
+      validate: (v: string) => isValidFreeText(v, 3, 1),
+      invalidNudge: t.chatFlow.invalidNudge,
+      phase: "kondisi",
+    },
+    {
+      field: "jumlahTim",
+      prompt: () => t.chatFlow.askJumlahTim,
+      inputType: "text",
+      placeholder: t.stepTwo.jumlahTimPlaceholder,
+      validate: (v: string) => isValidFreeText(v, 1, 1),
+      invalidNudge: t.chatFlow.invalidNudge,
+      phase: "kondisi",
+    },
     {
       field: "tantangan",
       prompt: (d) => fill(isBaru ? t.chatFlow.askTantanganNew : t.chatFlow.askTantanganRunning, d),
@@ -468,6 +492,8 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       label: isBaru ? t.chatFlow.modalAwalLabel : t.chatFlow.omsetLabel,
       field: "omsetBulanan",
     },
+    { group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.perizinanUsahaLabel, field: "perizinanUsaha" },
+    { group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.jumlahTimLabel, field: "jumlahTim" },
     { group: t.chatFlow.tantanganTargetTitle, label: t.chatFlow.tantanganLabel, field: "tantangan" },
     { group: t.chatFlow.tantanganTargetTitle, label: t.chatFlow.targetLabel, field: "target" },
     { group: t.chatFlow.ceritaVisiTitle, label: t.chatFlow.ceritaVisiTitle, field: "ceritaVisi" },

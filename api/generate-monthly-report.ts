@@ -210,7 +210,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const reportData: ReportData = {
       tier: "platinum",
       price: "Termasuk paket PLATINUM",
-      tagline: "Laporan Perkembangan Bulanan — AI Business Intelligence Consultant",
+      tagline: "Laporan Perkembangan Bulanan — AI Consultant Mendalam",
       profile: {
         ownerName: "-",
         businessName: memory.profile.businessName,
@@ -225,7 +225,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         date: today.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }),
         version: "1.0",
         industry: memory.profile.industry || "-",
-        preparedBy: "Beemo AI — THE HIVE Business Intelligence Engine",
+        preparedBy: "Beemo AI — THE HIVE",
         businessScore: aiContent.coverBusinessScore,
         confidencePct: aiContent.coverConfidencePct,
         executiveRecommendation: aiContent.coverExecutiveRecommendation,

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { WizardData } from "./ChatWizard";
 import { hardNavigate } from "../utils/navigate";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useAuth } from "../context/AuthContext";
 
 export type PreviewData = {
   businessHealthScore: number;
@@ -27,10 +28,72 @@ type PreviewReportProps = {
 
 function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewReportProps) {
   const { t, lang } = useLanguage();
+  const { user, session } = useAuth();
   const namaBisnis = data.namaBisnis || "Bisnis Anda";
   const isBaru = data.jenisAnalisis === "baru";
   const scoreLabel = isBaru ? t.previewReport.scoreLabelNew : t.previewReport.scoreLabelRunning;
   const [preparingPlan, setPreparingPlan] = useState<"pro" | "platinum" | null>(null);
+
+  // Auto-promote draft (directive PO: "bisnis yang baru saya masukan...
+  // tidak otomatis tersimpan... padahal emailnya sama"): promote-draft
+  // sebelumnya HANYA dipanggil dari PaymentPage (setelah checkout). Kalau
+  // pengunjung ternyata SUDAH punya sesi login aktif saat hasil gratis ini
+  // muncul (mis. sudah jadi pelanggan di tab lain), business barunya
+  // langsung "naik level" jadi business_profile asli di Workspace-nya —
+  // tidak perlu nunggu sampai checkout. Untuk pengunjung anonim (belum
+  // login), TIDAK berubah — draft tetap baru dipromosikan saat checkout
+  // (lihat goToPayment di bawah / PaymentPage.tsx), supaya tidak membuat
+  // business_profile permanen untuk orang yang cuma coba-coba gratis.
+  const [autoSavedBusinessId, setAutoSavedBusinessId] = useState<string | null>(null);
+  const [autoSaving, setAutoSaving] = useState(false);
+
+  useEffect(() => {
+    if (!preview || !user || !session?.access_token || autoSavedBusinessId || autoSaving) return;
+    let cancelled = false;
+
+    async function autoPromote() {
+      setAutoSaving(true);
+      try {
+        const saveRes = await fetch("/api/save-submission", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ wizardData: data, preview, lang }),
+        });
+        const saveJson = await saveRes.json();
+        if (!saveRes.ok || !saveJson.id) {
+          console.error("auto-promote: save-submission gagal:", saveJson.error);
+          return;
+        }
+
+        const promoteRes = await fetch("/api/promote-draft", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ draftId: saveJson.id }),
+        });
+        const promoteJson = await promoteRes.json();
+        if (!cancelled && promoteRes.ok && promoteJson.businessProfileId) {
+          setAutoSavedBusinessId(promoteJson.businessProfileId);
+        } else if (!promoteRes.ok) {
+          console.error("auto-promote: promote-draft gagal:", promoteJson.error);
+        }
+      } catch (err) {
+        console.error("auto-promote error:", err);
+      } finally {
+        if (!cancelled) setAutoSaving(false);
+      }
+    }
+
+    autoPromote();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sengaja cuma
+    // reaktif ke preview/user/session, bukan `data` (WizardData berubah
+    // identitas objeknya tiap render tapi isinya sama untuk preview yang sama).
+  }, [preview, user, session?.access_token]);
 
   const analysisChecklist = t.previewReport.checklist.map((label, i) => ({
     label,
@@ -125,6 +188,18 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
         <span className="text-xs font-bold uppercase tracking-widest text-primary">{t.previewReport.eyebrow}</span>
         <h2 className="mt-2 text-2xl font-extrabold">{namaBisnis}</h2>
       </div>
+
+      {autoSavedBusinessId && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/[0.06] px-5 py-3 text-center sm:text-left">
+          <p className="text-sm text-neutral-200">✓ {t.previewReport.autoSavedNote}</p>
+          <button
+            onClick={() => hardNavigate("workspace")}
+            className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-transform hover:-translate-y-0.5"
+          >
+            {t.previewReport.autoSavedButton}
+          </button>
+        </div>
+      )}
 
       {/* Business Health/Readiness Score */}
       <div className="mb-6 rounded-2xl border border-primary/30 bg-surface p-6 text-center">

@@ -32,6 +32,8 @@ type WizardPayload = {
   rencanaLaunching?: string;
   omsetBulanan?: string; // dipakai juga untuk "Estimasi Modal Awal" pada bisnis baru
   targetPelanggan?: string;
+  perizinanUsaha?: string;
+  jumlahTim?: string;
   tantangan: string;
   target: string;
   ceritaVisi?: string;
@@ -95,6 +97,8 @@ ${data.sejakKapan ? `- Sejak: ${data.sejakKapan}` : ""}
 ${data.rencanaLaunching ? `- Rencana tanggal launching: ${data.rencanaLaunching}` : ""}
 ${data.omsetBulanan ? `- ${isBaru ? "Estimasi modal awal" : "Rata-rata omset bulanan"} (disebutkan pengguna sendiri): ${data.omsetBulanan}` : ""}
 ${data.targetPelanggan ? `- Target pelanggan: ${data.targetPelanggan}` : ""}
+${data.perizinanUsaha ? `- Status perizinan usaha: ${data.perizinanUsaha}` : ""}
+${data.jumlahTim ? `- Jumlah tim: ${data.jumlahTim}` : ""}
 - Tantangan terbesar: ${data.tantangan}
 - Target 6-12 bulan ke depan: ${data.target}
 ${data.ceritaVisi ? `\nCerita & visi dalam kata-kata pengguna sendiri (sumber PALING PENTING untuk memahami cara pandang, ambisi, dan gaya bicara mereka — pakai untuk mengkalibrasi nada seluruh laporan, terutama executive summary/ringkasan):\n"${data.ceritaVisi}"` : ""}
@@ -177,7 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       tagline:
         tier === "pro"
           ? "AI Business Advisor — solusi praktis, langsung bisa diterapkan"
-          : "AI Business Intelligence Consultant — mendukung keputusan strategis",
+          : "AI Consultant Mendalam — mendukung keputusan strategis",
       profile: {
         ownerName: wizardData.nama,
         businessName: wizardData.namaBisnis,
@@ -192,7 +196,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         date: today.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }),
         version: "1.0",
         industry: wizardData.jenisBisnis,
-        preparedBy: "Beemo AI — THE HIVE Business Intelligence Engine",
+        preparedBy: "Beemo AI — THE HIVE",
         businessScore: aiContent.coverBusinessScore,
         confidencePct: aiContent.coverConfidencePct,
         executiveRecommendation: aiContent.coverExecutiveRecommendation,

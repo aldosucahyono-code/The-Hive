@@ -92,12 +92,12 @@ export function renderCoverHtml(data: ReportData, totalPages: number, readingTim
         </div>
         <div style="margin-left:auto; text-align:right;">
           <div style="font-size:9px; font-weight:700; color:${accent};">Paket ${tierLabel}</div>
-          <div style="font-size:8px; color:${muted};">Dokumen Rahasia — Business Intelligence Report</div>
+          <div style="font-size:8px; color:${muted};">Dokumen Rahasia — Laporan Analisis Bisnis</div>
         </div>
       </div>
       <hr style="border:none; border-top:0.6px solid ${line}; margin:10px 0 26px 0;"/>
 
-      <h1 style="font-size:24px; margin:0 0 4px 0; color:${ink};">Laporan Business Intelligence</h1>
+      <h1 style="font-size:24px; margin:0 0 4px 0; color:${ink};">Laporan Analisis Bisnis</h1>
       <div style="font-size:9px; font-weight:700; color:${accent}; margin-bottom:2px;">Paket ${tierLabel === "PLATINUM" ? "Platinum" : "Pro"} — ${esc(data.price)}</div>
       <div style="font-size:8.5px; color:${muted}; margin-bottom:16px;">${esc(data.tagline)}</div>
 

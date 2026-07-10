@@ -26,7 +26,7 @@ function headerTemplate(tierLabel: string, accent: string, hexFill: string): str
     </div>
     <div style="text-align:right;">
       <div style="font-size:7.5px; font-weight:700; color:${accent};">Paket ${tierLabel}</div>
-      <div style="font-size:6.5px; color:#6B6B6E;">Dokumen Rahasia — Business Intelligence Report</div>
+      <div style="font-size:6.5px; color:#6B6B6E;">Dokumen Rahasia — Laporan Analisis Bisnis</div>
     </div>
   </div>`;
 }
