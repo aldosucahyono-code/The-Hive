@@ -71,6 +71,12 @@ function ChatBeemoPanel({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Nudge Upgrade (directive PO: indikator sukses = pelanggan Pro pakai
+  // fitur sampai mentok kuota, lalu upgrade ke Platinum — bahasa HALUS,
+  // bukan hard-sell). true kalau balasan terakhir server bilang
+  // quotaExceeded — dipisah dari `error` biasa supaya render-nya beda
+  // (kartu ajakan upgrade, bukan teks merah generik).
+  const [chatQuotaHit, setChatQuotaHit] = useState(false);
 
   // Decision Engine ("AI Business Mentor, bukan AI Reporter") — entrypoint
   // ringan di dalam Chat Beemo panel yang sudah ada, bukan halaman baru.
@@ -79,6 +85,7 @@ function ChatBeemoPanel({
   const [decisionLoading, setDecisionLoading] = useState(false);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [decisionResult, setDecisionResult] = useState<DecisionRecord | null>(null);
+  const [decisionQuotaHit, setDecisionQuotaHit] = useState(false);
   const [decisionHistory, setDecisionHistory] = useState<DecisionRecord[]>([]);
   const [decisionHistoryLoading, setDecisionHistoryLoading] = useState(false);
   const [decisionHistoryLoaded, setDecisionHistoryLoaded] = useState(false);
@@ -113,6 +120,7 @@ function ChatBeemoPanel({
     setInput("");
     setSending(true);
     setError(null);
+    setChatQuotaHit(false);
 
     try {
       const response = await fetch("/api/beemo", {
@@ -126,7 +134,11 @@ function ChatBeemoPanel({
       const json = await response.json();
 
       if (!response.ok) {
-        setError(json.error || t.workspace.chatErrorGeneric);
+        if (json.quotaExceeded) {
+          setChatQuotaHit(true);
+        } else {
+          setError(json.error || t.workspace.chatErrorGeneric);
+        }
         setSending(false);
         return;
       }
@@ -177,6 +189,7 @@ function ChatBeemoPanel({
     if (!trimmed || decisionLoading || !session?.access_token) return;
     setDecisionLoading(true);
     setDecisionError(null);
+    setDecisionQuotaHit(false);
 
     try {
       const response = await fetch("/api/workspace", {
@@ -190,7 +203,11 @@ function ChatBeemoPanel({
       const json = await response.json();
 
       if (!response.ok) {
-        setDecisionError(json.error || t.workspace.decisionErrorGeneric);
+        if (json.quotaExceeded) {
+          setDecisionQuotaHit(true);
+        } else {
+          setDecisionError(json.error || t.workspace.decisionErrorGeneric);
+        }
         setDecisionLoading(false);
         return;
       }
@@ -298,6 +315,22 @@ function ChatBeemoPanel({
           ))}
           {sending && <p className="text-xs text-neutral-500">{t.workspace.chatSending}</p>}
           {error && <p className="text-sm text-red-400">{error}</p>}
+          {chatQuotaHit && (
+            <div className="rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
+              <p className="text-sm font-bold text-primary">🐝 {t.workspace.chatQuotaNudgeTitle}</p>
+              <p className="mt-1 text-xs leading-relaxed text-neutral-300">
+                {tier === "pro" ? t.workspace.chatQuotaNudgeDescPro : t.workspace.chatQuotaNudgeDescPlatinum}
+              </p>
+              {tier === "pro" && (
+                <button
+                  onClick={onUpgradeClick}
+                  className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                >
+                  {t.workspace.chatQuotaNudgeButton}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 border-t border-white/10 p-3">
@@ -359,6 +392,22 @@ function ChatBeemoPanel({
                 {decisionLoading ? t.workspace.decisionSubmitLoading : t.workspace.decisionSubmitButton}
               </button>
               {decisionError && <p className="text-sm text-red-400">{decisionError}</p>}
+              {decisionQuotaHit && (
+                <div className="rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
+                  <p className="text-sm font-bold text-primary">🐝 {t.workspace.decisionQuotaNudgeTitle}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-neutral-300">
+                    {tier === "pro" ? t.workspace.decisionQuotaNudgeDescPro : t.workspace.decisionQuotaNudgeDescPlatinum}
+                  </p>
+                  {tier === "pro" && (
+                    <button
+                      onClick={onUpgradeClick}
+                      className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                    >
+                      {t.workspace.chatQuotaNudgeButton}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {decisionResult && (

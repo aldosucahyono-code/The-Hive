@@ -38,6 +38,15 @@ type PreviewData = {
   strengths: string;
   improvements: string;
   opportunity: string;
+  // Rekomendasi Tier (directive PO: "membuat orang yang awalnya memilih pro
+  // sudah cukup, menjadi wah aku harus upgrade ke platinum" — TAPI dengan
+  // bahasa halus, bukan hard-sell): Beemo menilai dari kompleksitas case
+  // (franchise/kemitraan, perizinan berlapis, rencana rekrutmen/skala besar,
+  // banyak tantangan sekaligus, dst.) apakah PRO sudah cukup atau butuh
+  // kedalaman PLATINUM. Selalu ada alasannya — tidak pernah cuma "upgrade
+  // aja" tanpa konteks.
+  recommendedTier: "pro" | "platinum";
+  recommendationNote: string;
 };
 
 const SYSTEM_PROMPT_ID = `Anda adalah Beemo AI, konsultan bisnis dari THE HIVE untuk UMKM Indonesia.
@@ -57,7 +66,17 @@ ATURAN KETAT:
   bicara Anda dan membuat ringkasan terasa benar-benar mendengarkan cerita mereka, bukan
   cuma mengolah data formulir.
 - Tulis SEMUA isi respons (summary, findings, strengths, improvements, opportunity,
-  statusLabel) dalam BAHASA INDONESIA.
+  statusLabel, recommendationNote) dalam BAHASA INDONESIA.
+
+REKOMENDASI PAKET (WAJIB, bahasa HALUS bukan hard-sell): Nilai dari data pengguna apakah
+kasusnya cukup sederhana (satu tantangan jelas, bisnis lokal biasa, tidak ada faktor rumit) —
+kalau iya, rekomendasikan "pro". Kalau kasusnya lebih kompleks (mis. rencana franchise/kemitraan,
+banyak tantangan besar sekaligus, menyebut rencana rekrutmen tim/ekspansi/investor, butuh
+kepastian izin usaha/legal yang berlapis, atau visi jangka panjang yang ambisius), rekomendasikan
+"platinum". recommendationNote HARUS terasa seperti saran tulus dari konsultan yang benar-benar
+memperhatikan situasi mereka (1-2 kalimat, sebut alasan konkret dari data mereka) — BUKAN kalimat
+jualan/tekanan. Jangan pernah merendahkan pilihan PRO seolah tidak cukup baik.
+
 - Balas HANYA dengan JSON valid, tanpa markdown, tanpa teks lain, sesuai skema berikut:
 
 {
@@ -67,7 +86,9 @@ ATURAN KETAT:
   "findings": [string, string, string] (tepat 3 temuan penting yang spesifik untuk bisnis ini),
   "strengths": string (1 kalimat, hal positif spesifik dari data yang diberikan),
   "improvements": string (1 kalimat, area yang perlu diperbaiki spesifik dari data ini),
-  "opportunity": string (1 kalimat, peluang spesifik yang relevan dengan target/tantangan ini)
+  "opportunity": string (1 kalimat, peluang spesifik yang relevan dengan target/tantangan ini),
+  "recommendedTier": "pro" | "platinum",
+  "recommendationNote": string (1-2 kalimat halus menjelaskan kenapa paket ini yang paling pas buat mereka)
 }`;
 
 const SYSTEM_PROMPT_EN = `You are Beemo AI, THE HIVE's business consultant for small and growing
@@ -86,7 +107,17 @@ STRICT RULES:
   understanding their mindset, ambition, and style — use it to calibrate your tone and make the
   summary feel like you genuinely listened to their story, not just processed a form.
 - Write ALL of the response content (summary, findings, strengths, improvements, opportunity,
-  statusLabel) in ENGLISH.
+  statusLabel, recommendationNote) in ENGLISH.
+
+PLAN RECOMMENDATION (REQUIRED, GENTLE tone, not hard-sell): Judge from the user's data whether
+their case is fairly simple (one clear challenge, an ordinary local business, no complicating
+factors) — if so, recommend "pro". If their case is more complex (e.g. franchise/partnership
+plans, several major challenges at once, mentions of hiring/expansion/investors, needs certainty
+around layered business permits/legal steps, or an ambitious long-term vision), recommend
+"platinum". recommendationNote MUST read like genuine advice from a consultant who actually
+paid attention to their situation (1-2 sentences, cite a concrete reason from their data) — NOT
+a sales pitch. Never make PRO sound inadequate.
+
 - Reply with ONLY valid JSON, no markdown, no other text, matching this schema:
 
 {
@@ -96,7 +127,9 @@ STRICT RULES:
   "findings": [string, string, string] (exactly 3 key findings specific to this business),
   "strengths": string (1 sentence, something specifically positive from the data given),
   "improvements": string (1 sentence, a specific area to improve based on this data),
-  "opportunity": string (1 sentence, a specific opportunity relevant to this target/challenge)
+  "opportunity": string (1 sentence, a specific opportunity relevant to this target/challenge),
+  "recommendedTier": "pro" | "platinum",
+  "recommendationNote": string (1-2 gentle sentences explaining why this plan fits them best)
 }`;
 
 function buildUserPrompt(data: WizardPayload, lang: "id" | "en"): string {

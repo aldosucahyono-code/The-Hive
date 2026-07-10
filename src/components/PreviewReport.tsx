@@ -11,6 +11,10 @@ export type PreviewData = {
   strengths: string;
   improvements: string;
   opportunity: string;
+  // Rekomendasi Tier oleh Beemo (opsional — respons lama sebelum field ini
+  // ditambah tidak akan punya ini, jadi UI harus tetap aman kalau undefined).
+  recommendedTier?: "pro" | "platinum";
+  recommendationNote?: string;
 };
 
 type PreviewReportProps = {
@@ -214,9 +218,30 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           </p>
         </div>
 
+        {/* Rekomendasi Beemo — halus, bukan hard-sell. Selalu bisa memilih
+            paket lain, ini cuma saran dengan alasan konkret dari analisa. */}
+        {preview.recommendationNote && (
+          <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/[0.06] p-4 sm:p-5">
+            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-primary">
+              🐝 {t.previewReport.recommendationTitle}
+            </p>
+            <p className="text-sm leading-relaxed text-neutral-200">{preview.recommendationNote}</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           {/* PRO */}
-          <div className="rounded-2xl border border-blue-500/30 bg-black/20 p-6 text-center">
+          <div
+            className={
+              "relative rounded-2xl border bg-black/20 p-6 text-center " +
+              (preview.recommendedTier === "pro" ? "border-primary/60 ring-1 ring-primary/40" : "border-blue-500/30")
+            }
+          >
+            {preview.recommendedTier === "pro" && (
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-3 py-1 text-[10px] font-bold text-black">
+                🐝 {t.previewReport.recommendedBadge}
+              </span>
+            )}
             <span className="inline-block rounded-full bg-blue-500 px-3 py-1 text-xs font-bold text-white">
               PRO
             </span>
@@ -242,7 +267,17 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           </div>
 
           {/* PLATINUM */}
-          <div className="rounded-2xl border border-purple-500/30 bg-black/20 p-6 text-center">
+          <div
+            className={
+              "relative rounded-2xl border bg-black/20 p-6 text-center " +
+              (preview.recommendedTier === "platinum" ? "border-primary/60 ring-1 ring-primary/40" : "border-purple-500/30")
+            }
+          >
+            {preview.recommendedTier === "platinum" && (
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-3 py-1 text-[10px] font-bold text-black">
+                🐝 {t.previewReport.recommendedBadge}
+              </span>
+            )}
             <span className="inline-block rounded-full bg-purple-500 px-3 py-1 text-xs font-bold text-white">
               PLATINUM
             </span>

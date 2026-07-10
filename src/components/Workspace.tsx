@@ -424,6 +424,7 @@ function DecisionJournalList({
   onSubmit,
   submitting,
   submitError,
+  quotaHit,
 }: {
   tier: Tier;
   t: Translations;
@@ -438,6 +439,7 @@ function DecisionJournalList({
   onSubmit: () => void;
   submitting: boolean;
   submitError: string | null;
+  quotaHit: boolean;
 }) {
   if (tier === "free") {
     return (
@@ -489,6 +491,22 @@ function DecisionJournalList({
             onRetry={onSubmit}
           />
         </div>
+        {quotaHit && (
+          <div className="mt-3 rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
+            <p className="text-sm font-bold text-primary">🐝 {t.workspace.decisionQuotaNudgeTitle}</p>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-300">
+              {tier === "pro" ? t.workspace.decisionQuotaNudgeDescPro : t.workspace.decisionQuotaNudgeDescPlatinum}
+            </p>
+            {tier === "pro" && (
+              <button
+                onClick={onUpgradeClick}
+                className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+              >
+                {t.workspace.chatQuotaNudgeButton}
+              </button>
+            )}
+          </div>
+        )}
       </WorkspaceCard>
 
       {error && !loading ? (
@@ -3383,6 +3401,10 @@ function Workspace() {
   const [decisionQuestion, setDecisionQuestion] = useState("");
   const [decisionSubmitting, setDecisionSubmitting] = useState(false);
   const [decisionSubmitError, setDecisionSubmitError] = useState<string | null>(null);
+  // Nudge Upgrade (lihat catatan sama di ChatBeemoPanel.tsx) — halaman
+  // Decision Journal sungguhan (menu terpisah dari mini-form di dalam Chat
+  // Beemo panel) juga perlu nudge yang sama saat kuota Pro habis.
+  const [decisionQuotaHit, setDecisionQuotaHit] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -3979,6 +4001,7 @@ function Workspace() {
     if (!activeBusinessId || !session?.access_token || !decisionQuestion.trim()) return;
     setDecisionSubmitting(true);
     setDecisionSubmitError(null);
+    setDecisionQuotaHit(false);
     try {
       const response = await fetch("/api/workspace", {
         method: "POST",
@@ -3997,6 +4020,8 @@ function Workspace() {
         // (snake_case) vs listDecisions (camelCase) secara manual — satu
         // sumber bentuk data, konsisten dengan pola submitUpdate.
         await loadDecisions();
+      } else if (json.quotaExceeded) {
+        setDecisionQuotaHit(true);
       } else {
         setDecisionSubmitError(json.error || t.workspace.decisionErrorGeneric);
       }
@@ -4788,6 +4813,7 @@ function Workspace() {
               onSubmit={handleProposeDecision}
               submitting={decisionSubmitting}
               submitError={decisionSubmitError}
+              quotaHit={decisionQuotaHit}
             />
           ) : (
             <EmptyState
