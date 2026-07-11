@@ -5,14 +5,19 @@ import { useLanguage } from '../i18n/LanguageContext'
 
 interface AuthModalProps {
   onClose: () => void
+  // Prefill email (mis. dari email yang sudah diisi di chat wizard) —
+  // mengurangi risiko pelanggan login pakai email BEDA dari yang dipakai
+  // saat mengisi wizard, yang sebelumnya menyebabkan bisnisnya "salah
+  // nempel" ke akun lain (lihat guard emailMismatch di promoteDraft.ts).
+  defaultEmail?: string
 }
 
 type ModalState = 'idle' | 'sending' | 'sent' | 'error'
 
-export default function AuthModal({ onClose }: AuthModalProps) {
+export default function AuthModal({ onClose, defaultEmail }: AuthModalProps) {
   const { signInWithMagicLink } = useAuth()
   const { t } = useLanguage()
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(defaultEmail || '')
   const [state, setState] = useState<ModalState>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 

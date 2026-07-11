@@ -72,6 +72,35 @@ export async function promoteDraft(
     return { status: 404, body: { error: "Draft tidak ditemukan" } };
   }
 
+  const wizardData = draft.wizard_data as Record<string, string>;
+
+  // Guard integritas data (fix bug: "bisnis pelanggan masuk ke akun
+  // developer"). Root cause: PreviewReport.tsx (auto-promote) dan
+  // PaymentPage.tsx (promote-draft setelah checkout) sebelumnya memanggil
+  // action ini begitu ADA sesi login aktif di browser — tanpa mengecek
+  // apakah sesi itu benar-benar milik orang yang mengisi wizard. Kalau
+  // developer (atau siapapun) kebetulan sudah login di browser yang sama
+  // saat wizard diisi dengan nama+email pelanggan lain, bisnisnya langsung
+  // "naik level" ke akun yang sedang login itu — bukan ke akun pelanggan.
+  // Di sinilah satu-satunya tempat yang tahu KEDUANYA (email yang diisi di
+  // wizard, dan siapa yang sedang login) — jadi guard-nya diletakkan di
+  // sini, bukan di frontend (frontend bisa dilewati/di-bypass).
+  // Cocokkan case-insensitive + trim. Kalau wizard_data lama tidak punya
+  // field email, jangan blokir (data legacy) — tapi untuk draft baru email
+  // selalu wajib diisi di ChatFlow, jadi ini seharusnya selalu ada.
+  const draftEmail = typeof wizardData?.email === "string" ? wizardData.email.trim().toLowerCase() : "";
+  const sessionEmail = (userEmail || "").trim().toLowerCase();
+  if (draftEmail && sessionEmail && draftEmail !== sessionEmail) {
+    return {
+      status: 409,
+      body: {
+        error: "Bisnis ini dibuat dengan email yang berbeda dari akun yang sedang login.",
+        emailMismatch: true,
+        draftEmail: wizardData.email,
+      },
+    };
+  }
+
   // Sudah pernah dipromosikan sebelumnya — kembalikan hasil yang sama,
   // jangan buat business_profile/analysis kedua kalinya.
   if (draft.status === "promoted" && draft.business_profile_id) {
@@ -80,8 +109,6 @@ export async function promoteDraft(
       body: { businessProfileId: draft.business_profile_id, analysisId: draft.analysis_id },
     };
   }
-
-  const wizardData = draft.wizard_data as Record<string, string>;
 
   // Batas jumlah usaha per akun (lihat services/business/checkBusinessCap.ts)
   // — ini titik masuk pertama yang otentik (user sudah login) untuk alur

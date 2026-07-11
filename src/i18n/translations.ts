@@ -270,6 +270,10 @@ const id = {
     authPromptDesc: "Aktifkan Workspace dulu (login lewat email) untuk melanjutkan pembayaran — ini supaya laporan dan akses PRO/PLATINUM kamu tersimpan di akunmu.",
     authPromptButton: "Aktifkan Workspace",
     preparingBusinessDataLabel: "Menyiapkan data bisnismu...",
+    emailMismatchTitle: "Email Tidak Cocok",
+    emailMismatchDescPrefix: "Bisnis ini diisi dengan email ",
+    emailMismatchDescSuffix: " tapi kamu sedang login dengan akun yang berbeda. Keluar dulu, lalu login memakai email tersebut untuk melanjutkan.",
+    emailMismatchLogoutButton: "Keluar & Ganti Akun",
   },
 
   navbar: {
@@ -1629,6 +1633,10 @@ const en: Translations = {
     authPromptDesc: "Activate your Workspace first (sign in by email) to continue with payment — this way your report and PRO/PLATINUM access are saved to your account.",
     authPromptButton: "Activate Workspace",
     preparingBusinessDataLabel: "Preparing your business data...",
+    emailMismatchTitle: "Email Doesn't Match",
+    emailMismatchDescPrefix: "This business was filled in with the email ",
+    emailMismatchDescSuffix: " but you're currently signed in with a different account. Sign out, then sign in with that email to continue.",
+    emailMismatchLogoutButton: "Sign Out & Switch Account",
   },
 
   navbar: {

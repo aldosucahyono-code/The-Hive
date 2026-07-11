@@ -84,6 +84,14 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           setAutoSavedBusinessId(promoteJson.businessProfileId);
         } else if (!cancelled && promoteJson.capExceeded) {
           setAutoSaveCapped(true);
+        } else if (!cancelled && promoteJson.emailMismatch) {
+          // Sesi login di browser ini BUKAN pemilik email yang baru saja
+          // diisi di wizard (mis. developer sedang login sendiri saat
+          // pengunjung lain mengisi form) — jangan auto-save ke akun yang
+          // salah. Diamkan saja di sini (sama seperti kasus belum login):
+          // draft tetap tersimpan anonim, nanti dipromosikan ulang lewat
+          // alur checkout normal (PaymentPage), yang menampilkan pesan
+          // jelas ke pengguna kalau terjadi mismatch yang sama.
         } else if (!promoteRes.ok) {
           console.error("auto-promote: promote-draft gagal:", promoteJson.error);
         }

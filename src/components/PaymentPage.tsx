@@ -69,7 +69,7 @@ type ConfirmStage = "polling" | "pendingTimeout" | "expired" | "failed";
 
 function PaymentPage({ plan }: { plan: PlanId }) {
   const { t } = useLanguage();
-  const { user, session } = useAuth();
+  const { user, session, signOut } = useAuth();
   const info = PLAN_INFO[plan];
   const order = usePendingOrder();
 
@@ -86,6 +86,12 @@ function PaymentPage({ plan }: { plan: PlanId }) {
   const [businessProfileId, setBusinessProfileId] = useState<string | null>(null);
   const [isPromoting, setIsPromoting] = useState(false);
   const [promoteError, setPromoteError] = useState<string | null>(null);
+  // Fix bug "bisnis pelanggan masuk ke akun developer": kalau akun yang
+  // sedang login BUKAN pemilik email yang diisi di wizard, promoteDraft.ts
+  // menolak dengan emailMismatch=true alih-alih diam-diam menempelkan
+  // bisnis ke akun yang salah. Simpan email yang seharusnya dipakai supaya
+  // UI bisa memandu pengguna keluar & login ulang dengan email yang benar.
+  const [mismatchedEmail, setMismatchedEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || !session?.access_token || !order?.draftId || businessProfileId) return;
@@ -108,6 +114,8 @@ function PaymentPage({ plan }: { plan: PlanId }) {
         if (cancelled) return;
         if (response.ok) {
           setBusinessProfileId(json.businessProfileId);
+        } else if (json.emailMismatch) {
+          setMismatchedEmail(json.draftEmail || order?.email || null);
         } else {
           console.error("promote-draft gagal:", json.error);
           setPromoteError(t.paymentPage.promoteErrorGeneric);
@@ -128,6 +136,12 @@ function PaymentPage({ plan }: { plan: PlanId }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, session?.access_token, order?.draftId, businessProfileId]);
+
+  async function handleSwitchAccount() {
+    setMismatchedEmail(null);
+    await signOut();
+    setShowAuthModal(true);
+  }
 
   // Menunggu webhook notification-handler benar-benar mengonfirmasi status
   // transaksi (settlement/expire/deny/cancel) sebelum pindah ke Workspace.
@@ -361,7 +375,22 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           </p>
         )}
 
-        {!user ? (
+        {mismatchedEmail ? (
+          <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 text-center">
+            <p className="mb-1 text-sm font-bold text-amber-200">{t.paymentPage.emailMismatchTitle}</p>
+            <p className="mb-3 text-sm text-neutral-200">
+              {t.paymentPage.emailMismatchDescPrefix}
+              <strong className="text-amber-300">{mismatchedEmail}</strong>
+              {t.paymentPage.emailMismatchDescSuffix}
+            </p>
+            <button
+              onClick={handleSwitchAccount}
+              className="rounded-full bg-amber-500 px-6 py-2.5 text-sm font-bold text-black hover:opacity-90"
+            >
+              {t.paymentPage.emailMismatchLogoutButton}
+            </button>
+          </div>
+        ) : !user ? (
           <div className="mt-6 rounded-xl border border-primary/30 bg-primary/10 p-5 text-center">
             <p className="mb-3 text-sm text-neutral-200">
               {t.paymentPage.authPromptDesc}
@@ -402,7 +431,9 @@ function PaymentPage({ plan }: { plan: PlanId }) {
         </p>
       </div>
 
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} defaultEmail={order?.email} />
+      )}
     </section>
   );
 }
