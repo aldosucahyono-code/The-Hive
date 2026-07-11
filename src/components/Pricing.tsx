@@ -1,6 +1,17 @@
+import type { CSSProperties } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
-import beemoMascot from "../assets/mascot/beemo.png";
-import beemoLaptop from "../assets/mascot/beemo-laptop.png";
+import beemoPro from "../assets/mascot/beemo-pro.png";
+import beemoPlatinum from "../assets/mascot/beemo-platinum.png";
+
+// Kedua file mascot (beemo-pro.png, beemo-platinum.png) adalah gambar
+// persegi dengan latar gelap bawaan (bukan transparan) — supaya menyatu ke
+// latar kartu (bukan tampak seperti kotak nempel), sudut-sudutnya
+// di-fade lewat mask radial. Sama dipakai di kedua kartu, jadi didefinisikan
+// sekali di sini.
+const mascotMaskStyle: CSSProperties = {
+  WebkitMaskImage: "radial-gradient(circle at 50% 42%, black 58%, transparent 78%)",
+  maskImage: "radial-gradient(circle at 50% 42%, black 58%, transparent 78%)",
+};
 
 type PricingProps = {
   onStart: () => void;
@@ -46,9 +57,10 @@ function Pricing({ onStart, animate }: PricingProps) {
           <div className={"relative rounded-2xl border border-amber-500/30 pt-12 " + fade("80ms")}>
             <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-b from-amber-500/[0.07] to-surface" />
             <img
-              src={beemoMascot}
+              src={beemoPro}
               alt="Beemo"
-              className="absolute -top-9 right-5 h-28 w-28 object-contain drop-shadow-[0_8px_24px_rgba(245,158,11,0.35)] sm:-top-11 sm:right-6 sm:h-32 sm:w-32"
+              style={mascotMaskStyle}
+              className="absolute -top-8 right-4 h-32 w-32 object-cover drop-shadow-[0_8px_24px_rgba(245,158,11,0.35)] sm:-top-10 sm:right-5 sm:h-36 sm:w-36"
             />
             <div className="px-6 pb-6 sm:px-8 sm:pb-8">
               <span className="inline-block rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-black">PRO</span>
@@ -99,9 +111,10 @@ function Pricing({ onStart, animate }: PricingProps) {
           <div className={"relative rounded-2xl border border-purple-500/30 pt-12 " + fade("160ms")}>
             <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-b from-purple-500/[0.08] to-surface" />
             <img
-              src={beemoLaptop}
+              src={beemoPlatinum}
               alt="Beemo"
-              className="absolute -top-9 right-5 h-28 w-28 object-contain drop-shadow-[0_8px_24px_rgba(168,85,247,0.35)] sm:-top-11 sm:right-6 sm:h-32 sm:w-32"
+              style={mascotMaskStyle}
+              className="absolute -top-8 right-4 h-32 w-32 object-cover drop-shadow-[0_8px_24px_rgba(168,85,247,0.35)] sm:-top-10 sm:right-5 sm:h-36 sm:w-36"
             />
             <div className="px-6 pb-6 sm:px-8 sm:pb-8">
               <span className="inline-flex items-center gap-1 rounded-full bg-purple-500 px-3 py-1 text-xs font-bold text-white">
