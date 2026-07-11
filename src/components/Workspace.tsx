@@ -30,6 +30,7 @@ type MenuKey =
   | "report"
   | "target"
   | "competitor"
+  | "macro"
   | "chat"
   | "settings"
   | "businessUpdates"
@@ -1570,6 +1571,61 @@ const RECOMMENDATION_BUCKET_ORDER: RecommendationData["bucket"][] = [
   "next_90_days",
 ];
 
+/** Medsos Kompetitor (Task 14b, Juli 2026) — bagian dari tab Kompetitor,
+ * bukan tab terpisah, karena datanya memang tentang kompetitor yang sama.
+ * dataSource selalu "mock" untuk sekarang (lihat services/socialMedia/
+ * getSocialMediaAnalysis.ts) — UI WAJIB menampilkan label jujur. */
+type SocialMediaRecordData = {
+  competitorName: string;
+  platform: "instagram" | "tiktok" | "facebook";
+  followers: number;
+  postsPerMonth: number;
+  engagementRatePct: number;
+};
+type SocialMediaInsightData = {
+  id: string;
+  category: "summary" | "strength" | "weakness" | "opportunity";
+  headline: string;
+  evidenceSummary: string;
+};
+type SocialMediaAnalysisData = {
+  socialMedia: {
+    dataSource: "mock";
+    records: SocialMediaRecordData[];
+    summary: {
+      totalProfilesFound: number;
+      averageFollowers: number | null;
+      averageEngagementRatePct: number | null;
+      mostActivePlatform: "instagram" | "tiktok" | "facebook" | null;
+      platformsNotFound: Array<"instagram" | "tiktok" | "facebook">;
+    };
+    insights: SocialMediaInsightData[];
+    fetchedAt: string;
+  };
+  tier: Tier;
+};
+
+/** Ekonomi Makro (Task 14c, Juli 2026) — halaman baru, tidak tergantung
+ * business_profile (data sama untuk semua pengguna), tidak tier-gated
+ * (konteks umum, bukan analisis pribadi bisnis). Lihat
+ * services/macro/getMacroSnapshot.ts. */
+type MacroIndicatorData = {
+  key: "usd_idr" | "inflation_yoy" | "bi_rate";
+  labelId: string;
+  labelEn: string;
+  valueDisplay: string;
+  rawValue: number;
+  source: "live_api" | "static";
+  asOf: string;
+};
+type MacroSnapshotData = {
+  macro: {
+    indicators: MacroIndicatorData[];
+    insights: Array<{ id: string; headline: string }>;
+    fetchedAt: string;
+  };
+};
+
 function CompetitorPanel({
   tier,
   t,
@@ -1580,6 +1636,10 @@ function CompetitorPanel({
   error,
   notReadyMessage,
   onRetry,
+  socialMedia,
+  socialMediaLoading,
+  socialMediaError,
+  onRetrySocialMedia,
 }: {
   tier: Tier;
   t: Translations;
@@ -1590,6 +1650,10 @@ function CompetitorPanel({
   error: boolean;
   notReadyMessage: string | null;
   onRetry: () => void;
+  socialMedia: SocialMediaAnalysisData | null;
+  socialMediaLoading: boolean;
+  socialMediaError: boolean;
+  onRetrySocialMedia: () => void;
 }) {
   if (loading) {
     return (
@@ -1750,6 +1814,191 @@ function CompetitorPanel({
 
       <p className="text-center text-[11px] text-neutral-600">
         {fillTemplate(t.workspace.competitorLastUpdated, { date: new Date(competitor.fetchedAt).toLocaleDateString(lang === "id" ? "id-ID" : "en-US") })}
+      </p>
+
+      <SocialMediaSection
+        t={t}
+        lang={lang}
+        tier={tier}
+        data={socialMedia}
+        loading={socialMediaLoading}
+        error={socialMediaError}
+        onRetry={onRetrySocialMedia}
+        onUpgradeClick={onUpgradeClick}
+      />
+    </WorkspaceSection>
+  );
+}
+
+/** Medsos Kompetitor (Task 14b) — bagian dari tab Kompetitor. Sama pola
+ * teaser Gratis dengan bagian Kompetitor di atas: 1 profil terlihat, sisanya
+ * + insight terkunci. dataSource selalu "mock" hari ini (belum ada provider
+ * data medsos sungguhan) — badge jujur WAJIB tampil, sama seperti badge
+ * "Contoh/Simulasi" di Competitor Engine. */
+const PLATFORM_ICON: Record<SocialMediaRecordData["platform"], string> = {
+  instagram: "📸",
+  tiktok: "🎵",
+  facebook: "👍",
+};
+
+function SocialMediaSection({
+  t,
+  lang,
+  tier,
+  data,
+  loading,
+  error,
+  onRetry,
+  onUpgradeClick,
+}: {
+  t: Translations;
+  lang: "id" | "en";
+  tier: Tier;
+  data: SocialMediaAnalysisData | null;
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+  onUpgradeClick: () => void;
+}) {
+  return (
+    <div className="border-t border-white/10 pt-6">
+      <h3 className="mb-1 text-sm font-bold text-white">{t.workspace.socialMediaSectionTitle}</h3>
+      <p className="mb-3 text-xs leading-relaxed text-neutral-400">{t.workspace.socialMediaSectionDesc}</p>
+
+      {loading ? (
+        <SkeletonCard variant="compact" />
+      ) : error ? (
+        <ErrorCard
+          title={t.workspace.workspaceSectionErrorTitle}
+          description={t.workspace.workspaceSectionErrorDesc}
+          retryLabel={t.workspace.workspaceRetryButton}
+          onRetry={onRetry}
+        />
+      ) : !data || data.socialMedia.records.length === 0 ? (
+        <EmptyState variant="default" icon="📱" title={t.workspace.socialMediaEmptyTitle} description={t.workspace.socialMediaEmptyDesc} />
+      ) : (
+        <>
+          <WorkspaceCard tone="warning">
+            <p className="text-sm font-semibold text-amber-300">{t.workspace.socialMediaMockDataBadge}</p>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.socialMediaMockDataDesc}</p>
+          </WorkspaceCard>
+
+          <WorkspaceCard className="mt-3">
+            <div className="space-y-2">
+              {data.socialMedia.records.map((r, i) => (
+                <div key={`${r.competitorName}-${i}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {PLATFORM_ICON[r.platform]} {r.competitorName}
+                    </p>
+                    <p className="text-xs text-neutral-500">{fillTemplate(t.workspace.socialMediaFollowersLabel, { count: r.followers.toLocaleString(lang === "id" ? "id-ID" : "en-US") })}</p>
+                  </div>
+                  <div className="text-right text-xs text-neutral-400">{fillTemplate(t.workspace.socialMediaEngagementLabel, { pct: String(r.engagementRatePct) })}</div>
+                </div>
+              ))}
+            </div>
+          </WorkspaceCard>
+
+          {tier === "free" ? (
+            <div className="mt-3">
+              <UpgradeLockCard description={t.workspace.socialMediaLockedDesc} buttonLabel={t.workspace.competitorUpgradeButton} onUpgradeClick={onUpgradeClick} />
+            </div>
+          ) : (
+            data.socialMedia.insights.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {data.socialMedia.insights.map((insight) => (
+                  <div key={insight.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-sm leading-relaxed text-neutral-200">{insight.headline}</p>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Ekonomi Makro (Task 14c) — halaman baru, indikator makroekonomi
+ * Indonesia yang relevan buat pemilik UMKM. Tidak tier-gated (konteks
+ * umum, bukan analisis pribadi bisnis pengguna) — tersedia untuk semua
+ * tier termasuk Gratis. source "live_api" vs "static" ditampilkan jujur
+ * per indikator (lihat services/macro/getMacroSnapshot.ts). */
+function MacroPanel({
+  t,
+  lang,
+  data,
+  loading,
+  error,
+  onRetry,
+}: {
+  t: Translations;
+  lang: "id" | "en";
+  data: MacroSnapshotData | null;
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+}) {
+  if (loading) {
+    return (
+      <WorkspaceSection>
+        <SectionHeader title={t.workspace.menuMacro} description={t.workspace.macroSectionDesc} />
+        <SkeletonCard />
+        <SkeletonCard />
+      </WorkspaceSection>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <WorkspaceSection>
+        <SectionHeader title={t.workspace.menuMacro} description={t.workspace.macroSectionDesc} />
+        <ErrorCard
+          title={t.workspace.workspaceSectionErrorTitle}
+          description={t.workspace.workspaceSectionErrorDesc}
+          retryLabel={t.workspace.workspaceRetryButton}
+          onRetry={onRetry}
+        />
+      </WorkspaceSection>
+    );
+  }
+
+  const { indicators, insights } = data.macro;
+
+  return (
+    <WorkspaceSection>
+      <SectionHeader title={t.workspace.menuMacro} description={t.workspace.macroSectionDesc} />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {indicators.map((ind) => (
+          <WorkspaceCard key={ind.key}>
+            <p className="text-xs font-semibold text-neutral-400">{lang === "id" ? ind.labelId : ind.labelEn}</p>
+            <p className="mt-1 text-xl font-black text-white">{ind.valueDisplay}</p>
+            <p className="mt-2 text-[11px] text-neutral-500">
+              {ind.source === "live_api" ? t.workspace.macroSourceLive : t.workspace.macroSourceStatic}
+              {" · "}
+              {fillTemplate(t.workspace.macroAsOf, { date: new Date(ind.asOf).toLocaleDateString(lang === "id" ? "id-ID" : "en-US") })}
+            </p>
+          </WorkspaceCard>
+        ))}
+      </div>
+
+      {insights.length > 0 && (
+        <WorkspaceCard>
+          <h3 className="mb-3 text-sm font-bold text-white">{t.workspace.macroInsightTitle}</h3>
+          <div className="space-y-2">
+            {insights.map((insight) => (
+              <div key={insight.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <p className="text-sm leading-relaxed text-neutral-200">{insight.headline}</p>
+              </div>
+            ))}
+          </div>
+        </WorkspaceCard>
+      )}
+
+      <p className="text-center text-[11px] text-neutral-600">
+        {fillTemplate(t.workspace.competitorLastUpdated, { date: new Date(data.macro.fetchedAt).toLocaleDateString(lang === "id" ? "id-ID" : "en-US") })}
       </p>
     </WorkspaceSection>
   );
@@ -3410,6 +3659,13 @@ function MenuIcon({ name }: { name: MenuKey }) {
           <path d="m14.5 9.5-2 5-5 2 2-5Z" />
         </svg>
       );
+    case "macro":
+      return (
+        <svg {...props}>
+          <path d="M3 20h18" />
+          <path d="M6 20V10M12 20V4M18 20v14" />
+        </svg>
+      );
     case "history":
       return (
         <svg {...props}>
@@ -3525,6 +3781,16 @@ function Workspace() {
   const [competitorLoading, setCompetitorLoading] = useState(false);
   const [competitorError, setCompetitorError] = useState(false);
   const [competitorNotReadyMessage, setCompetitorNotReadyMessage] = useState<string | null>(null);
+  // Medsos Kompetitor (Task 14b) — dimuat BERSAMAAN dengan Competitor Engine
+  // (tab yang sama), lihat useEffect activeMenu === "competitor" di bawah.
+  const [socialMediaAnalysis, setSocialMediaAnalysis] = useState<SocialMediaAnalysisData | null>(null);
+  const [socialMediaLoading, setSocialMediaLoading] = useState(false);
+  const [socialMediaError, setSocialMediaError] = useState(false);
+  // Ekonomi Makro (Task 14c) — tab sendiri, tidak per-bisnis (sama untuk
+  // semua pengguna) jadi TIDAK direset di resetPerBusinessCaches().
+  const [macroSnapshot, setMacroSnapshot] = useState<MacroSnapshotData | null>(null);
+  const [macroLoading, setMacroLoading] = useState(false);
+  const [macroError, setMacroError] = useState(false);
   const [todaySnapshot, setTodaySnapshot] = useState<TodaySnapshotPayload | null>(null);
   const [todaySnapshotLoading, setTodaySnapshotLoading] = useState(false);
   // Error state Today — supaya gagal memuat snapshot tidak tampil sebagai
@@ -3979,6 +4245,8 @@ function Workspace() {
     setCompetitorAnalysis(null);
     setCompetitorError(false);
     setCompetitorNotReadyMessage(null);
+    setSocialMediaAnalysis(null);
+    setSocialMediaError(false);
     setUpdateHistory([]);
     setUpdateHistoryError(false);
     setDecisions([]);
@@ -4378,6 +4646,60 @@ function Workspace() {
     setCompetitorLoading(false);
   }
 
+  // Medsos Kompetitor (Task 14b) — dipanggil bersamaan dengan
+  // loadCompetitorAnalysis (tab yang sama). Selalu berhasil (data mock,
+  // tidak bergantung provider eksternal) kecuali business profile tidak
+  // valid — tetap ada error state untuk jaga-jaga (network/auth gagal).
+  async function loadSocialMediaAnalysis() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setSocialMediaLoading(true);
+    setSocialMediaError(false);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "getSocialMediaAnalysis", businessProfileId: activeBusinessId, lang }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setSocialMediaAnalysis(json as SocialMediaAnalysisData);
+      } else {
+        console.error("getSocialMediaAnalysis error:", json.error);
+        setSocialMediaError(true);
+      }
+    } catch (err) {
+      console.error("getSocialMediaAnalysis error:", err);
+      setSocialMediaError(true);
+    }
+    setSocialMediaLoading(false);
+  }
+
+  // Ekonomi Makro (Task 14c) — tidak butuh businessProfileId (data sama
+  // untuk semua pengguna), cukup login.
+  async function loadMacroSnapshot() {
+    if (!session?.access_token) return;
+    setMacroLoading(true);
+    setMacroError(false);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "getMacroSnapshot", lang }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setMacroSnapshot(json as MacroSnapshotData);
+      } else {
+        console.error("getMacroSnapshot error:", json.error);
+        setMacroError(true);
+      }
+    } catch (err) {
+      console.error("getMacroSnapshot error:", err);
+      setMacroError(true);
+    }
+    setMacroLoading(false);
+  }
+
   async function reviewMemoryFactDecision(factId: string, decision: "approve" | "reject") {
     if (!session?.access_token) return;
     setReviewingFactId(factId);
@@ -4469,6 +4791,12 @@ function Workspace() {
     // Gratis tetap hanya memakai sumber gratis.
     if (activeMenu === "competitor" && !competitorAnalysis && !competitorLoading) {
       loadCompetitorAnalysis();
+    }
+    if (activeMenu === "competitor" && !socialMediaAnalysis && !socialMediaLoading) {
+      loadSocialMediaAnalysis();
+    }
+    if (activeMenu === "macro" && !macroSnapshot && !macroLoading) {
+      loadMacroSnapshot();
     }
     if (activeMenu === "businessUpdates" && !showUpdateHistory && updateHistory.length === 0 && !updateHistoryLoading) {
       loadUpdateHistory();
@@ -4568,6 +4896,7 @@ function Workspace() {
     report: { key: "report", label: t.workspace.menuReport, subtitle: t.workspace.todayNavSubtitleReport },
     score: { key: "score", label: t.workspace.menuScore, subtitle: t.workspace.todayNavSubtitleScore },
     competitor: { key: "competitor", label: t.workspace.menuCompetitor, subtitle: t.workspace.todayNavSubtitleCompetitor },
+    macro: { key: "macro", label: t.workspace.menuMacro, subtitle: t.workspace.todayNavSubtitleMacro },
     // Digabung dengan Journey (audit Juli 2026) — label/subtitle diperbarui
     // supaya mencerminkan isi gabungan (target + progres perjalanan bisnis).
     target: { key: "target", label: t.workspace.menuTarget, subtitle: t.workspace.todayNavSubtitleTargetMerged },
@@ -4589,7 +4918,7 @@ function Workspace() {
           // 1. Kelayakan — "benar/tidak saya mau buka bisnis ini" + PDF baseline.
           { stageLabel: t.workspace.stageStartFeasibility, items: [ALL_MENU_ITEMS.report] },
           // 2. Riset Pasar — laku/tidak, lokasi, peta kompetitor.
-          { stageLabel: t.workspace.stageStartMarketFit, items: [ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.competitor] },
+          { stageLabel: t.workspace.stageStartMarketFit, items: [ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.competitor, ALL_MENU_ITEMS.macro] },
           // 3. Persiapan & Pendampingan — 0 sampai launching, dari data PDF.
           {
             stageLabel: t.workspace.stageStartPreparation,
@@ -4607,7 +4936,7 @@ function Workspace() {
             items: [ALL_MENU_ITEMS.today, ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.businessUpdates, ALL_MENU_ITEMS.chat],
           },
           // 3. Pendukung keputusan — solusi relevan berbasis data+AI untuk setiap masalah.
-          { stageLabel: t.workspace.stageGrowDecisionSupport, items: [ALL_MENU_ITEMS.decisionJournal, ALL_MENU_ITEMS.competitor] },
+          { stageLabel: t.workspace.stageGrowDecisionSupport, items: [ALL_MENU_ITEMS.decisionJournal, ALL_MENU_ITEMS.competitor, ALL_MENU_ITEMS.macro] },
           // 4. Laporan & progres — kemajuan bisnis + apa saja yang sudah dilakukan (Journey digabung ke Target).
           { stageLabel: t.workspace.stageGrowReview, items: [ALL_MENU_ITEMS.target, ALL_MENU_ITEMS.history] },
         ];
@@ -5010,7 +5339,13 @@ function Workspace() {
               error={competitorError}
               notReadyMessage={competitorNotReadyMessage}
               onRetry={() => loadCompetitorAnalysis(true)}
+              socialMedia={socialMediaAnalysis}
+              socialMediaLoading={socialMediaLoading}
+              socialMediaError={socialMediaError}
+              onRetrySocialMedia={loadSocialMediaAnalysis}
             />
+          ) : activeMenu === "macro" ? (
+            <MacroPanel t={t} lang={lang} data={macroSnapshot} loading={macroLoading} error={macroError} onRetry={loadMacroSnapshot} />
           ) : activeMenu === "chat" ? (
             activeBusinessId && (
               <ChatBeemoPanel

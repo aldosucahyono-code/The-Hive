@@ -27,6 +27,8 @@ import { getWeeklyReview } from "../services/businessOS/weeklyReview.js";
 import { generateBaselineReportAction } from "../services/reports/generateFinalReport.js";
 import { listReports } from "../services/reports/listReports.js";
 import { promoteDraft } from "../services/business/promoteDraft.js";
+import { getSocialMediaAnalysis } from "../services/socialMedia/getSocialMediaAnalysis.js";
+import { getMacroSnapshot } from "../services/macro/getMacroSnapshot.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -113,6 +115,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "promoteDraft":
       result = await promoteDraft(userId, userEmail, payload);
+      break;
+    case "getSocialMediaAnalysis":
+      result = await getSocialMediaAnalysis(userId, payload);
+      break;
+    case "getMacroSnapshot":
+      result = await getMacroSnapshot(userId, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });
