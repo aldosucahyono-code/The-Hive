@@ -255,7 +255,13 @@ function FinalReportsList({
   }
 
   const baselineReport = reports.find((r) => r.reportType === "baseline") || null;
-  const expiryReport = reports.find((r) => r.reportType === "expiry") || null; // sudah terurut terbaru dulu (listReports.ts)
+  // Task revisi Juli 2026: sebelumnya cuma laporan "expiry" TERBARU yang
+  // ditampilkan (.find, ambil 1) — laporan bulanan lama yang sebenarnya
+  // sudah ada di database (listReports.ts sudah mengembalikan SEMUA, sampai
+  // 366 hari) jadi tidak pernah terlihat/bisa diunduh lagi. Sekarang
+  // ditampilkan SEMUA sebagai daftar, masing-masing dengan tanggalnya
+  // sendiri, supaya laporan lama tetap mudah diakses ("biar mudah diakses").
+  const expiryReports = reports.filter((r) => r.reportType === "expiry"); // sudah terurut terbaru dulu (listReports.ts)
 
   return (
     <WorkspaceSection>
@@ -307,19 +313,26 @@ function FinalReportsList({
           <WorkspaceCard>
             <h3 className="text-sm font-bold text-neutral-100">{t.workspace.finalReportsExpiryTitle}</h3>
             <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.finalReportsExpiryDesc}</p>
-            {expiryReport ? (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-neutral-500">
-                  {t.workspace.finalReportsCreatedAtLabel}: {formatDate(expiryReport.createdAt as string, lang)}
-                </p>
-                <a
-                  href={(expiryReport.downloadUrl as string) || undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-opacity hover:opacity-90"
-                >
-                  {t.workspace.finalReportsDownloadButton}
-                </a>
+            {expiryReports.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {expiryReports.map((r) => (
+                  <div
+                    key={r.id as string}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3"
+                  >
+                    <p className="text-xs text-neutral-500">
+                      {t.workspace.finalReportsCreatedAtLabel}: {formatDate(r.createdAt as string, lang)}
+                    </p>
+                    <a
+                      href={(r.downloadUrl as string) || undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-opacity hover:opacity-90"
+                    >
+                      {t.workspace.finalReportsDownloadButton}
+                    </a>
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="mt-3 text-xs text-neutral-500">{t.workspace.finalReportsExpiryEmptyDesc}</p>
@@ -779,6 +792,7 @@ function BusinessScorePanel({
   error,
   onRetry,
   onUpgradeClick,
+  onOpenUpdateModal,
 }: {
   preview: PreviewOutput | null;
   health: { dimensions: Record<string, number> | null; overall: number | null; dimensionSignals?: DimensionSignals };
@@ -790,6 +804,7 @@ function BusinessScorePanel({
   error: boolean;
   onRetry: () => void;
   onUpgradeClick: () => void;
+  onOpenUpdateModal: () => void;
 }) {
   const hasHealthData = health.overall !== null && health.dimensions !== null;
   const score = hasHealthData ? (health.overall as number) : preview?.businessHealthScore;
@@ -845,6 +860,7 @@ function BusinessScorePanel({
           t={t}
           lang={lang}
           onUpgradeClick={onUpgradeClick}
+          onOpenUpdateModal={onOpenUpdateModal}
         />
       )}
     </WorkspaceSection>
@@ -854,6 +870,15 @@ function BusinessScorePanel({
 /** Isi Business Score setelah dipastikan ada skor untuk ditampilkan —
  * dipisah dari BusinessScorePanel murni supaya percabangan loading/error/
  * empty di atas tetap ringkas dan mudah dibaca. */
+/** Warna highlight angka per dimensi — ambang sama dengan statusLabel skor
+ * keseluruhan (>=70 baik, >=45 perlu perhatian, di bawah itu perlu perhatian
+ * serius), supaya konsisten dipahami di satu halaman yang sama. */
+function dimensionScoreTone(value: number): { text: string; bg: string } {
+  if (value >= 70) return { text: "text-green-400", bg: "bg-green-500/10" };
+  if (value >= 45) return { text: "text-amber-400", bg: "bg-amber-500/10" };
+  return { text: "text-red-400", bg: "bg-red-500/10" };
+}
+
 function ScoreContent({
   health,
   hasHealthData,
@@ -862,6 +887,7 @@ function ScoreContent({
   t,
   lang,
   onUpgradeClick,
+  onOpenUpdateModal,
 }: {
   health: { dimensions: Record<string, number> | null; overall: number | null; dimensionSignals?: DimensionSignals };
   hasHealthData: boolean;
@@ -870,6 +896,7 @@ function ScoreContent({
   t: Translations;
   lang: "id" | "en";
   onUpgradeClick: () => void;
+  onOpenUpdateModal: () => void;
 }) {
   // Catatan: statusLabel SELALU dihitung dari skor numerik lewat kunci i18n,
   // bukan diambil dari preview.statusLabel mentah — field itu adalah teks
@@ -909,20 +936,43 @@ function ScoreContent({
           <h3 className="mb-1 text-sm font-bold text-neutral-200">{t.workspace.healthBreakdownTitle}</h3>
           <p className="mb-4 text-xs leading-relaxed text-neutral-500">{t.workspace.healthBreakdownSubtitle}</p>
           <div className="space-y-3">
-            {(tier === "free" ? dimensionEntries.slice(0, 1) : dimensionEntries).map(([dim, dimScore]) => (
-              <div key={dim} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base" aria-hidden="true">{DIMENSION_LABELS[dim]?.icon}</span>
-                    <p className="text-sm font-bold text-neutral-100">{DIMENSION_LABELS[dim]?.[lang] || dim}</p>
+            {(tier === "free" ? dimensionEntries.slice(0, 1) : dimensionEntries).map(([dim, dimScore]) => {
+              const signal = health.dimensionSignals?.[dim];
+              // Kasus "belum ada Business Update sama sekali" diganti CTA
+              // singkat yang bisa diklik langsung (directive: "diganti
+              // 'update bisnismu!!' atau yang sesuai") — kasus lain (sudah
+              // ada sinyal checklist/tren nyata) TETAP pakai penjelasan
+              // aslinya, supaya tidak kehilangan konteks kenapa skornya
+              // begitu saat datanya memang sudah ada.
+              const isNoUpdateYet = signal?.type === "update" && !signal.hasUpdate;
+              const tone = dimensionScoreTone(dimScore);
+              return (
+                <div key={dim} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base" aria-hidden="true">{DIMENSION_LABELS[dim]?.icon}</span>
+                      <p className="text-sm font-bold text-neutral-100">{DIMENSION_LABELS[dim]?.[lang] || dim}</p>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-lg font-black ${tone.text} ${tone.bg}`}>{dimScore}</span>
                   </div>
-                  <p className="text-lg font-black text-white">{dimScore}</p>
+                  {isNoUpdateYet ? (
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs leading-relaxed text-neutral-400">{t.workspace.healthReasonNoUpdateCta}</p>
+                      <button
+                        onClick={onOpenUpdateModal}
+                        className="rounded-full bg-primary px-3 py-1 text-[11px] font-bold text-black transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                      >
+                        {t.workspace.updateBusinessButton}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed text-neutral-400">
+                      {dimensionReasonText(t, lang, dim, signal)}
+                    </p>
+                  )}
                 </div>
-                <p className="mt-2 text-xs leading-relaxed text-neutral-400">
-                  {dimensionReasonText(t, lang, dim, health.dimensionSignals?.[dim])}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </WorkspaceCard>
       )}
@@ -1483,12 +1533,6 @@ function TargetPanel({
         </WorkspaceCard>
       )}
 
-      {/* CTA — arahan nyata yang sudah ada di aplikasi (Update Bisnis). */}
-      <WorkspaceCard tone="primary" className="text-center">
-        <h3 className="mb-2 text-sm font-bold text-primary">{t.workspace.targetCtaTitle}</h3>
-        <p className="mx-auto max-w-md text-sm leading-relaxed text-neutral-300">{t.workspace.targetCtaDesc}</p>
-        <RetryButton label={t.workspace.updateBusinessButton} onRetry={onOpenUpdateModal} />
-      </WorkspaceCard>
     </WorkspaceSection>
   );
 }
@@ -5291,6 +5335,7 @@ function Workspace() {
               error={businessHealthError}
               onRetry={reloadBusinessHealth}
               onUpgradeClick={openUpgradeModal}
+              onOpenUpdateModal={() => setShowBusinessUpdate(true)}
             />
           ) : activeMenu === "report" ? (
             <ReportPanel
