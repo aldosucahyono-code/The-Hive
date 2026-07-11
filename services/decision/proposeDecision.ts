@@ -152,10 +152,14 @@ export async function proposeDecision(userId: string, payload: Record<string, un
     return {
       status: 403,
       body: {
+        // Audit Juli 2026: sebelumnya ada teks "upgrade ke PLATINUM" di sini
+        // untuk tier "pro" — sekarang jadi mustahil (fungsi ini sudah
+        // menolak tier selain "platinum" di atas), jadi dihapus alih-alih
+        // dibiarkan jadi kode mati yang tidak pernah tercapai.
         error:
           lang === "en"
-            ? `You've used all ${quotaLimit} Decision Journal entries for this access period.${tier === "pro" ? " Upgrade to PLATINUM for a much larger quota and deeper multi-role analysis." : ""}`
-            : `Kuota ${quotaLimit} keputusan Decision Journal untuk periode akses ini sudah habis.${tier === "pro" ? " Upgrade ke PLATINUM untuk kuota jauh lebih besar dan analisa multi-peran yang lebih dalam." : ""}`,
+            ? `You've used all ${quotaLimit} Decision Journal entries for this access period. Your quota will refill once your access period renews.`
+            : `Kuota ${quotaLimit} keputusan Decision Journal untuk periode akses ini sudah habis. Kuota akan terisi ulang begitu periode aksesmu diperpanjang.`,
         quotaExceeded: true,
         tier,
         quotaLimit,
