@@ -8,8 +8,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Fix: Pro dipasarkan sebagai "Rp99.000/bulan" tapi sebelumnya cuma
+// memberi akses 7 hari per pembayaran (Platinum sudah benar 30 hari) —
+// pelanggan Pro jadi kehilangan akses jauh sebelum siklus bulanan
+// berikutnya. Disamakan jadi 30 hari untuk kedua tier (konsisten dengan
+// billing bulanan yang dijanjikan di halaman harga).
 const ACCESS_DURATION_DAYS: Record<string, number> = {
-  pro: 7,
+  pro: 30,
   platinum: 30,
 };
 
@@ -60,7 +65,7 @@ export default async function handler(req: any, res: any) {
 
       await supabase.from('payments').update({ status: 'settlement' }).eq('id', payment.id);
 
-      const durationDays = ACCESS_DURATION_DAYS[payment.tier] ?? 7;
+      const durationDays = ACCESS_DURATION_DAYS[payment.tier] ?? 30;
       const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
 
       // subscriptions hanya boleh punya SATU baris berstatus 'active' per
