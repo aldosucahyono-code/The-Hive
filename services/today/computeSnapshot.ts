@@ -463,8 +463,18 @@ export async function getTodaySnapshot(userId: string, payload: Record<string, u
     .eq("snapshot_date", today)
     .maybeSingle();
 
+  // Grafik Performa (revisi Juli 2026, ganti dummy chart yang sebelumnya
+  // sengaja fiktif): today_snapshot SUDAH menyimpan 1 baris per hari per
+  // bisnis (constraint unique business_profile_id+snapshot_date) — jadi
+  // riwayat skor harian sebenarnya SUDAH ADA, tidak perlu tabel baru.
+  // Diambil di sini (bukan disimpan di payload snapshot itu sendiri) supaya
+  // tidak ikut kena logic cache 1x/hari — selalu baca baris terakhir yang
+  // benar-benar ada, jujur kalau baru sedikit hari (bisnis baru) alih-alih
+  // dikarang jadi 7 titik penuh.
+  const scoreHistory = await getScoreHistory(businessProfileId, today);
+
   if (existing && !payload.forceRecompute) {
-    return { status: 200, body: { snapshot: existing.payload, computedAt: existing.computed_at } };
+    return { status: 200, body: { snapshot: existing.payload, computedAt: existing.computed_at, scoreHistory } };
   }
 
   const snapshot = await buildSnapshot(userId, businessProfileId);
@@ -482,10 +492,46 @@ export async function getTodaySnapshot(userId: string, payload: Record<string, u
     console.error("services/today/computeSnapshot upsert error:", upsertError);
     // Tetap kembalikan hasil hitungan meski gagal cache, supaya UI tidak
     // gagal total hanya karena snapshot tidak tersimpan.
-    return { status: 200, body: { snapshot, computedAt: new Date().toISOString() } };
+    return { status: 200, body: { snapshot, computedAt: new Date().toISOString(), scoreHistory } };
   }
 
-  return { status: 200, body: { snapshot: saved.payload, computedAt: saved.computed_at } };
+  // Baris hari ini baru saja ditulis (upsert di atas) tapi belum tentu ikut
+  // dalam scoreHistory yang diambil SEBELUM upsert — tambahkan manual
+  // supaya grafik hari ini langsung update tanpa perlu reload kedua.
+  const todayScore = (saved.payload as TodaySnapshotPayload)?.score ?? null;
+  const historyWithToday = scoreHistory.some((h) => h.date === today)
+    ? scoreHistory.map((h) => (h.date === today ? { date: today, score: todayScore } : h))
+    : [...scoreHistory, { date: today, score: todayScore }].slice(-7);
+
+  return { status: 200, body: { snapshot: saved.payload, computedAt: saved.computed_at, scoreHistory: historyWithToday } };
+}
+
+export type ScoreHistoryPoint = { date: string; score: number | null };
+
+/** Baca sampai 7 hari terakhir today_snapshot.payload->score untuk satu
+ * bisnis, diurutkan lama->baru (siap dipakai chart kiri-ke-kanan). TIDAK
+ * mengarang titik untuk hari yang tidak ada datanya — kalau bisnis baru
+ * berumur 2 hari, array-nya cuma berisi 2 titik, apa adanya. */
+async function getScoreHistory(businessProfileId: string, uptoDate: string): Promise<ScoreHistoryPoint[]> {
+  const { data: rows, error } = await supabase
+    .from("today_snapshot")
+    .select("snapshot_date, payload")
+    .eq("business_profile_id", businessProfileId)
+    .lte("snapshot_date", uptoDate)
+    .order("snapshot_date", { ascending: false })
+    .limit(7);
+
+  if (error) {
+    console.error("services/today/computeSnapshot getScoreHistory error:", error);
+    return [];
+  }
+
+  return (rows || [])
+    .map((r) => ({
+      date: r.snapshot_date as string,
+      score: (r.payload as TodaySnapshotPayload)?.score ?? null,
+    }))
+    .reverse();
 }
 
 // Living Business Loop: submitUpdate.ts dan

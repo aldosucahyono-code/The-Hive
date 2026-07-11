@@ -74,6 +74,11 @@ export async function getBusinessOS(userId: string, payload: Record<string, unkn
     return todayResult;
   }
   const snapshot = todayResult.body.snapshot as Record<string, unknown>;
+  // Grafik Performa (revisi Juli 2026): scoreHistory dihitung di
+  // getTodaySnapshot (bukan bagian dari payload snapshot yang di-cache),
+  // diteruskan apa adanya di sini supaya frontend Today bisa menggambar
+  // grafik dari data asli, bukan dummy.
+  const scoreHistory = todayResult.body.scoreHistory;
 
   // Persist-only Monthly Snapshot — jalan di background setiap kali Business
   // OS dibaca, non-fatal (§ directive: "snapshot bulanan harus sudah
@@ -132,6 +137,7 @@ export async function getBusinessOS(userId: string, payload: Record<string, unkn
       snapshot,
       dailyBrief,
       weeklyReview,
+      scoreHistory,
     },
   };
 }

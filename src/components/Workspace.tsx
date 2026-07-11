@@ -30,7 +30,6 @@ type MenuKey =
   | "report"
   | "target"
   | "competitor"
-  | "macro"
   | "chat"
   | "settings"
   | "businessUpdates"
@@ -359,6 +358,7 @@ function BusinessUpdatesList({
   error,
   onRetry,
   onOpenUpdateModal,
+  weeklyReview,
 }: {
   updates: Array<Record<string, unknown>>;
   tier: Tier;
@@ -368,6 +368,11 @@ function BusinessUpdatesList({
   error: boolean;
   onRetry: () => void;
   onOpenUpdateModal: () => void;
+  // Rekap Mingguan (revisi Juli 2026): dipindah dari halaman Today ke sini
+  // — sesuai arahan "rekap mingguan dihapus dan dipindah ke halaman
+  // bisnis update", supaya Today fokus ke hari ini, rekap 7-hari ada di
+  // halaman riwayat update.
+  weeklyReview: WeeklyReviewPayload | null;
 }) {
   const severityBadgeClass: Record<string, string> = {
     high: "bg-red-500/15 text-red-300",
@@ -391,6 +396,53 @@ function BusinessUpdatesList({
   return (
     <WorkspaceSection>
       <SectionHeader title={t.workspace.menuBusinessUpdates} description={t.workspace.businessUpdatesSectionDesc} />
+
+      {/* Rekap Mingguan (pindahan dari Today) — rule-based 7-hari-berjalan,
+          di-cache backend (business_weekly_review). Angka JUJUR: score-delta
+          null ditampilkan sebagai "-", bukan 0 palsu, kalau data pembanding
+          belum cukup. */}
+      {weeklyReview && (
+        <WorkspaceCard>
+          <h3 className="mb-1 text-sm font-bold text-neutral-100">{t.workspace.weeklyReviewTitle}</h3>
+          <p className="mb-4 text-xs text-neutral-500">
+            {fillTemplate(t.workspace.weeklyReviewRange, { start: weeklyReview.weekStart, end: weeklyReview.weekEnd })}
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
+              <p className="text-lg font-black text-white">{weeklyReview.targetsCompleted}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                {t.workspace.weeklyReviewTargetsCompleted}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
+              <p className="text-lg font-black text-white">{weeklyReview.decisionsMade}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                {t.workspace.weeklyReviewDecisionsMade}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
+              <p className={`text-lg font-black ${(weeklyReview.scoreDelta ?? 0) > 0 ? "text-green-400" : (weeklyReview.scoreDelta ?? 0) < 0 ? "text-red-400" : "text-white"}`}>
+                {weeklyReview.scoreDelta === null ? "-" : weeklyReview.scoreDelta > 0 ? `+${weeklyReview.scoreDelta}` : weeklyReview.scoreDelta}
+              </p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                {t.workspace.weeklyReviewScoreDelta}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
+              <p className="text-lg font-black text-white">{weeklyReview.newOpportunities}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                {t.workspace.weeklyReviewNewOpportunities}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
+              <p className="text-lg font-black text-white">{weeklyReview.newRisks}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                {t.workspace.weeklyReviewNewRisks}
+              </p>
+            </div>
+          </div>
+        </WorkspaceCard>
+      )}
 
       {error && !loading ? (
         <ErrorCard
@@ -1964,89 +2016,10 @@ function SocialMediaSection({
   );
 }
 
-/** Ekonomi Makro (Task 14c) — halaman baru, indikator makroekonomi
- * Indonesia yang relevan buat pemilik UMKM. Tidak tier-gated (konteks
- * umum, bukan analisis pribadi bisnis pengguna) — tersedia untuk semua
- * tier termasuk Gratis. source "live_api" vs "static" ditampilkan jujur
- * per indikator (lihat services/macro/getMacroSnapshot.ts). */
-function MacroPanel({
-  t,
-  lang,
-  data,
-  loading,
-  error,
-  onRetry,
-}: {
-  t: Translations;
-  lang: "id" | "en";
-  data: MacroSnapshotData | null;
-  loading: boolean;
-  error: boolean;
-  onRetry: () => void;
-}) {
-  if (loading) {
-    return (
-      <WorkspaceSection>
-        <SectionHeader title={t.workspace.menuMacro} description={t.workspace.macroSectionDesc} />
-        <SkeletonCard />
-        <SkeletonCard />
-      </WorkspaceSection>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <WorkspaceSection>
-        <SectionHeader title={t.workspace.menuMacro} description={t.workspace.macroSectionDesc} />
-        <ErrorCard
-          title={t.workspace.workspaceSectionErrorTitle}
-          description={t.workspace.workspaceSectionErrorDesc}
-          retryLabel={t.workspace.workspaceRetryButton}
-          onRetry={onRetry}
-        />
-      </WorkspaceSection>
-    );
-  }
-
-  const { indicators, insights } = data.macro;
-
-  return (
-    <WorkspaceSection>
-      <SectionHeader title={t.workspace.menuMacro} description={t.workspace.macroSectionDesc} />
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        {indicators.map((ind) => (
-          <WorkspaceCard key={ind.key}>
-            <p className="text-xs font-semibold text-neutral-400">{lang === "id" ? ind.labelId : ind.labelEn}</p>
-            <p className="mt-1 text-xl font-black text-white">{ind.valueDisplay}</p>
-            <p className="mt-2 text-[11px] text-neutral-500">
-              {ind.source === "live_api" ? t.workspace.macroSourceLive : t.workspace.macroSourceStatic}
-              {" · "}
-              {fillTemplate(t.workspace.macroAsOf, { date: new Date(ind.asOf).toLocaleDateString(lang === "id" ? "id-ID" : "en-US") })}
-            </p>
-          </WorkspaceCard>
-        ))}
-      </div>
-
-      {insights.length > 0 && (
-        <WorkspaceCard>
-          <h3 className="mb-3 text-sm font-bold text-white">{t.workspace.macroInsightTitle}</h3>
-          <div className="space-y-2">
-            {insights.map((insight) => (
-              <div key={insight.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <p className="text-sm leading-relaxed text-neutral-200">{insight.headline}</p>
-              </div>
-            ))}
-          </div>
-        </WorkspaceCard>
-      )}
-
-      <p className="text-center text-[11px] text-neutral-600">
-        {fillTemplate(t.workspace.competitorLastUpdated, { date: new Date(data.macro.fetchedAt).toLocaleDateString(lang === "id" ? "id-ID" : "en-US") })}
-      </p>
-    </WorkspaceSection>
-  );
-}
+// Catatan: MacroPanel (halaman Ekonomi Makro berdiri sendiri) dihapus —
+// digabung ke TodayPanel (revisi Juli 2026), lihat kartu "Kondisi Ekonomi
+// Hari Ini" di dalam TodayPanel. MacroSnapshotData tetap dipakai sebagai
+// tipe data untuk prop `macro` di TodayPanel.
 
 const INSIGHT_PRIORITY_LABEL: Record<NonNullable<FormattedInsightData["priority"]>, keyof Translations["workspace"]> = {
   critical: "competitorPriorityCritical",
@@ -2743,6 +2716,7 @@ function TodayPanel({
   t,
   lang,
   businessProfileId,
+  businessType,
   snapshot,
   snapshotLoading,
   snapshotError,
@@ -2751,13 +2725,19 @@ function TodayPanel({
   onNavigateToInsights,
   onOpenChat,
   onOpenCompetitor,
-  onOpenDecisions,
-  onOpenTarget,
-  weeklyReview,
+  scoreHistory,
+  macro,
+  macroLoading,
+  macroError,
+  onRetryMacro,
 }: {
   t: Translations;
   lang: "id" | "en";
   businessProfileId: string;
+  // Journey stepper (revisi Juli 2026): bisnis baru ("start", belum buka)
+  // vs bisnis eksisting ("grow", sudah berjalan) harus start dari titik
+  // journey yang berbeda — lihat currentJourneyIndex di bawah.
+  businessType: "start" | "grow";
   snapshot: TodaySnapshotPayload | null;
   snapshotLoading: boolean;
   snapshotError: boolean;
@@ -2765,13 +2745,19 @@ function TodayPanel({
   onOpenUpdateModal: () => void;
   onNavigateToInsights: () => void;
   onOpenChat: () => void;
-  // Business OS Engine: cross-linking — Today jadi "satu cerita terhubung"
-  // (Mission/Peluang/Keputusan bisa diklik menuju halaman terkait), BUKAN
-  // UI/halaman baru — hanya navigasi ke tab yang sudah ada.
+  // Business OS Engine: cross-linking — Peluang Kompetitor di kartu kanan
+  // bisa diklik langsung menuju tab Kompetitor ("satu cerita terhubung"),
+  // BUKAN UI/halaman baru — hanya navigasi ke tab yang sudah ada.
   onOpenCompetitor: () => void;
-  onOpenDecisions: () => void;
-  onOpenTarget: () => void;
-  weeklyReview: WeeklyReviewPayload | null;
+  // Grafik Performa (revisi Juli 2026): data asli dari today_snapshot
+  // harian, bukan dummy SVG lagi.
+  scoreHistory: Array<{ date: string; score: number | null }>;
+  // Ekonomi Makro (revisi Juli 2026): digabung ke Today, halaman terpisah
+  // dihapus — indikator + insight ditampilkan ringkas di sini.
+  macro: MacroSnapshotData | null;
+  macroLoading: boolean;
+  macroError: boolean;
+  onRetryMacro: () => void;
 }) {
   const { session } = useAuth();
   const [missionDone, setMissionDone] = useState(false);
@@ -2780,7 +2766,6 @@ function TodayPanel({
   // toggle memicu Today Snapshot forceRecompute (Stage/Mission ikut
   // berubah), bukan lagi state lokal yang hilang saat reload.
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
-  const [expandedWhy, setExpandedWhy] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -2840,26 +2825,6 @@ function TodayPanel({
     } catch (err) {
       console.error("toggleChecklistItem error:", err);
     }
-  }
-
-  function toggleWhy(index: number) {
-    setExpandedWhy((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  }
-
-  function whyText(item: { whyKey?: string; params?: Record<string, string | number> }): string | null {
-    if (!item.whyKey) return null;
-    const template = (t.workspace as unknown as Record<string, string>)[item.whyKey];
-    if (!template) return null;
-    const params = { ...item.params };
-    if (params.dimension) {
-      params.dimension = DIMENSION_LABELS[params.dimension as string]?.[lang] || (params.dimension as string);
-    }
-    return item.params ? fillTemplate(template, params) : template;
   }
 
   // Error state — kalau getTodaySnapshot gagal dimuat, JANGAN diam di
@@ -3071,16 +3036,47 @@ function TodayPanel({
     t.workspace.todayJourneyStageSystemizing,
     t.workspace.todayJourneyStageAutomation,
   ];
-  const currentJourneyIndex = isPreparation ? 0 : 1;
+  // Revisi Juli 2026: bisnis "start" (belum buka/baru buka) tetap mulai
+  // dari node pertama (Persiapan) kalau memang masih fase persiapan.
+  // Bisnis "grow" (sudah eksis sebelum daftar ke platform) TIDAK pernah
+  // benar-benar di fase Persiapan/Soft Opening/Launching secara nyata —
+  // titik paling jujur untuk mereka adalah "Operasional" (index 3), bukan
+  // index 1 yang menyiratkan mereka baru saja soft-opening.
+  const currentJourneyIndex = isPreparation ? 0 : businessType === "grow" ? 3 : 1;
 
-  // Label tanggal chart dihitung dari tanggal hari ini (7 hari terakhir),
-  // diformat lewat locale aktif (pola sama dengan formatDate) — bukan lagi
-  // string statis hardcoded, supaya selalu benar & ikut bahasa aktif.
-  const chartDateLabels = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return d.toLocaleDateString(LOCALE_MAP[lang], { day: "numeric", month: "short" });
-  });
+  // Grafik Performa (revisi Juli 2026) — dulu dummy SVG statis berlabel
+  // "Preview", sekarang memakai scoreHistory asli dari today_snapshot.
+  // JUJUR soal jumlah data: bisnis baru yang baru punya 1-2 hari data tidak
+  // dipaksa tampil seolah 7 hari penuh — kalau kurang dari 2 titik, tampilkan
+  // pesan "belum cukup data" alih-alih chart kosong/karangan.
+  const chartPoints = scoreHistory.filter((h): h is { date: string; score: number } => h.score !== null);
+  const hasChartData = chartPoints.length >= 2;
+  let chartPolylinePoints = "";
+  let chartPolygonPoints = "";
+  let chartDotX = 0;
+  let chartDotY = 0;
+  if (hasChartData) {
+    const scores = chartPoints.map((p) => p.score);
+    const minScore = Math.min(...scores);
+    const maxScore = Math.max(...scores);
+    const range = maxScore - minScore || 1;
+    const stepX = 300 / (chartPoints.length - 1);
+    const coords = chartPoints.map((p, i) => ({
+      x: i * stepX,
+      y: 95 - ((p.score - minScore) / range) * 80,
+    }));
+    chartPolylinePoints = coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
+    chartPolygonPoints = `0,110 ${chartPolylinePoints} ${coords[coords.length - 1].x.toFixed(1)},110`;
+    chartDotX = coords[coords.length - 1].x;
+    chartDotY = coords[coords.length - 1].y;
+  }
+
+  // Ringkasan Perkembangan (revisi Juli 2026, gantikan "Prioritas Minggu
+  // Ini" yang tadinya cuma daftar tugas) — "harian" dari 2 titik terakhir
+  // scoreHistory, "mingguan" dari periodDelta yang sudah dihitung Today
+  // Engine (progress.period). Null jujur kalau data pembanding belum ada.
+  const dailyScoreDelta =
+    chartPoints.length >= 2 ? chartPoints[chartPoints.length - 1].score - chartPoints[chartPoints.length - 2].score : null;
 
   return (
     <div className="space-y-8">
@@ -3314,155 +3310,133 @@ function TodayPanel({
             )}
           </div>
 
-          {/* Prioritas Minggu Ini — data sama persis dengan priorities[]
-              (urutan sudah berarti prioritas dari Rule Engine), hanya
-              ditampilkan sebagai kartu berperingkat, bukan lagi daftar
-              vertikal bernomor besar. */}
-          {!isPreparation && snapshot.priorities.length > 0 && (
+          {/* Ringkasan Perkembangan (revisi Juli 2026) — gantikan "Prioritas
+              Minggu Ini" (dulu daftar tugas) dengan ringkasan data harian +
+              mingguan yang sebenarnya, sesuai arahan "ganti total jadi
+              ringkasan data". Prioritas per-item (dengan Why Card & cross-
+              link) tetap ada di kartu Reminder/Insight kolom kanan — tidak
+              hilang, hanya tidak lagi dobel di sini. */}
+          {!isPreparation && (
             <div className="rounded-[20px] border border-white/10 bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold text-neutral-100">{t.workspace.todayPrioritiesWeekTitle}</h3>
-              <div className="space-y-3">
-                {snapshot.priorities.map((p, i) => {
-                  const levelLabel =
-                    i === 0 ? t.workspace.todayPriorityHigh : i === 1 ? t.workspace.todayPriorityMedium : t.workspace.todayPriorityLow;
-                  const borderColor = i === 0 ? "border-l-red-400" : i === 1 ? "border-l-amber-400" : "border-l-green-400";
-                  const why = whyText(p);
-                  const isExpanded = expandedWhy.has(i);
-                  // Business OS Engine — cross-linking: item Mission/Prioritas
-                  // yang berkaitan dengan halaman lain bisa diklik langsung
-                  // menuju sana ("satu cerita terhubung"), bukan cuma teks.
-                  const crossLink =
-                    p.key === "decisionFollowUp"
-                      ? onOpenDecisions
-                      : p.key === "newCompetitorDetected"
-                        ? onOpenCompetitor
-                        : p.key === "targetStalled"
-                          ? onOpenTarget
-                          : null;
-                  return (
-                    <div
-                      key={i}
-                      onClick={crossLink || undefined}
-                      role={crossLink ? "button" : undefined}
-                      tabIndex={crossLink ? 0 : undefined}
-                      onKeyDown={
-                        crossLink
-                          ? (e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                crossLink();
-                              }
-                            }
-                          : undefined
-                      }
-                      className={`rounded-xl border-l-4 bg-white/[0.03] p-4 ${borderColor} ${
-                        crossLink ? "cursor-pointer transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70" : ""
+              <h3 className="mb-4 text-sm font-bold text-neutral-100">{t.workspace.todayProgressSummaryTitle}</h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.workspace.todayProgressDailyLabel}</p>
+                  {dailyScoreDelta === null ? (
+                    <p className="mt-2 text-sm text-neutral-500">{t.workspace.todayProgressNotEnoughData}</p>
+                  ) : (
+                    <span
+                      className={`mt-2 flex items-center gap-1 text-lg font-black ${
+                        dailyScoreDelta > 0 ? "text-green-400" : dailyScoreDelta < 0 ? "text-red-400" : "text-white"
                       }`}
                     >
-                      <div className="flex items-start gap-4">
-                        <span className="text-lg font-black text-neutral-600">{i + 1}</span>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-white">{priorityText(p)}</p>
-                          <span className="mt-1 inline-block text-[11px] font-bold uppercase tracking-wide text-neutral-500">
-                            {levelLabel}
-                          </span>
-                          {/* Why Card (directive "CONTINUE — LIVING BUSINESS LOOP"):
-                              penjelasan "mengapa ini penting" — bukan cuma daftar
-                              tugas, supaya Workspace terasa seperti mentor yang
-                              menjelaskan, bukan aplikasi checklist. */}
-                          {why && (
-                            <div className="mt-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleWhy(i);
-                                }}
-                                className="text-[11px] font-semibold text-primary hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-                              >
-                                {isExpanded ? t.workspace.todayWhyCardHide : t.workspace.todayWhyCardShow}
-                              </button>
-                              {isExpanded && (
-                                <p className="mt-2 text-xs leading-relaxed text-neutral-400">{why}</p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      <span aria-hidden="true">{dailyScoreDelta > 0 ? "▲" : dailyScoreDelta < 0 ? "▼" : "●"}</span>
+                      {fillTemplate(t.workspace.todayProgressPointsSuffix, { points: Math.abs(dailyScoreDelta) })}
+                    </span>
+                  )}
+                  <p className="mt-2 text-xs text-neutral-500">{t.workspace.todayProgressDailyDesc}</p>
+                </div>
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.workspace.todayProgressWeeklyLabel}</p>
+                  {snapshot.periodDelta === null ? (
+                    <p className="mt-2 text-sm text-neutral-500">{t.workspace.todayProgressNotEnoughData}</p>
+                  ) : (
+                    <span
+                      className={`mt-2 flex items-center gap-1 text-lg font-black ${
+                        snapshot.periodDelta > 0 ? "text-green-400" : snapshot.periodDelta < 0 ? "text-red-400" : "text-white"
+                      }`}
+                    >
+                      <span aria-hidden="true">{snapshot.periodDelta > 0 ? "▲" : snapshot.periodDelta < 0 ? "▼" : "●"}</span>
+                      {fillTemplate(t.workspace.todayProgressPointsSuffix, { points: Math.abs(snapshot.periodDelta) })}
+                    </span>
+                  )}
+                  <p className="mt-2 text-xs text-neutral-500">{t.workspace.todayProgressWeeklyDesc}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Ekonomi Makro (revisi Juli 2026) — digabung ke Today, halaman
+              & menu terpisah dihapus sesuai arahan. Indikator kurs USD/IDR
+              ditandai "Live" (source live_api), inflasi/BI-rate ditandai
+              "per tanggal X" (source static) — jujur soal mana yang
+              real-time vs periodik, bukan diseragamkan seolah semua live. */}
+          <div className="rounded-[20px] border border-white/10 bg-surface p-6">
+            <h3 className="mb-4 text-sm font-bold text-neutral-100">{t.workspace.todayMacroTitle}</h3>
+            {macroLoading ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="h-20 animate-pulse rounded-xl bg-white/5" />
+                <div className="h-20 animate-pulse rounded-xl bg-white/5" />
+                <div className="h-20 animate-pulse rounded-xl bg-white/5" />
+              </div>
+            ) : macroError || !macro ? (
+              <ErrorCard
+                title={t.workspace.workspaceSectionErrorTitle}
+                description={t.workspace.workspaceSectionErrorDesc}
+                retryLabel={t.workspace.workspaceRetryButton}
+                onRetry={onRetryMacro}
+              />
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {macro.macro.indicators.map((ind) => (
+                    <div key={ind.key} className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                      <p className="text-[11px] font-semibold text-neutral-500">{lang === "id" ? ind.labelId : ind.labelEn}</p>
+                      <p className="mt-1 text-lg font-black text-white">{ind.valueDisplay}</p>
+                      <span
+                        className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          ind.source === "live_api" ? "bg-green-500/15 text-green-300" : "bg-white/10 text-neutral-400"
+                        }`}
+                      >
+                        {ind.source === "live_api"
+                          ? t.workspace.macroSourceLive
+                          : fillTemplate(t.workspace.macroAsOf, { date: new Date(ind.asOf).toLocaleDateString(lang === "id" ? "id-ID" : "en-US") })}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                  ))}
+                </div>
+                {macro.macro.insights.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {macro.macro.insights.map((insight) => (
+                      <div key={insight.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-sm leading-relaxed text-neutral-200">{insight.headline}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-3 text-center text-[11px] text-neutral-600">
+                  {fillTemplate(t.workspace.competitorLastUpdated, { date: new Date(macro.macro.fetchedAt).toLocaleDateString(lang === "id" ? "id-ID" : "en-US") })}
+                </p>
+              </>
+            )}
+          </div>
 
-          {/* Weekly Review (Business OS Engine) — rekap rule-based 7-hari-
-              berjalan, di-cache backend (business_weekly_review). Angka
-              JUJUR: score-delta null ditampilkan sebagai "-", bukan 0 palsu,
-              kalau data pembanding belum cukup. */}
-          {weeklyReview && (
-            <div className="rounded-[20px] border border-white/10 bg-surface p-6">
-              <h3 className="mb-1 text-sm font-bold text-neutral-100">{t.workspace.weeklyReviewTitle}</h3>
-              <p className="mb-4 text-xs text-neutral-500">
-                {fillTemplate(t.workspace.weeklyReviewRange, { start: weeklyReview.weekStart, end: weeklyReview.weekEnd })}
-              </p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
-                  <p className="text-lg font-black text-white">{weeklyReview.targetsCompleted}</p>
-                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                    {t.workspace.weeklyReviewTargetsCompleted}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
-                  <p className="text-lg font-black text-white">{weeklyReview.decisionsMade}</p>
-                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                    {t.workspace.weeklyReviewDecisionsMade}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
-                  <p className={`text-lg font-black ${(weeklyReview.scoreDelta ?? 0) > 0 ? "text-green-400" : (weeklyReview.scoreDelta ?? 0) < 0 ? "text-red-400" : "text-white"}`}>
-                    {weeklyReview.scoreDelta === null ? "-" : weeklyReview.scoreDelta > 0 ? `+${weeklyReview.scoreDelta}` : weeklyReview.scoreDelta}
-                  </p>
-                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                    {t.workspace.weeklyReviewScoreDelta}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
-                  <p className="text-lg font-black text-white">{weeklyReview.newOpportunities}</p>
-                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                    {t.workspace.weeklyReviewNewOpportunities}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
-                  <p className="text-lg font-black text-white">{weeklyReview.newRisks}</p>
-                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                    {t.workspace.weeklyReviewNewRisks}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Performa 7 Hari Terakhir — Today Engine belum menyimpan angka
-              harian (baru snapshot 1x/hari + 2 batch tren), jadi belum ada
-              data harian nyata untuk digambar. Sesuai arahan Design
-              Authority: tetap tampilkan struktur visual LENGKAP (dummy
-              chart), diberi badge "Preview" yang jelas supaya tidak
-              disalahartikan sebagai data asli — bukan dikarang seolah data
-              sungguhan tanpa penanda. */}
+          {/* Performa 7 Hari Terakhir — revisi Juli 2026: dulu dummy SVG
+              statis berlabel "Preview", sekarang memakai scoreHistory asli
+              dari today_snapshot (services/today/computeSnapshot.ts). Bisnis
+              baru yang baru punya <2 hari data ditampilkan jujur sebagai
+              "belum cukup data", bukan chart karangan. */}
           <div className="relative rounded-[20px] border border-white/10 bg-surface p-6">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-bold text-neutral-100">{t.workspace.todayChartTitle}</h3>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-neutral-400">
-                {t.workspace.todayChartPreviewBadge}
-              </span>
+              {hasChartData && (
+                <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-neutral-400">
+                  {fillTemplate(t.workspace.todayChartDaysBadge, { count: chartPoints.length })}
+                </span>
+              )}
             </div>
+            {!hasChartData ? (
+              <p className="py-8 text-center text-sm text-neutral-500">{t.workspace.todayChartNotEnoughData}</p>
+            ) : (
+            <>
             <div className="relative">
-              {/* Tooltip dummy — statis (bukan hover real), menandai titik
-                  terakhir supaya terasa seperti chart production, tetap
-                  jelas berlabel "Preview" di atas supaya tidak disalah
-                  artikan sebagai angka asli. */}
-              <div className="pointer-events-none absolute right-0 top-0 -translate-y-1/2 rounded-lg border border-white/10 bg-black/90 px-2.5 py-1 text-[10px] font-semibold text-white shadow-lg">
-                {t.workspace.todayChartPreviewBadge}
+              {/* Tooltip skor hari terakhir — posisinya mengikuti titik data
+                  asli (chartDotX/chartDotY), bukan lagi posisi tetap. */}
+              <div
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-[160%] rounded-lg border border-white/10 bg-black/90 px-2.5 py-1 text-[10px] font-semibold text-white shadow-lg"
+                style={{ left: `${(chartDotX / 300) * 100}%`, top: `${(chartDotY / 110) * 100}%` }}
+              >
+                {chartPoints[chartPoints.length - 1].score}
               </div>
               <svg viewBox="0 0 300 110" className="h-28 w-full" preserveAspectRatio="none" aria-hidden="true">
                 <defs>
@@ -3475,30 +3449,25 @@ function TodayPanel({
                 {[20, 45, 70, 95].map((y) => (
                   <line key={y} x1="0" y1={y} x2="300" y2={y} stroke="rgba(255,255,255,0.045)" strokeWidth="0.75" />
                 ))}
-                <polygon
-                  points="0,70 40,60 80,75 120,45 160,58 200,32 240,50 300,25 300,110 0,110"
-                  fill="url(#todayChartFill)"
-                  stroke="none"
-                />
+                <polygon points={chartPolygonPoints} fill="url(#todayChartFill)" stroke="none" />
                 <polyline
-                  points="0,70 40,60 80,75 120,45 160,58 200,32 240,50 300,25"
+                  points={chartPolylinePoints}
                   fill="none"
                   stroke="var(--color-primary)"
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                <circle cx="300" cy="25" r="4" fill="var(--color-primary)" stroke="#000" strokeWidth="1.5">
-                  <title>{t.workspace.todayChartPreviewBadge}</title>
-                </circle>
+                <circle cx={chartDotX} cy={chartDotY} r="4" fill="var(--color-primary)" stroke="#000" strokeWidth="1.5" />
               </svg>
             </div>
             <div className="mt-2 flex justify-between text-[10px] text-neutral-600">
-              {chartDateLabels.map((d, i) => (
-                <span key={i}>{d}</span>
+              {chartPoints.map((p, i) => (
+                <span key={i}>{new Date(p.date).toLocaleDateString(LOCALE_MAP[lang], { day: "numeric", month: "short" })}</span>
               ))}
             </div>
-            <p className="mt-3 text-xs text-neutral-600">{t.workspace.todayChartPlaceholderNote}</p>
+            </>
+            )}
           </div>
         </div>
 
@@ -3703,13 +3672,6 @@ function MenuIcon({ name }: { name: MenuKey }) {
           <path d="m14.5 9.5-2 5-5 2 2-5Z" />
         </svg>
       );
-    case "macro":
-      return (
-        <svg {...props}>
-          <path d="M3 20h18" />
-          <path d="M6 20V10M12 20V4M18 20v14" />
-        </svg>
-      );
     case "history":
       return (
         <svg {...props}>
@@ -3845,6 +3807,11 @@ function Workspace() {
   // getBusinessOS (satu panggilan, satu object), lihat services/businessOS/
   // getBusinessOS.ts.
   const [weeklyReview, setWeeklyReview] = useState<WeeklyReviewPayload | null>(null);
+  // Grafik Performa (revisi Juli 2026): riwayat skor harian ASLI (sampai 7
+  // hari terakhir), dari today_snapshot yang memang sudah tersimpan 1
+  // baris/hari — bukan lagi dummy chart. Diambil bersamaan dengan Today
+  // Snapshot lewat action getBusinessOS yang sama (lihat getBusinessOS.ts).
+  const [scoreHistory, setScoreHistory] = useState<Array<{ date: string; score: number | null }>>([]);
   const [newlyUnlocked, setNewlyUnlocked] = useState<Array<Record<string, unknown>>>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
@@ -4077,6 +4044,7 @@ function Workspace() {
             if (todayResponse.ok) {
               setTodaySnapshot(todayJson.snapshot as TodaySnapshotPayload);
               setWeeklyReview((todayJson.weeklyReview as WeeklyReviewPayload) || null);
+              setScoreHistory((todayJson.scoreHistory as Array<{ date: string; score: number | null }>) || []);
               setTodaySnapshotError(false);
             } else {
               console.error("Gagal memuat Today snapshot:", todayJson.error);
@@ -4126,6 +4094,7 @@ function Workspace() {
       if (response.ok) {
         setTodaySnapshot(json.snapshot as TodaySnapshotPayload);
         setWeeklyReview((json.weeklyReview as WeeklyReviewPayload) || null);
+        setScoreHistory((json.scoreHistory as Array<{ date: string; score: number | null }>) || []);
       } else {
         console.error("Gagal memuat ulang Today snapshot:", json.error);
         setTodaySnapshotError(true);
@@ -4839,7 +4808,7 @@ function Workspace() {
     if (activeMenu === "competitor" && !socialMediaAnalysis && !socialMediaLoading) {
       loadSocialMediaAnalysis();
     }
-    if (activeMenu === "macro" && !macroSnapshot && !macroLoading) {
+    if (activeMenu === "today" && !macroSnapshot && !macroLoading) {
       loadMacroSnapshot();
     }
     if (activeMenu === "businessUpdates" && !showUpdateHistory && updateHistory.length === 0 && !updateHistoryLoading) {
@@ -4940,7 +4909,8 @@ function Workspace() {
     report: { key: "report", label: t.workspace.menuReport, subtitle: t.workspace.todayNavSubtitleReport },
     score: { key: "score", label: t.workspace.menuScore, subtitle: t.workspace.todayNavSubtitleScore },
     competitor: { key: "competitor", label: t.workspace.menuCompetitor, subtitle: t.workspace.todayNavSubtitleCompetitor },
-    macro: { key: "macro", label: t.workspace.menuMacro, subtitle: t.workspace.todayNavSubtitleMacro },
+    // Ekonomi Makro (revisi Juli 2026): halaman/menu berdiri sendiri dihapus,
+    // digabung ke dalam Today — lihat kartu "Kondisi Ekonomi Hari Ini".
     // Digabung dengan Journey (audit Juli 2026) — label/subtitle diperbarui
     // supaya mencerminkan isi gabungan (target + progres perjalanan bisnis).
     target: { key: "target", label: t.workspace.menuTarget, subtitle: t.workspace.todayNavSubtitleTargetMerged },
@@ -4962,7 +4932,7 @@ function Workspace() {
           // 1. Kelayakan — "benar/tidak saya mau buka bisnis ini" + PDF baseline.
           { stageLabel: t.workspace.stageStartFeasibility, items: [ALL_MENU_ITEMS.report] },
           // 2. Riset Pasar — laku/tidak, lokasi, peta kompetitor.
-          { stageLabel: t.workspace.stageStartMarketFit, items: [ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.competitor, ALL_MENU_ITEMS.macro] },
+          { stageLabel: t.workspace.stageStartMarketFit, items: [ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.competitor] },
           // 3. Persiapan & Pendampingan — 0 sampai launching, dari data PDF.
           {
             stageLabel: t.workspace.stageStartPreparation,
@@ -4980,7 +4950,7 @@ function Workspace() {
             items: [ALL_MENU_ITEMS.today, ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.businessUpdates, ALL_MENU_ITEMS.chat],
           },
           // 3. Pendukung keputusan — solusi relevan berbasis data+AI untuk setiap masalah.
-          { stageLabel: t.workspace.stageGrowDecisionSupport, items: [ALL_MENU_ITEMS.decisionJournal, ALL_MENU_ITEMS.competitor, ALL_MENU_ITEMS.macro] },
+          { stageLabel: t.workspace.stageGrowDecisionSupport, items: [ALL_MENU_ITEMS.decisionJournal, ALL_MENU_ITEMS.competitor] },
           // 4. Laporan & progres — kemajuan bisnis + apa saja yang sudah dilakukan (Journey digabung ke Target).
           { stageLabel: t.workspace.stageGrowReview, items: [ALL_MENU_ITEMS.target, ALL_MENU_ITEMS.history] },
         ];
@@ -5297,6 +5267,7 @@ function Workspace() {
               t={t}
               lang={lang}
               businessProfileId={activeBusinessId || ""}
+              businessType={businessType}
               snapshot={todaySnapshot}
               snapshotLoading={todaySnapshotLoading}
               snapshotError={todaySnapshotError}
@@ -5305,9 +5276,11 @@ function Workspace() {
               onNavigateToInsights={() => setActiveMenu("score")}
               onOpenChat={() => setActiveMenu("chat")}
               onOpenCompetitor={() => setActiveMenu("competitor")}
-              onOpenDecisions={() => setActiveMenu("decisionJournal")}
-              onOpenTarget={() => setActiveMenu("target")}
-              weeklyReview={weeklyReview}
+              scoreHistory={scoreHistory}
+              macro={macroSnapshot}
+              macroLoading={macroLoading}
+              macroError={macroError}
+              onRetryMacro={loadMacroSnapshot}
             />
           ) : activeMenu === "history" ? (
             <FinalReportsList
@@ -5389,8 +5362,6 @@ function Workspace() {
               socialMediaError={socialMediaError}
               onRetrySocialMedia={loadSocialMediaAnalysis}
             />
-          ) : activeMenu === "macro" ? (
-            <MacroPanel t={t} lang={lang} data={macroSnapshot} loading={macroLoading} error={macroError} onRetry={loadMacroSnapshot} />
           ) : activeMenu === "chat" ? (
             activeBusinessId && (
               <ChatBeemoPanel
@@ -5441,6 +5412,7 @@ function Workspace() {
               error={updateHistoryError}
               onRetry={loadUpdateHistory}
               onOpenUpdateModal={() => setShowBusinessUpdate(true)}
+              weeklyReview={weeklyReview}
             />
           ) : activeMenu === "decisionJournal" ? (
             <DecisionJournalList
