@@ -21,7 +21,6 @@ function Navbar() {
   const NAV_LINKS = [
     { label: t.navbar.beranda, hash: "" },
     { label: t.navbar.fiturAI, hash: "fitur" },
-    { label: t.navbar.paketBisnis, hash: "paket" },
     { label: t.navbar.tentangKami, hash: "tentang-kami" },
   ];
 

@@ -4,7 +4,6 @@ import { useAuth } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import Features from "./components/Features";
-import Pricing from "./components/Pricing";
 import ChatWizard from "./components/ChatWizard";
 import Footer from "./components/Footer";
 import LegalPage from "./components/LegalPage";
@@ -179,7 +178,6 @@ function App() {
         <>
           <Hero onStart={() => setStart(true)} animate={animateHero} />
           <Features animate={animateHero} />
-          <Pricing onStart={() => setStart(true)} animate={animateHero} />
         </>
       ) : (
         <ChatWizard />
