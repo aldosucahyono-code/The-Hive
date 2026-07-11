@@ -1,9 +1,19 @@
 import { useLanguage } from "../i18n/LanguageContext";
+import beemoMascot from "../assets/mascot/beemo.png";
+import beemoLaptop from "../assets/mascot/beemo-laptop.png";
 
 type PricingProps = {
   onStart: () => void;
   animate: boolean;
 };
+
+// Ikon per baris checklist (audit desain Juli 2026 — samakan komposisi
+// dengan mockup "Paket Bisnis" yang baru: tiap baris checklist punya ikon
+// kecil di kanan, bukan cuma centang polos). Emoji dipakai konsisten
+// dengan gaya `pricing.badges` yang sudah ada di bawah section ini —
+// bukan dependency ikon baru.
+const PRO_ICONS = ["📄", "🥧", "🎯", "📋", "📢", "💬"];
+const PLATINUM_ICONS = ["🗂️", "🔍", "📈", "📝", "👥", "📄", "💬"];
 
 function Pricing({ onStart, animate }: PricingProps) {
   const { t } = useLanguage();
@@ -25,61 +35,112 @@ function Pricing({ onStart, animate }: PricingProps) {
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {/* PRO */}
-          <div className={"rounded-2xl border border-blue-500/30 bg-surface p-8 text-center " + fade("80ms")}>
-            <span className="inline-block rounded-full bg-blue-500 px-3 py-1 text-xs font-bold text-white">
-              PRO
-            </span>
-            <h3 className="mt-4 text-lg font-extrabold">{t.pricing.proTitle}</h3>
-            <p className="mt-2 text-sm text-neutral-400">
-              {t.pricing.proDesc}
-            </p>
-            <p className="mt-4 text-3xl font-black text-blue-400">
-              {t.pricing.proPriceMonthly}
-              <span className="text-base font-normal text-neutral-500">{t.pricing.proPriceMonthlyUnit}</span>
-            </p>
-            <p className="mt-1.5 text-xs font-semibold text-blue-300">{t.pricing.proPriceAnnual}</p>
-            <p className="mt-0.5 text-[11px] text-neutral-500">{t.pricing.proPriceAnnualNote}</p>
-            <ul className="mx-auto mt-6 max-w-sm space-y-2.5 text-left">
-              {t.pricing.proChecklist.map((item) => (
-                <li key={item} className="flex items-start gap-2.5 text-sm text-neutral-200">
-                  <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
-                    ✓
+          {/* PRO — tema amber/orange, sama dengan mockup baru */}
+          <div
+            className={
+              "relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-b from-amber-500/[0.07] to-surface p-6 sm:p-8 " +
+              fade("80ms")
+            }
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="inline-block rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-black">
+                PRO
+              </span>
+              <img src={beemoMascot} alt="Beemo" className="-mt-2 h-16 w-16 flex-none object-contain sm:h-20 sm:w-20" />
+            </div>
+
+            <h3 className="mt-4 text-left text-lg font-extrabold leading-snug sm:text-xl">
+              {t.pricing.proTitlePrefix} <span className="text-amber-400">{t.pricing.proTitleHighlight}</span>
+            </h3>
+            <p className="mt-2 text-left text-sm text-neutral-400">{t.pricing.proDesc}</p>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <p className="text-left text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.pricing.priceOnlyLabel}</p>
+              <p className="mt-1 text-left text-3xl font-black text-amber-400 sm:text-4xl">
+                {t.pricing.proPriceMonthly}
+                <span className="text-base font-normal text-neutral-500">{t.pricing.proPriceMonthlyUnit}</span>
+              </p>
+              <p className="mt-1.5 text-left text-xs font-semibold text-amber-300">{t.pricing.proPriceAnnual}</p>
+              <p className="mt-0.5 text-left text-[11px] text-neutral-500">{t.pricing.proPriceAnnualNote}</p>
+            </div>
+
+            <p className="mt-6 text-left text-xs font-bold uppercase tracking-wide text-amber-400">{t.pricing.proWhatYouGetLabel}</p>
+            <ul className="mt-3 space-y-2.5 text-left">
+              {t.pricing.proChecklist.map((item, i) => (
+                <li key={item} className="flex items-center justify-between gap-3 text-sm text-neutral-200">
+                  <span className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-amber-500 text-[10px] text-black">
+                      ✓
+                    </span>
+                    {item}
                   </span>
-                  {item}
+                  <span aria-hidden="true" className="flex-none text-base opacity-80">
+                    {PRO_ICONS[i] ?? "✨"}
+                  </span>
                 </li>
               ))}
             </ul>
+
+            <div className="mt-6 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+              <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-amber-500 text-[11px] text-black">
+                ★
+              </span>
+              <p className="text-xs leading-relaxed text-amber-100/90">{t.pricing.proHighlightTagline}</p>
+            </div>
           </div>
 
-          {/* PLATINUM */}
-          <div className={"rounded-2xl border border-purple-500/30 bg-surface p-8 text-center " + fade("160ms")}>
-            <span className="inline-block rounded-full bg-purple-500 px-3 py-1 text-xs font-bold text-white">
-              PLATINUM
-            </span>
-            <h3 className="mt-4 text-lg font-extrabold">{t.pricing.platinumTitle}</h3>
-            <p className="mt-2 text-sm text-neutral-400">
-              {t.pricing.platinumDesc}
-            </p>
-            <p className="mt-4 text-3xl font-black text-purple-400">
-              {t.pricing.platinumPriceMonthly}
-              <span className="text-base font-normal text-neutral-500">{t.pricing.platinumPriceMonthlyUnit}</span>
-            </p>
-            <p className="mt-1.5 text-xs font-semibold text-purple-300">{t.pricing.platinumPriceAnnual}</p>
-            <p className="mt-0.5 text-[11px] text-neutral-500">{t.pricing.platinumPriceAnnualNote}</p>
-            <p className="mt-6 text-left text-xs font-bold uppercase tracking-wide text-purple-300">
-              {t.pricing.platinumIncludesNote}
-            </p>
-            <ul className="mx-auto mt-3 max-w-sm space-y-2.5 text-left">
-              {t.pricing.platinumChecklist.map((item) => (
-                <li key={item} className="flex items-start gap-2.5 text-sm text-neutral-200">
-                  <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-purple-500 text-[10px] text-white">
-                    ✓
+          {/* PLATINUM — tema ungu, "raja lebah" */}
+          <div
+            className={
+              "relative overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-b from-purple-500/[0.08] to-surface p-6 sm:p-8 " +
+              fade("160ms")
+            }
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="inline-flex items-center gap-1 rounded-full bg-purple-500 px-3 py-1 text-xs font-bold text-white">
+                💎 PLATINUM
+              </span>
+              <img src={beemoLaptop} alt="Beemo" className="-mt-2 h-16 w-16 flex-none object-contain sm:h-20 sm:w-20" />
+            </div>
+
+            <h3 className="mt-4 text-left text-lg font-extrabold leading-snug sm:text-xl">
+              {t.pricing.platinumTitlePrefix} <span className="text-purple-400">{t.pricing.platinumTitleHighlight}</span>
+            </h3>
+            <p className="mt-2 text-left text-sm text-neutral-400">{t.pricing.platinumDesc}</p>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <p className="text-left text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.pricing.priceOnlyLabel}</p>
+              <p className="mt-1 text-left text-3xl font-black text-purple-400 sm:text-4xl">
+                {t.pricing.platinumPriceMonthly}
+                <span className="text-base font-normal text-neutral-500">{t.pricing.platinumPriceMonthlyUnit}</span>
+              </p>
+              <p className="mt-1.5 text-left text-xs font-semibold text-purple-300">{t.pricing.platinumPriceAnnual}</p>
+              <p className="mt-0.5 text-left text-[11px] text-neutral-500">{t.pricing.platinumPriceAnnualNote}</p>
+            </div>
+
+            <p className="mt-6 text-left text-xs font-bold uppercase tracking-wide text-purple-400">{t.pricing.platinumIncludesNote}</p>
+            <ul className="mt-3 space-y-2.5 text-left">
+              {t.pricing.platinumChecklist.map((item, i) => (
+                <li key={item} className="flex items-center justify-between gap-3 text-sm text-neutral-200">
+                  <span className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-purple-500 text-[10px] text-white">
+                      ✓
+                    </span>
+                    {item}
                   </span>
-                  {item}
+                  <span aria-hidden="true" className="flex-none text-base opacity-80">
+                    {PLATINUM_ICONS[i] ?? "✨"}
+                  </span>
                 </li>
               ))}
             </ul>
+
+            <div className="mt-6 flex items-start gap-2.5 rounded-xl border border-purple-500/30 bg-purple-500/10 p-3">
+              <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-purple-500 text-[11px] text-white">
+                ★
+              </span>
+              <p className="text-xs leading-relaxed text-purple-100/90">{t.pricing.platinumHighlightTagline}</p>
+            </div>
           </div>
         </div>
 
