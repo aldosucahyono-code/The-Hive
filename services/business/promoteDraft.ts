@@ -135,6 +135,11 @@ export async function promoteDraft(
       industry: wizardData.jenisBisnis || null,
       business_stage: guessBusinessStage(wizardData.jenisAnalisis),
       business_type: resolveBusinessType(wizardData.jenisAnalisis),
+      // Nomor HP dari wizard (field "noHp") — disimpan sebagai kolom
+      // terstruktur (lihat migrations/2026-07-12_business_phone_number.sql)
+      // untuk push notifikasi WhatsApp ke pelanggan nanti, bukan hanya
+      // terkubur di wizard_data JSONB.
+      phone_number: wizardData.noHp || null,
     })
     .select("id")
     .single();

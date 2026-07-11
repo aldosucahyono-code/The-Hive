@@ -7,6 +7,7 @@ import {
   isValidBrandName,
   isValidProfesi,
   isValidEmail,
+  isValidPhone,
   isValidLocation,
   isValidOmset,
   isValidPastDate,
@@ -14,6 +15,56 @@ import {
   isValidFreeText,
   getTodayString,
 } from "../utils/validation";
+
+// Field yang jawabannya bebas (free text) dan rawan "tidak nyambung" dengan
+// pertanyaan (directive PO: "jawaban harus sesuai dengan semua pertanyaan,
+// jangan sampai jawaban user beda dari pertanyaan"). Field terstruktur
+// (email, tanggal, nominal) sudah cukup aman lewat validate() biasa — tidak
+// perlu cek semantik lagi. "nama"/"namaBisnis"/"jenisBisnis" sengaja
+// DIKECUALIKAN: sulit didefinisikan "salah" secara semantik (nama orang/
+// brand/bidang usaha memang bebas), jadi dibiarkan seperti sebelumnya.
+const SEMANTIC_CHECK_FIELDS = new Set<keyof WizardData>([
+  "profesi",
+  "lokasi",
+  "targetPelanggan",
+  "tantangan",
+  "target",
+  "ceritaVisi",
+  "bucketAnswer1",
+  "bucketAnswer2",
+]);
+
+/** Minta Beemo AI menilai apakah jawaban benar-benar relevan dengan
+ * pertanyaan yang ditampilkan (bukan cek kualitas/kelengkapan — cuma
+ * relevansi topik). Reuse endpoint generate-wizard-questions (mode baru)
+ * supaya tidak nambah jumlah Vercel Serverless Function. Fail-open: kalau
+ * API error/timeout/parsing gagal, anggap valid — jangan sampai gangguan
+ * jaringan sesaat menghalangi pengunjung menyelesaikan wizard. */
+async function checkSemanticMatch(
+  questionText: string,
+  answer: string,
+  fieldKind: "lokasi" | "freeText",
+  lang: "id" | "en"
+): Promise<boolean> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch("/api/generate-wizard-questions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "validateAnswer", questionText, answer, fieldKind, lang }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return true;
+    const json = await res.json();
+    return json.valid !== false;
+  } catch (err) {
+    console.error("checkSemanticMatch error:", err);
+    return true;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
 
 type ChatFlowProps = {
   data: WizardData;
@@ -119,6 +170,15 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       placeholder: t.stepOne.emailPlaceholder,
       validate: isValidEmail,
       invalidNudge: t.chatFlow.invalidEmailNudge,
+      phase: "kenal",
+    },
+    {
+      field: "noHp",
+      prompt: (d) => fill(t.chatFlow.askNoHp, d),
+      inputType: "text",
+      placeholder: t.stepOne.noHpPlaceholder,
+      validate: isValidPhone,
+      invalidNudge: t.chatFlow.invalidPhoneNudge,
       phase: "kenal",
     },
     {
@@ -263,6 +323,15 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   // kepemilikan tetap wajib) alih-alih memaksa isi wizard dari nol.
   const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "recognized">("idle");
   const [magicLinkState, setMagicLinkState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  // Validasi semantik (directive PO: "jawaban harus sesuai dengan
+  // pertanyaan"): semanticChecking = sedang menunggu Beemo AI menilai
+  // relevansi jawaban. semanticRetryField = field yang sedang diminta
+  // dijawab ULANG karena percobaan SEBELUMNYA dinilai tidak nyambung —
+  // dibatasi maksimal 1x re-ask per field (percobaan kedua langsung
+  // diterima apa adanya) supaya tidak membuat pengguna jujur frustrasi
+  // kalau penilaian AI meleset.
+  const [semanticChecking, setSemanticChecking] = useState(false);
+  const [semanticRetryField, setSemanticRetryField] = useState<keyof WizardData | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const currencyInputRef = useRef<HTMLInputElement>(null);
 
@@ -280,6 +349,11 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     }
     if (emailStatus === "recognized") return t.chatFlow.emailRecognizedMessage;
     if (allAnswered) return t.chatFlow.summaryIntro;
+    if (activeQuestion && semanticRetryField === activeQuestion.field) {
+      return activeQuestion.field === "lokasi"
+        ? t.chatFlow.semanticNudgeLocation
+        : t.chatFlow.semanticNudgeGeneric;
+    }
     return activeQuestion ? activeQuestion.prompt(data) : null;
   }
 
@@ -297,7 +371,9 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       ? "email-recognized"
       : allAnswered
         ? "summary"
-        : `q-${answeredCount}`;
+        : activeQuestion && semanticRetryField === activeQuestion.field
+          ? `semantic-retry-${semanticRetryField}`
+          : `q-${answeredCount}`;
 
   useEffect(() => {
     if (typingIntervalRef.current) window.clearInterval(typingIntervalRef.current);
@@ -397,6 +473,28 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     }
 
     setShowError(false);
+
+    // Cek relevansi semantik (bukan lagi editing dari ringkasan — di mode
+    // edit dilewati, lihat catatan di bawah) — SEBELUM jawaban dianggap
+    // final, supaya jawaban yang "tidak nyambung" dengan pertanyaan (mis.
+    // alamat dijawab untuk pertanyaan posisi/peran) diminta ditulis ulang,
+    // bukan langsung lolos ke pertanyaan berikutnya.
+    if (!editingField && SEMANTIC_CHECK_FIELDS.has(activeQuestion.field) && semanticRetryField !== activeQuestion.field) {
+      setSemanticChecking(true);
+      const questionText = activeQuestion.prompt(data);
+      const fieldKind = activeQuestion.field === "lokasi" ? "lokasi" : "freeText";
+      const isMatch = await checkSemanticMatch(questionText, value, fieldKind, lang);
+      setSemanticChecking(false);
+      if (!isMatch) {
+        // Percobaan pertama gagal — minta ditulis ulang, JANGAN advance ke
+        // pertanyaan berikutnya. Jawaban lama tidak disimpan.
+        setSemanticRetryField(activeQuestion.field);
+        setInputValue("");
+        return;
+      }
+    }
+    if (semanticRetryField === activeQuestion.field) setSemanticRetryField(null);
+
     updateField(activeQuestion.field, value);
     // Simpan teks pertanyaan yang benar-benar ditampilkan (AI-generated atau
     // fallback) supaya konteksnya utuh saat dikirim ke generate-preview/
@@ -538,6 +636,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
   const summaryRows: { label: string; field: keyof WizardData; group: string }[] = [
     { group: t.chatFlow.identitasTitle, label: t.chatFlow.namaLabel, field: "nama" },
+    { group: t.chatFlow.identitasTitle, label: t.chatFlow.noHpLabel, field: "noHp" },
     { group: t.chatFlow.identitasTitle, label: t.chatFlow.profesiLabel, field: "profesi" },
     { group: t.chatFlow.identitasTitle, label: t.chatFlow.namaBisnisLabel, field: "namaBisnis" },
     { group: t.chatFlow.identitasTitle, label: t.chatFlow.jenisBisnisLabel, field: "jenisBisnis" },
@@ -575,7 +674,8 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     (!allAnswered || !!editingField) &&
     typingDone &&
     emailStatus !== "checking" &&
-    emailStatus !== "recognized";
+    emailStatus !== "recognized" &&
+    !semanticChecking;
 
   const phaseLabels: Record<PhaseKey, string> = {
     kenal: t.chatFlow.phaseKenal,
@@ -672,6 +772,12 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
             ) : (
               <ChatBubble role="bot" text={currentBotFullText.slice(0, revealedLength)} />
             )}
+          </div>
+        )}
+
+        {semanticChecking && (
+          <div className="space-y-1.5">
+            <TypingDots />
           </div>
         )}
 

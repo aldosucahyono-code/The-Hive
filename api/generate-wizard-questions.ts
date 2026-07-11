@@ -33,6 +33,110 @@ type Payload = {
 
 type DynamicQuestion = { question: string; placeholder: string };
 
+// --- Mode "validateAnswer" (fitur baru, Juli 2026) -------------------------
+// Reuse endpoint ini (bukan file api/ baru) supaya jumlah Vercel Serverless
+// Function tidak melebihi batas 12 di plan Hobby — lihat catatan yang sama
+// di services/business/promoteDraft.ts. Dipanggil ChatFlow.tsx SETELAH
+// validasi sintaks lokal (utils/validation.ts) lolos, untuk field free-text
+// yang rawan "tidak nyambung" dengan pertanyaan (directive PO: "jangan
+// sampai jawaban user beda dari pertanyaan", termasuk alamat yang kota &
+// provinsinya harus selaras).
+type ValidateAnswerPayload = {
+  mode: "validateAnswer";
+  questionText: string;
+  answer: string;
+  fieldKind: "lokasi" | "freeText";
+  lang?: "id" | "en";
+};
+
+const VALIDATE_SYSTEM_ID = `Anda adalah validator jawaban wizard bisnis THE HIVE. Tugas Anda HANYA
+menilai apakah jawaban pengguna RELEVAN dengan topik pertanyaan yang
+diberikan — BUKAN menilai kualitas, kelengkapan, atau kebenaran isi jawaban.
+
+ATURAN:
+1. Kalau fieldKind = "lokasi": jawaban harus berupa alamat/lokasi. Kalau
+   jawaban menyebut kota DAN provinsi, keduanya harus benar-benar selaras
+   secara geografi nyata di Indonesia (contoh: "Surabaya, Jawa Timur" valid;
+   "Surabaya, Jawa Barat" TIDAK valid karena Surabaya berada di Jawa Timur,
+   bukan Jawa Barat). Kalau hanya kota/kabupaten saja (tanpa provinsi) dan
+   nama itu memang tempat nyata di Indonesia, tetap valid.
+2. Untuk fieldKind = "freeText": jawaban invalid HANYA kalau jelas-jelas
+   TIDAK NYAMBUNG dengan topik pertanyaan (contoh: pertanyaan soal posisi/
+   peran di bisnis dijawab dengan alamat rumah; pertanyaan soal tantangan
+   bisnis dijawab dengan resep masakan yang tidak ada hubungannya).
+3. JANGAN terlalu ketat — jawaban singkat tapi tetap on-topic (mis. "belum
+   ada" untuk pertanyaan status izin usaha) tetap VALID. Kalau ragu-ragu,
+   anggap VALID (manfaatkan keraguan untuk pengguna, bukan untuk menolak).
+4. Balas HANYA dengan JSON, tanpa markdown, tanpa teks lain, format persis:
+{"valid": true} atau {"valid": false}`;
+
+const VALIDATE_SYSTEM_EN = `You are an answer validator for THE HIVE's business wizard. Your ONLY job is
+to judge whether the user's answer is RELEVANT to the topic of the question
+given — NOT to judge the quality, completeness, or truthfulness of the answer.
+
+RULES:
+1. If fieldKind = "lokasi": the answer should be an address/location. If the
+   answer names BOTH a city and a province, they must be genuinely
+   geographically consistent in Indonesia (e.g. "Surabaya, East Java" is
+   valid; "Surabaya, West Java" is NOT valid because Surabaya is in East
+   Java, not West Java). If only a city/regency is given (no province) and
+   it's a real place in Indonesia, it's still valid.
+2. For fieldKind = "freeText": the answer is invalid ONLY if it's clearly
+   UNRELATED to the question's topic (e.g. a question about the person's
+   role in the business answered with a home address; a question about the
+   business's biggest challenge answered with an unrelated recipe).
+3. Do NOT be overly strict — a short but on-topic answer (e.g. "not yet" for
+   a question about business permit status) is still VALID. When in doubt,
+   default to VALID (give the user the benefit of the doubt, don't reject).
+4. Reply with ONLY JSON, no markdown, no other text, in exactly this format:
+{"valid": true} or {"valid": false}`;
+
+async function handleValidateAnswer(
+  payload: ValidateAnswerPayload,
+  apiKey: string,
+  res: VercelResponse
+) {
+  const activeLang: "id" | "en" = payload.lang === "en" ? "en" : "id";
+  if (!payload.questionText || !payload.answer || !payload.fieldKind) {
+    // Data tidak lengkap — fail-open, jangan menghalangi wizard gara-gara
+    // request yang salah bentuk dari frontend.
+    return res.status(200).json({ valid: true });
+  }
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const message = await client.messages.create({
+      model: "claude-sonnet-5",
+      max_tokens: 20,
+      system: activeLang === "en" ? VALIDATE_SYSTEM_EN : VALIDATE_SYSTEM_ID,
+      messages: [
+        {
+          role: "user",
+          content:
+            activeLang === "en"
+              ? `fieldKind: ${payload.fieldKind}\nQuestion: ${payload.questionText}\nAnswer: ${payload.answer}`
+              : `fieldKind: ${payload.fieldKind}\nPertanyaan: ${payload.questionText}\nJawaban: ${payload.answer}`,
+        },
+      ],
+    });
+
+    const raw = message.content
+      .filter((b) => b.type === "text")
+      .map((b) => ("text" in b ? b.text : ""))
+      .join("");
+    const cleaned = raw.replace(/```json|```/g, "").trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned) as { valid?: boolean };
+
+    return res.status(200).json({ valid: parsed.valid !== false });
+  } catch (err) {
+    console.error("generate-wizard-questions validateAnswer error:", err);
+    // Fail-open — gangguan AI/parsing tidak boleh menghalangi pengunjung
+    // menyelesaikan wizard (sama seperti prinsip check-email.ts).
+    return res.status(200).json({ valid: true });
+  }
+}
+
 const SYSTEM_ID = `Anda adalah Beemo AI, konsultan bisnis THE HIVE. Tugas Anda di sini HANYA
 membuat TEPAT 2 pertanyaan tambahan yang wajib ditanyakan ke pengguna di
 wizard chat, sebelum analisis bisnis disusun.
@@ -144,6 +248,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: "ANTHROPIC_API_KEY belum diset di Vercel." });
+  }
+
+  if ((req.body as { mode?: string })?.mode === "validateAnswer") {
+    return handleValidateAnswer(req.body as ValidateAnswerPayload, apiKey, res);
   }
 
   const { jenisAnalisis, namaBisnis, jenisBisnis, lang } = req.body as Payload;

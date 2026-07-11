@@ -10,6 +10,10 @@ export type WizardData = {
   jenisAnalisis: "" | "baru" | "berjalan";
   nama: string;
   email: string;
+  // Nomor HP — dikumpulkan untuk push notifikasi WhatsApp ke pelanggan
+  // nanti setelah fitur itu diaktifkan (belum aktif sekarang, cuma
+  // disimpan). Lihat business_profiles.phone_number (migrations/2026-07-12_business_phone_number.sql).
+  noHp: string;
   profesi: string;
   namaBisnis: string;
   jenisBisnis: string;
@@ -37,6 +41,7 @@ const initialData: WizardData = {
   jenisAnalisis: "",
   nama: "",
   email: "",
+  noHp: "",
   profesi: "",
   namaBisnis: "",
   jenisBisnis: "",

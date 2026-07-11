@@ -125,6 +125,18 @@ export function isValidOmset(value: string): boolean {
   return /[0-9]/.test(value);
 }
 
+// Nomor HP Indonesia: boleh diawali "08", "+62", atau "62", diikuti 8-13
+// digit lagi (total wajar 10-15 karakter termasuk kode). Spasi/tanda hubung
+// di antara digit diizinkan (mis. "0812-3456-7890") lalu dibuang sebelum
+// dicek panjangnya. Dipakai untuk field nomor HP di wizard — disimpan untuk
+// push notifikasi WhatsApp ke pelanggan nanti.
+const phonePattern = /^(\+?62|0)8[0-9]{8,12}$/;
+
+export function isValidPhone(value: string): boolean {
+  const normalized = value.trim().replace(/[\s-]/g, "");
+  return phonePattern.test(normalized);
+}
+
 export function getTodayString(): string {
   const now = new Date();
   const year = now.getFullYear();
