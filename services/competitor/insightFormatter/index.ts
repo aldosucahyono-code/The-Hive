@@ -59,16 +59,18 @@ const CATEGORY_LABELS: Record<FormattedInsightCategory, { id: string; en: string
 function opportunityHeadline(o: Opportunity, lang: "id" | "en"): string {
   // Menyusun kalimat "apa - kenapa penting - apa yang sebaiknya dilakukan"
   // dari field yang SUDAH ADA di Opportunity (businessValue, reason, action)
-  // — bukan klaim baru.
+  // — bukan klaim baru. (audit Task 14a) SEKARANG benar-benar memilih field
+  // *En saat lang="en" — sebelumnya field id selalu dipakai walau lang
+  // sudah "en", jadi headline tetap Bahasa Indonesia untuk pengguna English.
   if (lang === "en") {
-    return `${o.businessValue} ${o.reason} Suggested step: ${o.action}`;
+    return `${o.businessValueEn} ${o.reasonEn} Suggested step: ${o.actionEn}`;
   }
   return `${o.businessValue} ${o.reason} Langkah yang bisa kamu ambil: ${o.action}`;
 }
 
 function recommendationHeadline(r: Recommendation, lang: "id" | "en"): string {
   if (lang === "en") {
-    return `${r.title}. ${r.reason} Suggested step: ${r.action}`;
+    return `${r.titleEn}. ${r.reasonEn} Suggested step: ${r.actionEn}`;
   }
   return `${r.title}. ${r.reason} Langkah yang bisa kamu ambil: ${r.action}`;
 }
@@ -86,17 +88,20 @@ export function formatCompetitorInsights(
 ): FormattedInsight[] {
   const insights: FormattedInsight[] = [];
 
+  // (audit Task 14a) headline SEKARANG memilih marketPositionReasonEn saat
+  // lang="en" — sebelumnya selalu marketPositionReason (Bahasa Indonesia),
+  // jadi pengguna yang set English tetap melihat kalimat Indonesia di sini.
   insights.push({
     id: "insight-market-position",
     category: "market_position",
     categoryLabelId: CATEGORY_LABELS.market_position.id,
     categoryLabelEn: CATEGORY_LABELS.market_position.en,
-    headline: competitor.marketPositionReason,
+    headline: lang === "en" ? competitor.marketPositionReasonEn : competitor.marketPositionReason,
     evidenceSummary:
       lang === "en"
         ? `Based on ${competitor.marketSummary.totalCompetitorsFound} competitors found nearby.`
         : `Berdasarkan ${competitor.marketSummary.totalCompetitorsFound} kompetitor yang ditemukan di sekitar lokasimu.`,
-    evidenceDetail: competitor.marketPositionReason,
+    evidenceDetail: lang === "en" ? competitor.marketPositionReasonEn : competitor.marketPositionReason,
   });
 
   competitor.userStrengths.forEach((s, i) => {
@@ -105,7 +110,7 @@ export function formatCompetitorInsights(
       category: "strength",
       categoryLabelId: CATEGORY_LABELS.strength.id,
       categoryLabelEn: CATEGORY_LABELS.strength.en,
-      headline: s.text,
+      headline: lang === "en" ? s.textEn : s.text,
       evidenceSummary: lang === "en" ? "See supporting data" : "Lihat data pendukung",
       evidenceDetail: s.evidence,
     });
@@ -117,7 +122,7 @@ export function formatCompetitorInsights(
       category: "weakness",
       categoryLabelId: CATEGORY_LABELS.weakness.id,
       categoryLabelEn: CATEGORY_LABELS.weakness.en,
-      headline: w.text,
+      headline: lang === "en" ? w.textEn : w.text,
       evidenceSummary: lang === "en" ? "See supporting data" : "Lihat data pendukung",
       evidenceDetail: w.evidence,
     });

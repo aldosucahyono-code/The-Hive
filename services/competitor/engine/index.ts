@@ -25,15 +25,22 @@ function average(nums: number[]): number | null {
   return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10;
 }
 
+// (audit Task 14a, Juli 2026) Setiap fungsi derive* di bawah sekarang
+// mengembalikan DUA bahasa sekaligus (field polos = id, field *En = en) —
+// bukan lagi cuma Bahasa Indonesia yang sebelumnya tetap tampil walau
+// pengguna sudah memilih English di Insight Formatter. Field id TETAP ada
+// tanpa berubah supaya konsumen lain (PDF, Business Memory — selalu
+// Bahasa Indonesia) tidak perlu ikut berubah.
 function deriveMarketPosition(
   ownScore: number | null,
   avgRating: number | null
-): { position: MarketPosition; reason: string } {
+): { position: MarketPosition; reason: string; reasonEn: string } {
   if (ownScore == null || avgRating == null) {
     return {
       position: "unknown",
       reason:
         "Belum cukup data (skor bisnis atau rating kompetitor belum tersedia) untuk menentukan posisi pasar secara jujur.",
+      reasonEn: "Not enough data yet (business score or competitor ratings unavailable) to honestly determine market position.",
     };
   }
   // ownScore berskala 0-100 (Business Health Score yang sudah ada),
@@ -45,17 +52,20 @@ function deriveMarketPosition(
     return {
       position: "leader",
       reason: `Skor kesehatan bisnis Anda (${ownScore}/100, setara ${ownScoreOn5.toFixed(1)}/5) di atas rata-rata rating kompetitor sekitar (${avgRating}/5).`,
+      reasonEn: `Your business health score (${ownScore}/100, equivalent to ${ownScoreOn5.toFixed(1)}/5) is above the average rating of nearby competitors (${avgRating}/5).`,
     };
   }
   if (diff <= -0.5) {
     return {
       position: "developing",
       reason: `Skor kesehatan bisnis Anda (${ownScore}/100, setara ${ownScoreOn5.toFixed(1)}/5) masih di bawah rata-rata rating kompetitor sekitar (${avgRating}/5).`,
+      reasonEn: `Your business health score (${ownScore}/100, equivalent to ${ownScoreOn5.toFixed(1)}/5) is still below the average rating of nearby competitors (${avgRating}/5).`,
     };
   }
   return {
     position: "competitive",
     reason: `Skor kesehatan bisnis Anda (${ownScore}/100, setara ${ownScoreOn5.toFixed(1)}/5) sejajar dengan rata-rata rating kompetitor sekitar (${avgRating}/5).`,
+    reasonEn: `Your business health score (${ownScore}/100, equivalent to ${ownScoreOn5.toFixed(1)}/5) is on par with the average rating of nearby competitors (${avgRating}/5).`,
   };
 }
 
@@ -65,24 +75,27 @@ function deriveStrengthsWeaknesses(competitors: CompetitorRecord[]) {
   const fewReviews = competitors.filter((c) => c.reviewCount != null && (c.reviewCount as number) < 10);
   const highRated = withRating.filter((c) => (c.rating as number) >= 4.3);
 
-  const competitorStrengths: Array<{ text: string; evidence: string }> = [];
-  const competitorWeaknesses: Array<{ text: string; evidence: string }> = [];
+  const competitorStrengths: Array<{ text: string; textEn: string; evidence: string }> = [];
+  const competitorWeaknesses: Array<{ text: string; textEn: string; evidence: string }> = [];
 
   if (highRated.length > 0) {
     competitorStrengths.push({
       text: `${highRated.length} kompetitor punya rating tinggi (≥4.3) di sekitar lokasi Anda.`,
+      textEn: `${highRated.length} competitor(s) have a high rating (≥4.3) near your location.`,
       evidence: highRated.map((c) => `${c.name} (${c.rating}★, ${c.reviewCount ?? 0} ulasan)`).join(", "),
     });
   }
   if (lowRated.length > 0) {
     competitorWeaknesses.push({
       text: `${lowRated.length} kompetitor punya rating di bawah 3.8 — celah untuk pelanggan yang tidak puas mencari alternatif.`,
+      textEn: `${lowRated.length} competitor(s) have a rating below 3.8 — a gap for dissatisfied customers looking for alternatives.`,
       evidence: lowRated.map((c) => `${c.name} (${c.rating}★)`).join(", "),
     });
   }
   if (fewReviews.length > 0) {
     competitorWeaknesses.push({
       text: `${fewReviews.length} kompetitor punya jumlah ulasan sangat sedikit (<10) — kemungkinan belum dikenal luas atau baru buka.`,
+      textEn: `${fewReviews.length} competitor(s) have very few reviews (<10) — likely not well known yet or newly opened.`,
       evidence: fewReviews.map((c) => `${c.name} (${c.reviewCount ?? 0} ulasan)`).join(", "),
     });
   }
@@ -144,15 +157,16 @@ export async function runCompetitorEngine(
   const averageRating = average(ratings);
   const averageReviewCount = average(reviewCounts);
 
-  const { position, reason } = deriveMarketPosition(ownScore ?? null, averageRating);
+  const { position, reason, reasonEn } = deriveMarketPosition(ownScore ?? null, averageRating);
   const { competitorStrengths, competitorWeaknesses } = deriveStrengthsWeaknesses(competitors);
 
-  const userStrengths: Array<{ text: string; evidence: string }> = [];
+  const userStrengths: Array<{ text: string; textEn: string; evidence: string }> = [];
   if (ownScore != null && averageRating != null) {
     const ownScoreOn5 = (ownScore / 100) * 5;
     if (ownScoreOn5 - averageRating >= 0.3) {
       userStrengths.push({
         text: "Skor kesehatan bisnis Anda lebih tinggi dari rata-rata rating kompetitor sekitar.",
+        textEn: "Your business health score is higher than the average rating of nearby competitors.",
         evidence: `Skor Anda: ${ownScore}/100 (${ownScoreOn5.toFixed(1)}/5) vs rata-rata kompetitor: ${averageRating}/5.`,
       });
     }
@@ -170,6 +184,7 @@ export async function runCompetitorEngine(
     competitors,
     marketPosition: position,
     marketPositionReason: reason,
+    marketPositionReasonEn: reasonEn,
     competitorStrengths,
     competitorWeaknesses,
     userStrengths,

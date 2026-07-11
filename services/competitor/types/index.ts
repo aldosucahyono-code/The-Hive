@@ -90,11 +90,12 @@ export type CompetitorEngineResult = {
 
   competitors: CompetitorRecord[]; // evidence — daftar kompetitor nyata yang jadi dasar seluruh insight di bawah
   marketPosition: MarketPosition;
-  marketPositionReason: string; // penjelasan KENAPA posisi ini disimpulkan, merujuk ke marketSummary
+  marketPositionReason: string; // penjelasan KENAPA posisi ini disimpulkan, merujuk ke marketSummary — Bahasa Indonesia (dipakai PDF/Business Memory yang selalu id)
+  marketPositionReasonEn: string; // (audit Task 14a) versi Inggris — HANYA dipakai Insight Formatter saat lang="en", tidak menggantikan field di atas supaya konsumen lain (PDF, Business Memory) tidak perlu berubah
 
-  competitorStrengths: Array<{ text: string; evidence: string }>; // hal yang kompetitor lakukan lebih baik (rata-rata rating/review lebih tinggi, dst)
-  competitorWeaknesses: Array<{ text: string; evidence: string }>; // celah yang terlihat dari data (rating rendah, review sedikit, kategori kosong, dst)
-  userStrengths: Array<{ text: string; evidence: string }>; // dibandingkan rata-rata kompetitor, pakai Business Health/Score yang SUDAH ada (bukan dikarang di sini)
+  competitorStrengths: Array<{ text: string; textEn: string; evidence: string }>; // hal yang kompetitor lakukan lebih baik (rata-rata rating/review lebih tinggi, dst)
+  competitorWeaknesses: Array<{ text: string; textEn: string; evidence: string }>; // celah yang terlihat dari data (rating rendah, review sedikit, kategori kosong, dst)
+  userStrengths: Array<{ text: string; textEn: string; evidence: string }>; // dibandingkan rata-rata kompetitor, pakai Business Health/Score yang SUDAH ada (bukan dikarang di sini)
 
   fetchedAt: string;
 };
@@ -129,12 +130,16 @@ export type OpportunityPriority = "critical" | "high" | "medium" | "low";
 export type Opportunity = {
   id: string;
   title: string;
+  titleEn: string; // (audit Task 14a) — dipakai Insight Formatter saat lang="en"
   businessValue: string; // kalimat jujur "kenapa ini penting buat bisnis", bukan angka dikarang
+  businessValueEn: string;
   difficulty: "easy" | "medium" | "hard";
   impact: "small" | "medium" | "large";
   priority: OpportunityPriority;
   reason: string;
+  reasonEn: string;
   action: string;
+  actionEn: string;
   source: MarketSignalSourceType;
   evidence: string;
 };
@@ -149,7 +154,10 @@ export type Recommendation = {
   id: string;
   bucket: RecommendationBucketKey;
   title: string;
+  titleEn: string; // (audit Task 14a) — lihat catatan di recommendation/index.ts: sebagian reason bersumber dari teks AI baseline yang TIDAK bisa diterjemahkan otomatis di sini (butuh panggilan AI baru), jadi reasonEn bisa sama dengan reason untuk kasus itu — title/action tetap diterjemahkan penuh karena keduanya template tetap.
   reason: string;
+  reasonEn: string;
   action: string;
+  actionEn: string;
   source: string; // "business_score" | "journey" | "target" | "business_update" | "competitor" | "business_memory"
 };

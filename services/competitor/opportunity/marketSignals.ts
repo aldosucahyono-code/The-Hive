@@ -20,7 +20,9 @@ export function competitorResultToMarketSignals(result: CompetitorEngineResult):
       sourceId: result.businessProfileId,
       category: "competitor_weakness",
       evidence: w.evidence,
-      data: { text: w.text },
+      // textEn ditambahkan (audit Task 14a) supaya Opportunity Engine bisa
+      // membangun reason dalam bahasa yang benar — lihat opportunity/index.ts.
+      data: { text: w.text, textEn: w.textEn },
     });
   }
 
@@ -30,7 +32,7 @@ export function competitorResultToMarketSignals(result: CompetitorEngineResult):
       sourceId: result.businessProfileId,
       category: "competitor_strength",
       evidence: s.evidence,
-      data: { text: s.text },
+      data: { text: s.text, textEn: s.textEn },
     });
   }
 
@@ -43,7 +45,10 @@ export function competitorResultToMarketSignals(result: CompetitorEngineResult):
       sourceId: result.businessProfileId,
       category: "market_gap",
       evidence: `Hanya ${result.marketSummary.totalCompetitorsFound} kompetitor ditemukan di sekitar lokasi (${result.query.location}) untuk industri ${result.query.industry}.`,
-      data: { totalCompetitorsFound: result.marketSummary.totalCompetitorsFound },
+      data: {
+        totalCompetitorsFound: result.marketSummary.totalCompetitorsFound,
+        evidenceEn: `Only ${result.marketSummary.totalCompetitorsFound} competitor(s) found near location (${result.query.location}) for the ${result.query.industry} industry.`,
+      },
     });
   }
 
