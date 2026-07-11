@@ -35,111 +35,117 @@ function Pricing({ onStart, animate }: PricingProps) {
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {/* PRO — tema amber/orange, sama dengan mockup baru */}
-          <div
-            className={
-              "relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-b from-amber-500/[0.07] to-surface p-6 sm:p-8 " +
-              fade("80ms")
-            }
-          >
-            <div className="flex items-start justify-between gap-3">
-              <span className="inline-block rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-black">
-                PRO
-              </span>
-              <img src={beemoMascot} alt="Beemo" className="-mt-2 h-16 w-16 flex-none object-contain sm:h-20 sm:w-20" />
-            </div>
+          {/* PRO — tema amber/orange, sama dengan mockup baru. Mascot
+              diposisikan absolute (bukan di dalam alur flex) supaya bisa
+              "mengintip" di atas garis tepi kartu, sama seperti mockup —
+              makanya wrapper kartu TIDAK overflow-hidden (kalau di-hidden,
+              bagian mascot yang keluar dari tepi atas akan terpotong).
+              Warna gradasi latar dipindah ke layer terpisah (inset-0,
+              z-index di bawah) supaya sudut membulat kartu tetap rapi
+              tanpa perlu overflow-hidden di wrapper utama. */}
+          <div className={"relative rounded-2xl border border-amber-500/30 pt-12 " + fade("80ms")}>
+            <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-b from-amber-500/[0.07] to-surface" />
+            <img
+              src={beemoMascot}
+              alt="Beemo"
+              className="absolute -top-9 right-5 h-28 w-28 object-contain drop-shadow-[0_8px_24px_rgba(245,158,11,0.35)] sm:-top-11 sm:right-6 sm:h-32 sm:w-32"
+            />
+            <div className="px-6 pb-6 sm:px-8 sm:pb-8">
+              <span className="inline-block rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-black">PRO</span>
 
-            <h3 className="mt-4 text-left text-lg font-extrabold leading-snug sm:text-xl">
-              {t.pricing.proTitlePrefix} <span className="text-amber-400">{t.pricing.proTitleHighlight}</span>
-            </h3>
-            <p className="mt-2 text-left text-sm text-neutral-400">{t.pricing.proDesc}</p>
+              <h3 className="mt-5 max-w-[65%] text-left text-lg font-extrabold leading-snug sm:max-w-[60%] sm:text-xl">
+                {t.pricing.proTitlePrefix} <span className="text-amber-400">{t.pricing.proTitleHighlight}</span>
+              </h3>
+              <p className="mt-2.5 text-left text-sm text-neutral-400">{t.pricing.proDesc}</p>
 
-            <div className="mt-6 border-t border-white/10 pt-5">
-              <p className="text-left text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.pricing.priceOnlyLabel}</p>
-              <p className="mt-1 text-left text-3xl font-black text-amber-400 sm:text-4xl">
-                {t.pricing.proPriceMonthly}
-                <span className="text-base font-normal text-neutral-500">{t.pricing.proPriceMonthlyUnit}</span>
-              </p>
-              <p className="mt-1.5 text-left text-xs font-semibold text-amber-300">{t.pricing.proPriceAnnual}</p>
-              <p className="mt-0.5 text-left text-[11px] text-neutral-500">{t.pricing.proPriceAnnualNote}</p>
-            </div>
+              <div className="mt-7 border-t border-white/10 pt-6">
+                <p className="text-left text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.pricing.priceOnlyLabel}</p>
+                <p className="mt-1 text-left text-4xl font-black text-amber-400 sm:text-5xl">
+                  {t.pricing.proPriceMonthly}
+                  <span className="text-base font-normal text-neutral-500">{t.pricing.proPriceMonthlyUnit}</span>
+                </p>
+                <p className="mt-2 text-left text-xs font-semibold text-amber-300">{t.pricing.proPriceAnnual}</p>
+                <p className="mt-0.5 text-left text-[11px] text-neutral-500">{t.pricing.proPriceAnnualNote}</p>
+              </div>
 
-            <p className="mt-6 text-left text-xs font-bold uppercase tracking-wide text-amber-400">{t.pricing.proWhatYouGetLabel}</p>
-            <ul className="mt-3 space-y-2.5 text-left">
-              {t.pricing.proChecklist.map((item, i) => (
-                <li key={item} className="flex items-center justify-between gap-3 text-sm text-neutral-200">
-                  <span className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-amber-500 text-[10px] text-black">
-                      ✓
+              <p className="mt-8 text-left text-xs font-bold uppercase tracking-wide text-amber-400">{t.pricing.proWhatYouGetLabel}</p>
+              <ul className="mt-4 space-y-3.5 text-left">
+                {t.pricing.proChecklist.map((item, i) => (
+                  <li key={item} className="flex items-center justify-between gap-3 text-sm text-neutral-200">
+                    <span className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-amber-500 text-[10px] text-black">
+                        ✓
+                      </span>
+                      {item}
                     </span>
-                    {item}
-                  </span>
-                  <span aria-hidden="true" className="flex-none text-base opacity-80">
-                    {PRO_ICONS[i] ?? "✨"}
-                  </span>
-                </li>
-              ))}
-            </ul>
+                    <span aria-hidden="true" className="flex-none text-base opacity-80">
+                      {PRO_ICONS[i] ?? "✨"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
 
-            <div className="mt-6 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
-              <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-amber-500 text-[11px] text-black">
-                ★
-              </span>
-              <p className="text-xs leading-relaxed text-amber-100/90">{t.pricing.proHighlightTagline}</p>
+              <div className="mt-7 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-amber-500 text-[11px] text-black">
+                  ★
+                </span>
+                <p className="text-xs leading-relaxed text-amber-100/90">{t.pricing.proHighlightTagline}</p>
+              </div>
             </div>
           </div>
 
-          {/* PLATINUM — tema ungu, "raja lebah" */}
-          <div
-            className={
-              "relative overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-b from-purple-500/[0.08] to-surface p-6 sm:p-8 " +
-              fade("160ms")
-            }
-          >
-            <div className="flex items-start justify-between gap-3">
+          {/* PLATINUM — tema ungu, "raja lebah". Struktur sama dengan PRO
+              di atas (mascot absolute mengintip di tepi atas). */}
+          <div className={"relative rounded-2xl border border-purple-500/30 pt-12 " + fade("160ms")}>
+            <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-b from-purple-500/[0.08] to-surface" />
+            <img
+              src={beemoLaptop}
+              alt="Beemo"
+              className="absolute -top-9 right-5 h-28 w-28 object-contain drop-shadow-[0_8px_24px_rgba(168,85,247,0.35)] sm:-top-11 sm:right-6 sm:h-32 sm:w-32"
+            />
+            <div className="px-6 pb-6 sm:px-8 sm:pb-8">
               <span className="inline-flex items-center gap-1 rounded-full bg-purple-500 px-3 py-1 text-xs font-bold text-white">
                 💎 PLATINUM
               </span>
-              <img src={beemoLaptop} alt="Beemo" className="-mt-2 h-16 w-16 flex-none object-contain sm:h-20 sm:w-20" />
-            </div>
 
-            <h3 className="mt-4 text-left text-lg font-extrabold leading-snug sm:text-xl">
-              {t.pricing.platinumTitlePrefix} <span className="text-purple-400">{t.pricing.platinumTitleHighlight}</span>
-            </h3>
-            <p className="mt-2 text-left text-sm text-neutral-400">{t.pricing.platinumDesc}</p>
+              <h3 className="mt-5 max-w-[65%] text-left text-lg font-extrabold leading-snug sm:max-w-[60%] sm:text-xl">
+                {t.pricing.platinumTitlePrefix} <span className="text-purple-400">{t.pricing.platinumTitleHighlight}</span>
+              </h3>
+              <p className="mt-2.5 text-left text-sm text-neutral-400">{t.pricing.platinumDesc}</p>
 
-            <div className="mt-6 border-t border-white/10 pt-5">
-              <p className="text-left text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.pricing.priceOnlyLabel}</p>
-              <p className="mt-1 text-left text-3xl font-black text-purple-400 sm:text-4xl">
-                {t.pricing.platinumPriceMonthly}
-                <span className="text-base font-normal text-neutral-500">{t.pricing.platinumPriceMonthlyUnit}</span>
-              </p>
-              <p className="mt-1.5 text-left text-xs font-semibold text-purple-300">{t.pricing.platinumPriceAnnual}</p>
-              <p className="mt-0.5 text-left text-[11px] text-neutral-500">{t.pricing.platinumPriceAnnualNote}</p>
-            </div>
+              <div className="mt-7 border-t border-white/10 pt-6">
+                <p className="text-left text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.pricing.priceOnlyLabel}</p>
+                <p className="mt-1 text-left text-4xl font-black text-purple-400 sm:text-5xl">
+                  {t.pricing.platinumPriceMonthly}
+                  <span className="text-base font-normal text-neutral-500">{t.pricing.platinumPriceMonthlyUnit}</span>
+                </p>
+                <p className="mt-2 text-left text-xs font-semibold text-purple-300">{t.pricing.platinumPriceAnnual}</p>
+                <p className="mt-0.5 text-left text-[11px] text-neutral-500">{t.pricing.platinumPriceAnnualNote}</p>
+              </div>
 
-            <p className="mt-6 text-left text-xs font-bold uppercase tracking-wide text-purple-400">{t.pricing.platinumIncludesNote}</p>
-            <ul className="mt-3 space-y-2.5 text-left">
-              {t.pricing.platinumChecklist.map((item, i) => (
-                <li key={item} className="flex items-center justify-between gap-3 text-sm text-neutral-200">
-                  <span className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-purple-500 text-[10px] text-white">
-                      ✓
+              <p className="mt-8 text-left text-xs font-bold uppercase tracking-wide text-purple-400">{t.pricing.platinumIncludesNote}</p>
+              <ul className="mt-4 space-y-3.5 text-left">
+                {t.pricing.platinumChecklist.map((item, i) => (
+                  <li key={item} className="flex items-center justify-between gap-3 text-sm text-neutral-200">
+                    <span className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-purple-500 text-[10px] text-white">
+                        ✓
+                      </span>
+                      {item}
                     </span>
-                    {item}
-                  </span>
-                  <span aria-hidden="true" className="flex-none text-base opacity-80">
-                    {PLATINUM_ICONS[i] ?? "✨"}
-                  </span>
-                </li>
-              ))}
-            </ul>
+                    <span aria-hidden="true" className="flex-none text-base opacity-80">
+                      {PLATINUM_ICONS[i] ?? "✨"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
 
-            <div className="mt-6 flex items-start gap-2.5 rounded-xl border border-purple-500/30 bg-purple-500/10 p-3">
-              <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-purple-500 text-[11px] text-white">
-                ★
-              </span>
-              <p className="text-xs leading-relaxed text-purple-100/90">{t.pricing.platinumHighlightTagline}</p>
+              <div className="mt-7 flex items-start gap-2.5 rounded-xl border border-purple-500/30 bg-purple-500/10 p-4">
+                <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-purple-500 text-[11px] text-white">
+                  ★
+                </span>
+                <p className="text-xs leading-relaxed text-purple-100/90">{t.pricing.platinumHighlightTagline}</p>
+              </div>
             </div>
           </div>
         </div>
