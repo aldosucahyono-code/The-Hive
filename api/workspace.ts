@@ -26,6 +26,7 @@ import { getBusinessOS } from "../services/businessOS/getBusinessOS.js";
 import { getWeeklyReview } from "../services/businessOS/weeklyReview.js";
 import { generateBaselineReportAction } from "../services/reports/generateFinalReport.js";
 import { listReports } from "../services/reports/listReports.js";
+import { promoteDraft } from "../services/business/promoteDraft.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -44,6 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Sesi login tidak valid. Silakan login ulang." });
   }
   const userId = userData.user.id;
+  const userEmail = userData.user.email ?? null;
 
   const { action, ...payload } = req.body || {};
 
@@ -108,6 +110,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "listReports":
       result = await listReports(userId, payload);
+      break;
+    case "promoteDraft":
+      result = await promoteDraft(userId, userEmail, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });

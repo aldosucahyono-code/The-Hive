@@ -96,13 +96,13 @@ function PaymentPage({ plan }: { plan: PlanId }) {
       setIsPromoting(true);
       setPromoteError(null);
       try {
-        const response = await fetch("/api/promote-draft", {
+        const response = await fetch("/api/workspace", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session!.access_token}`,
           },
-          body: JSON.stringify({ draftId: order!.draftId }),
+          body: JSON.stringify({ action: "promoteDraft", draftId: order!.draftId }),
         });
         const json = await response.json();
         if (cancelled) return;

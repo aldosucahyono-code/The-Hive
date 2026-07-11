@@ -71,13 +71,13 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           return;
         }
 
-        const promoteRes = await fetch("/api/promote-draft", {
+        const promoteRes = await fetch("/api/workspace", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({ draftId: saveJson.id }),
+          body: JSON.stringify({ action: "promoteDraft", draftId: saveJson.id }),
         });
         const promoteJson = await promoteRes.json();
         if (!cancelled && promoteRes.ok && promoteJson.businessProfileId) {
