@@ -214,7 +214,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
   const findings = preview.findings.slice(0, 3);
 
   return (
-    <section className="mx-auto max-w-2xl px-6 py-16">
+    <section className="mx-auto max-w-4xl px-6 py-16">
 
       <div className="mb-8 text-center">
         <span className="text-xs font-bold uppercase tracking-widest text-primary">{t.previewReport.eyebrow}</span>
@@ -391,14 +391,14 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
               <p className="mt-6 text-left text-xs font-bold uppercase tracking-wide text-amber-400">{t.pricing.proWhatYouGetLabel}</p>
               <ul className="mt-4 space-y-3 text-left">
                 {t.pricing.proChecklist.map((item, i) => (
-                  <li key={item} className="flex items-center justify-between gap-3 text-sm text-neutral-200">
+                  <li key={item} className="flex items-start justify-between gap-3 text-sm text-neutral-200">
                     <span className="flex items-start gap-2.5">
                       <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-amber-500 text-[10px] text-black">
                         ✓
                       </span>
                       {item}
                     </span>
-                    <span aria-hidden="true" className="flex-none text-base opacity-80">
+                    <span aria-hidden="true" className="mt-0.5 flex-none text-base opacity-80">
                       {PRO_ICONS[i] ?? "✨"}
                     </span>
                   </li>
@@ -462,14 +462,14 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
               <p className="mt-6 text-left text-xs font-bold uppercase tracking-wide text-purple-400">{t.pricing.platinumIncludesNote}</p>
               <ul className="mt-4 space-y-3 text-left">
                 {t.pricing.platinumChecklist.map((item, i) => (
-                  <li key={item} className="flex items-center justify-between gap-3 text-sm text-neutral-200">
+                  <li key={item} className="flex items-start justify-between gap-3 text-sm text-neutral-200">
                     <span className="flex items-start gap-2.5">
                       <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-purple-500 text-[10px] text-white">
                         ✓
                       </span>
                       {item}
                     </span>
-                    <span aria-hidden="true" className="flex-none text-base opacity-80">
+                    <span aria-hidden="true" className="mt-0.5 flex-none text-base opacity-80">
                       {PLATINUM_ICONS[i] ?? "✨"}
                     </span>
                   </li>
