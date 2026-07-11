@@ -347,4 +347,47 @@ function BusinessUpdateModal({ businessProfileId, businessType, onClose, onSaved
                 />
               </div>
               <div>
-    
+                <label className="mb-1.5 block text-sm text-neutral-300">{copy.pelangganBaruLabel}</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={pelangganBaru}
+                  onChange={(e) => setPelangganBaru(e.target.value)}
+                  placeholder={copy.pelangganBaruPlaceholder}
+                  className={inputOk}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm text-neutral-300">
+                {copy.targetDepanLabel} <span className="text-primary">*</span>
+              </label>
+              <textarea
+                rows={2}
+                value={targetDepan}
+                onChange={(e) => setTargetDepan(e.target.value)}
+                onBlur={() => markTouched("targetDepan")}
+                placeholder={copy.targetDepanPlaceholder}
+                className={touched.targetDepan && !targetDepanValid ? textareaErr : textareaOk}
+              />
+            </div>
+
+            {formError && <p className="text-sm text-red-400">{t.businessUpdateModal.formError}</p>}
+            {serverError && <p className="text-sm text-red-400">{serverError}</p>}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-lg bg-primary px-4 py-3 font-bold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? t.businessUpdateModal.submitLoading : t.businessUpdateModal.submitButton}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default BusinessUpdateModal;

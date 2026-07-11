@@ -44,4 +44,24 @@ export async function listDecisions(userId: string, payload: Record<string, unkn
 
   if (error) {
     console.error("services/decision/listDecisions error:", error);
-    return { status: 500, body: { error: "Gagal memuat r
+    return { status: 500, body: { error: "Gagal memuat riwayat keputusan." } };
+  }
+
+  return {
+    status: 200,
+    body: {
+      decisions: (rows || []).map((r) => ({
+        id: r.id,
+        question: r.question,
+        goal: r.goal,
+        risk: r.risk,
+        opportunity: r.opportunity,
+        supportingData: r.supporting_data || [],
+        recommendation: r.recommendation,
+        conclusion: r.conclusion,
+        status: r.status,
+        createdAt: r.created_at,
+      })),
+    },
+  };
+}

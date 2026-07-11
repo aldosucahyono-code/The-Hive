@@ -103,3 +103,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     case "getWeeklyReview":
       result = await getWeeklyReview(userId, payload);
       break;
+    case "generateBaselineReport":
+      result = await generateBaselineReportAction(userId, payload);
+      break;
+    case "listReports":
+      result = await listReports(userId, payload);
+      break;
+    default:
+      return res.status(400).json({ error: `action tidak dikenali: ${action}` });
+  }
+
+  return res.status(result.status).json(result.body);
+}

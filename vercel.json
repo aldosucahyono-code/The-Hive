@@ -12,4 +12,17 @@
     "api/generate-wizard-questions.ts": {
       "maxDuration": 60
     },
-    "
+    "api/workspace.ts": {
+      "maxDuration": 60
+    },
+    "api/cron/generate-expiry-reports.ts": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/generate-expiry-reports",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}
