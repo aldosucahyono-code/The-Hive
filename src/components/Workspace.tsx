@@ -209,27 +209,53 @@ function AccessStatusCard({
   );
 }
 
-/** History — menjawab satu pertanyaan: "apa saja yang sudah saya
- * lakukan?" Murni membaca `analyses` yang sudah difetch di Workspace()
- * (sumber sama dengan Report/Target) — error/retry-nya REUSE
- * analysesError/reloadAnalyses, tidak ada fetch baru. */
-function HistoryList({
-  analyses,
+/** Final Reports (Task 13 — "riwayat diganti final reports"): dua PDF
+ * SUNGGUHAN tersimpan di Supabase Storage (services/reports/), bukan lagi
+ * daftar mentah `analyses` tanpa PDF/download. Kartu pertama = Laporan Awal
+ * (baseline, dibuat sekali lewat tombol di sini kalau belum ada). Kartu
+ * kedua = Laporan Perbandingan Periode terbaru (expiry, dibuat OTOMATIS
+ * lewat cron di hari H expired — tidak ada tombol manual untuk itu). */
+function FinalReportsList({
+  tier,
   t,
   lang,
+  reports,
   loading,
   error,
   onRetry,
-  onOpenUpdateModal,
+  onUpgradeClick,
+  generating,
+  generateError,
+  onGenerateBaseline,
 }: {
-  analyses: AnalysisRow[];
+  tier: Tier;
   t: Translations;
   lang: "id" | "en";
+  reports: Array<Record<string, unknown>>;
   loading: boolean;
   error: boolean;
   onRetry: () => void;
-  onOpenUpdateModal: () => void;
+  onUpgradeClick: () => void;
+  generating: boolean;
+  generateError: string | null;
+  onGenerateBaseline: () => void;
 }) {
+  if (tier === "free") {
+    return (
+      <WorkspaceSection>
+        <SectionHeader title={t.workspace.menuHistory} description={t.workspace.historySectionDesc} />
+        <UpgradeLockCard
+          description={t.workspace.finalReportsLockedDesc}
+          buttonLabel={t.workspace.competitorUpgradeButton}
+          onUpgradeClick={onUpgradeClick}
+        />
+      </WorkspaceSection>
+    );
+  }
+
+  const baselineReport = reports.find((r) => r.reportType === "baseline") || null;
+  const expiryReport = reports.find((r) => r.reportType === "expiry") || null; // sudah terurut terbaru dulu (listReports.ts)
+
   return (
     <WorkspaceSection>
       <SectionHeader title={t.workspace.menuHistory} description={t.workspace.historySectionDesc} />
@@ -245,47 +271,60 @@ function HistoryList({
         <>
           <SkeletonCard variant="default" />
           <SkeletonCard variant="default" />
-          <SkeletonCard variant="default" />
         </>
-      ) : analyses.length === 0 ? (
-        <EmptyState
-          variant="default"
-          icon="🗂️"
-          title={t.workspace.historyEmptyTitle}
-          description={t.workspace.historyEmpty}
-          ctaLabel={t.workspace.startAnalysisButton}
-          onCtaClick={() => hardNavigate("")}
-        />
       ) : (
-        <>
-          <div className="space-y-3">
-            {analyses.map((item) => {
-              const namaBisnis = item.raw_input?.namaBisnis || t.workspace.historyUnnamedBusiness;
-              const jenisBisnis = item.raw_input?.jenisBisnis || "";
-              return (
-                <WorkspaceCard key={item.id} variant="compact" className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-neutral-100">{namaBisnis}</p>
-                    {jenisBisnis && <p className="text-xs text-neutral-500">{jenisBisnis}</p>}
-                    <p className="mt-1 text-xs text-neutral-500">{formatDate(item.created_at, lang)}</p>
-                  </div>
-                  {item.is_baseline && (
-                    <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs font-bold uppercase text-neutral-300">
-                      {t.workspace.historyBaselineBadge}
-                    </span>
-                  )}
-                </WorkspaceCard>
-              );
-            })}
-          </div>
-
-          {/* CTA penutup — pola sama seperti Target/Report/Journey. */}
-          <WorkspaceCard tone="primary" className="text-center">
-            <h3 className="mb-2 text-sm font-bold text-primary">{t.workspace.targetCtaTitle}</h3>
-            <p className="mx-auto max-w-md text-sm leading-relaxed text-neutral-300">{t.workspace.historyCtaDesc}</p>
-            <RetryButton label={t.workspace.updateBusinessButton} onRetry={onOpenUpdateModal} />
+        <div className="space-y-3">
+          <WorkspaceCard>
+            <h3 className="text-sm font-bold text-neutral-100">{t.workspace.finalReportsBaselineTitle}</h3>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.finalReportsBaselineDesc}</p>
+            {baselineReport ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-neutral-500">
+                  {t.workspace.finalReportsCreatedAtLabel}: {formatDate(baselineReport.createdAt as string, lang)}
+                </p>
+                <a
+                  href={(baselineReport.downloadUrl as string) || undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-opacity hover:opacity-90"
+                >
+                  {t.workspace.finalReportsDownloadButton}
+                </a>
+              </div>
+            ) : (
+              <div className="mt-3">
+                <p className="mb-2 text-xs text-neutral-500">{t.workspace.finalReportsBaselineEmptyDesc}</p>
+                {generateError && <p className="mb-2 text-xs text-red-400">{generateError}</p>}
+                <RetryButton
+                  label={generating ? t.workspace.finalReportsGenerateLoading : t.workspace.finalReportsGenerateButton}
+                  onRetry={onGenerateBaseline}
+                />
+              </div>
+            )}
           </WorkspaceCard>
-        </>
+
+          <WorkspaceCard>
+            <h3 className="text-sm font-bold text-neutral-100">{t.workspace.finalReportsExpiryTitle}</h3>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.finalReportsExpiryDesc}</p>
+            {expiryReport ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-neutral-500">
+                  {t.workspace.finalReportsCreatedAtLabel}: {formatDate(expiryReport.createdAt as string, lang)}
+                </p>
+                <a
+                  href={(expiryReport.downloadUrl as string) || undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-opacity hover:opacity-90"
+                >
+                  {t.workspace.finalReportsDownloadButton}
+                </a>
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-neutral-500">{t.workspace.finalReportsExpiryEmptyDesc}</p>
+            )}
+          </WorkspaceCard>
+        </div>
       )}
     </WorkspaceSection>
   );
@@ -1911,6 +1950,9 @@ function SettingsPanel({
   updateHistory,
   achievements,
   progressData,
+  reports,
+  reportsLoading,
+  reportsError,
   onUpgradeClick,
   onSignOut,
   onDeleteBusiness,
@@ -1925,6 +1967,9 @@ function SettingsPanel({
   businessHealth: { dimensions: Record<string, number> | null; overall: number | null };
   updateHistory: Array<Record<string, unknown>>;
   achievements: { unlocked: Array<Record<string, unknown>>; nextMilestone: Record<string, unknown> | null };
+  reports: Array<Record<string, unknown>>;
+  reportsLoading: boolean;
+  reportsError: boolean;
   progressData: {
     journey: { baselineScore: number; currentScore: number; delta: number } | null;
     period: { previousScore: number; currentScore: number; delta: number } | null;
@@ -2065,6 +2110,46 @@ function SettingsPanel({
           </button>
           {monthlyReportState === "error" && (
             <p className="mt-3 text-xs text-red-400">{t.workspace.settingsMonthlyReportError}</p>
+          )}
+        </WorkspaceCard>
+      )}
+
+      {/* Arsip Laporan (Task 13 — "pengaturan berisi semua data file pdf
+          selama setahun, yang bisa didownload sewaktu waktu"): dibaca dari
+          state `reports` yang SAMA dipakai panel Final Reports
+          (loadReports() satu sumber, dipicu useEffect activeMenu ===
+          "history" || "settings") — bukan fetch kedua. */}
+      {tier !== "free" && (
+        <WorkspaceCard>
+          <h3 className="mb-1 text-sm font-bold text-neutral-200">{t.workspace.settingsArchiveTitle}</h3>
+          <p className="mb-4 text-xs text-neutral-500">{t.workspace.settingsArchiveDesc}</p>
+          {reportsLoading ? (
+            <SkeletonCard variant="compact" />
+          ) : reportsError ? (
+            <p className="text-xs text-red-400">{t.workspace.workspaceSectionErrorDesc}</p>
+          ) : reports.length === 0 ? (
+            <p className="text-xs text-neutral-500">{t.workspace.settingsArchiveEmpty}</p>
+          ) : (
+            <div className="space-y-2">
+              {reports.map((r) => (
+                <div key={r.id as string} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-100">
+                      {r.reportType === "baseline" ? t.workspace.settingsArchiveBaselineLabel : t.workspace.settingsArchiveExpiryLabel}
+                    </p>
+                    <p className="mt-0.5 text-xs text-neutral-500">{formatDate(r.createdAt as string, lang)}</p>
+                  </div>
+                  <a
+                    href={(r.downloadUrl as string) || undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full border border-white/20 px-4 py-2 text-xs font-bold text-neutral-200 transition-colors hover:border-primary/50 hover:text-primary"
+                  >
+                    {t.workspace.finalReportsDownloadButton}
+                  </a>
+                </div>
+              ))}
+            </div>
           )}
         </WorkspaceCard>
       )}
@@ -3477,6 +3562,17 @@ function Workspace() {
   const [decisionQuotaHit, setDecisionQuotaHit] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Final Reports (Task 13 — "riwayat diganti final reports"): dua PDF
+  // sungguhan (baseline + expiry) tersimpan di Storage, dibaca lewat action
+  // "listReports" (services/reports/listReports.ts). `reportsGenerating`
+  // dipakai tombol "Buat PDF Awal" supaya tidak bisa diklik dobel selagi
+  // Claude+Playwright masih memproses.
+  const [reports, setReports] = useState<Array<Record<string, unknown>>>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportsError, setReportsError] = useState(false);
+  const [reportsLoaded, setReportsLoaded] = useState(false);
+  const [reportsGenerating, setReportsGenerating] = useState(false);
+  const [reportsGenerateError, setReportsGenerateError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletedCount, setDeletedCount] = useState(0);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
@@ -4108,6 +4204,57 @@ function Workspace() {
     if (next) await loadUpdateHistory();
   }
 
+  // Final Reports (Task 13): satu loader dipakai DUA tempat — panel Final
+  // Reports (activeMenu === "history") dan arsip di Pengaturan — supaya
+  // tidak ada dua definisi "daftar laporan bisnis ini" yang berbeda.
+  async function loadReports() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setReportsLoading(true);
+    setReportsError(false);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "listReports", businessProfileId: activeBusinessId }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setReports(json.reports || []);
+        setReportsLoaded(true);
+      } else {
+        console.error("listReports error:", json.error);
+        setReportsError(true);
+      }
+    } catch (err) {
+      console.error("listReports error:", err);
+      setReportsError(true);
+    }
+    setReportsLoading(false);
+  }
+
+  async function handleGenerateBaselineReport() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setReportsGenerating(true);
+    setReportsGenerateError(null);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "generateBaselineReport", businessProfileId: activeBusinessId, lang }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        await loadReports();
+      } else {
+        setReportsGenerateError(json.error || t.workspace.finalReportsGenerateError);
+      }
+    } catch (err) {
+      console.error("generateBaselineReport error:", err);
+      setReportsGenerateError(t.workspace.finalReportsGenerateError);
+    }
+    setReportsGenerating(false);
+  }
+
   // Achievement Engine (Tahap 2.4) — murni baca, tidak menghitung apapun di
   // frontend. getAchievements juga men-trigger evaluateAchievements() sekali
   // di server (lihat services/workspace/getAchievements.ts) supaya
@@ -4304,6 +4451,9 @@ function Workspace() {
     }
     if (activeMenu === "decisionJournal" && tier === "platinum" && !decisionsLoaded && !decisionsLoading) {
       loadDecisions();
+    }
+    if ((activeMenu === "history" || activeMenu === "settings") && tier !== "free" && !reportsLoaded && !reportsLoading) {
+      loadReports();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenu]);
@@ -4762,14 +4912,18 @@ function Workspace() {
               weeklyReview={weeklyReview}
             />
           ) : activeMenu === "history" ? (
-            <HistoryList
-              analyses={analyses}
+            <FinalReportsList
+              tier={tier}
               t={t}
               lang={lang}
-              loading={analysesLoading}
-              error={analysesError}
-              onRetry={reloadAnalyses}
-              onOpenUpdateModal={() => setShowBusinessUpdate(true)}
+              reports={reports}
+              loading={reportsLoading}
+              error={reportsError}
+              onRetry={loadReports}
+              onUpgradeClick={openUpgradeModal}
+              generating={reportsGenerating}
+              generateError={reportsGenerateError}
+              onGenerateBaseline={handleGenerateBaselineReport}
             />
           ) : activeMenu === "score" ? (
             <BusinessScorePanel
@@ -4862,6 +5016,9 @@ function Workspace() {
               updateHistory={updateHistory}
               achievements={achievements}
               progressData={progressData}
+              reports={reports}
+              reportsLoading={reportsLoading}
+              reportsError={reportsError}
               onUpgradeClick={openUpgradeModal}
               onSignOut={handleSignOut}
               onDeleteBusiness={() => {
@@ -4923,148 +5080,4 @@ function Workspace() {
               ) : updateHistory.length === 0 ? (
                 <p className="text-sm text-neutral-500">{t.workspace.updateHistoryEmpty}</p>
               ) : (
-                updateHistory.map((u) => (
-                  <div key={u.id as string} className="rounded-xl border border-white/10 bg-surface p-4">
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs text-neutral-500">
-                        {new Date(u.created_at as string).toLocaleDateString(LOCALE_MAP[lang], {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </p>
-                      <span className="rounded-full border border-white/15 px-2.5 py-0.5 text-xs font-semibold text-neutral-300">
-                        {u.kondisi_penjualan === "naik" ? "📈" : u.kondisi_penjualan === "turun" ? "📉" : "➡️"}
-                      </span>
-                    </div>
-                    <p className="text-sm text-neutral-300">{u.content as string}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Recycle Bin — bisnis yang di-soft-delete, bisa dipulihkan atau
-          dihapus permanen. Sengaja diletakkan di bawah, tidak mencolok. */}
-      {deletedCount > 0 && (
-        <div className="mt-8 border-t border-white/10 pt-6">
-          <button
-            onClick={toggleRecycleBin}
-            className="text-xs font-semibold text-neutral-400 hover:text-white"
-          >
-            {fillTemplate(t.workspace.recycleBinToggle, { count: deletedCount })}
-          </button>
-
-          {showRecycleBin && (
-            <div className="mt-4 space-y-3">
-              {restoreError && <p className="text-sm text-red-400">{restoreError}</p>}
-              {recycleBinLoading ? (
-                <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
-              ) : deletedBusinesses.length === 0 ? (
-                <p className="text-sm text-neutral-500">{t.workspace.recycleBinEmpty}</p>
-              ) : (
-                deletedBusinesses.map((b) => (
-                  <div
-                    key={b.id}
-                    className="rounded-xl border border-white/10 bg-surface p-4"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-neutral-200">{b.business_name}</p>
-                        {b.industry && <p className="text-xs text-neutral-500">{b.industry}</p>}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => handleRestore(b.id)}
-                          disabled={restoringId === b.id}
-                          className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {restoringId === b.id ? t.workspace.restoring : t.workspace.restoreButton}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setConfirmingPermanentDeleteId(b.id);
-                            setPermanentDeleteError(null);
-                          }}
-                          className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 hover:border-red-500/50"
-                        >
-                          {t.workspace.permanentDeleteButton}
-                        </button>
-                      </div>
-                    </div>
-
-                    {confirmingPermanentDeleteId === b.id && (
-                      <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-                        <p className="text-xs text-neutral-200">
-                          {fillTemplate(t.workspace.permanentDeleteConfirmMessage, { name: b.business_name })}
-                        </p>
-                        {permanentDeleteError && (
-                          <p className="mt-1.5 text-xs text-red-400">{permanentDeleteError}</p>
-                        )}
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <button
-                            onClick={() => handlePermanentDelete(b.id)}
-                            disabled={permanentDeleting}
-                            className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {permanentDeleting ? t.workspace.permanentDeleting : t.workspace.permanentDeleteConfirmYes}
-                          </button>
-                          <button
-                            onClick={() => setConfirmingPermanentDeleteId(null)}
-                            disabled={permanentDeleting}
-                            className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:text-white"
-                          >
-                            {t.workspace.deleteConfirmCancel}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {showAddBusiness && (
-        <AddBusinessModal
-          onClose={() => setShowAddBusiness(false)}
-          onCreated={handleBusinessCreated}
-          onUpgradeClick={openUpgradeModal}
-        />
-      )}
-
-      {showBusinessUpdate && activeBusinessId && (
-        <BusinessUpdateModal
-          businessProfileId={activeBusinessId}
-          businessType={businessType}
-          onClose={() => setShowBusinessUpdate(false)}
-          onSaved={handleUpdateSaved}
-        />
-      )}
-
-      {newlyUnlocked.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-[110] max-w-sm space-y-2">
-          {newlyUnlocked.map((a) => {
-            const message =
-              lang === "id"
-                ? (a.celebrationMessageId as string | null) || (a.titleId as string)
-                : (a.celebrationMessageEn as string | null) || (a.titleEn as string);
-            return (
-              <div
-                key={a.code as string}
-                className="flex items-start justify-between gap-3 rounded-xl border border-primary/30 bg-black/95 p-4 shadow-lg backdrop-blur-md"
-              >
-                <div>
-                  <p className="mb-0.5 text-xs font-bold uppercase text-primary">{t.workspace.achievementUnlockedToast}</p>
-                  <p className="text-sm text-neutral-200">{message}</p>
-                </div>
-                <button
-                  onClick={() => setNewlyUnlocked((prev) => prev.filter((u) => u.code !== a.code))}
-                  aria-label={t.workspace.achievementUnlockedDismiss}
-                  className="text-neutral-500 hover:text-white"
-                >
-              
+                updateH

@@ -24,6 +24,8 @@ import { listDecisions } from "../services/decision/listDecisions.js";
 import { getChecklistProgress, toggleChecklistItem } from "../services/workspace/checklistProgress.js";
 import { getBusinessOS } from "../services/businessOS/getBusinessOS.js";
 import { getWeeklyReview } from "../services/businessOS/weeklyReview.js";
+import { generateBaselineReportAction } from "../services/reports/generateFinalReport.js";
+import { listReports } from "../services/reports/listReports.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -101,9 +103,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     case "getWeeklyReview":
       result = await getWeeklyReview(userId, payload);
       break;
-    default:
-      return res.status(400).json({ error: `action tidak dikenali: ${action}` });
-  }
-
-  return res.status(result.status).json(result.body);
-}
