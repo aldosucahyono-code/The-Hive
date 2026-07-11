@@ -71,27 +71,27 @@ export async function toggleChecklistItem(userId: string, payload: Record<string
   }
 
   if (completed) {
-    // Cek dulu apakah item ini SUDAH pernah selesai sebelumnya — supaya
-    // dorongan skor dimensi (di bawah) hanya terjadi sekali per penyelesaian
-    // asli, tidak bisa "dipompa" dengan uncheck+check berulang.
-    const { data: existing } = await supabase
-      .from("business_checklist_progress")
-      .select("item_key")
-      .eq("business_profile_id", businessProfileId)
-      .eq("item_key", itemKey)
-      .maybeSingle();
-    const isFreshCompletion = !existing;
-
-    const { error } = await supabase
+    // Audit Juli 2026: sebelumnya "sudah pernah selesai?" dicek lewat SELECT
+    // terpisah SEBELUM upsert — kalau dua request datang hampir bersamaan
+    // (klik ganda/network retry), keduanya bisa membaca "belum pernah" lalu
+    // SAMA-SAMA mendorong skor dimensi (dobel +4, seharusnya cuma sekali).
+    // Diganti jadi SATU statement atomic: upsert dengan
+    // `ignoreDuplicates: true` (INSERT ... ON CONFLICT DO NOTHING) — baris
+    // hasil `.select()` hanya berisi item ini kalau insert-nya SUNGGUHAN
+    // terjadi (bukan bentrok dengan baris yang sudah ada), jadi "fresh atau
+    // tidak" ditentukan satu query database, bukan dua query yang bisa balapan.
+    const { data: insertedRows, error } = await supabase
       .from("business_checklist_progress")
       .upsert(
         { business_profile_id: businessProfileId, item_key: itemKey, completed_at: new Date().toISOString() },
-        { onConflict: "business_profile_id,item_key" }
-      );
+        { onConflict: "business_profile_id,item_key", ignoreDuplicates: true }
+      )
+      .select("item_key");
     if (error) {
       console.error("services/workspace/checklistProgress toggle (complete) error:", error);
       return { status: 500, body: { error: "Gagal menyimpan progres checklist." } };
     }
+    const isFreshCompletion = (insertedRows || []).length > 0;
 
     // Living Business Loop (audit Juli 2026): checklist yang terpetakan ke
     // satu dimensi Business Health ikut mendorong skor dimensi itu — supaya

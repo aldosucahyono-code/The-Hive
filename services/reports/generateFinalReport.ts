@@ -126,11 +126,16 @@ async function callClaudeForFinalReport(
   }
 }
 
-/** Generate + simpan satu Final Report. Idempotent untuk "baseline" — kalau
- * sudah pernah dibuat sebelumnya, kembalikan yang lama (tidak memanggil
- * Claude/Playwright dua kali untuk hal yang sama). "expiry" TIDAK idempotent
- * per-panggilan (satu PDF baru per periode yang berakhir), tapi caller
- * (cron) bertanggung jawab tidak memanggil dua kali untuk periode yang sama. */
+/** Generate + simpan satu Final Report. Idempotent untuk "baseline" DAN
+ * "expiry" (per business+period_end) — dijamin di DUA lapis: cek cepat di
+ * awal (fast path, hindari panggil Claude/Playwright kalau jelas-jelas
+ * sudah ada), DAN unique index di database
+ * (migrations/2026-07-11b_final_reports_race_guard.sql) sebagai jaminan
+ * sebenarnya kalau dua request lolos cek awal hampir bersamaan (audit Juli
+ * 2026 — cek awal saja TIDAK atomic, race dua request nyaris bersamaan bisa
+ * lolos keduanya). Kalau INSERT gagal karena unique_violation (kode 23505),
+ * itu tandanya request lain menang duluan — baca balik baris yang sudah
+ * tersimpan alih-alih menganggapnya error. */
 export async function generateFinalReport(
   businessProfileId: string,
   reportType: FinalReportType,
@@ -185,6 +190,28 @@ export async function generateFinalReport(
       })
       .select("id")
       .single();
+
+    if (insertError?.code === "23505") {
+      // Kalah balapan dari request lain yang sudah menang duluan (lihat
+      // catatan di atas fungsi ini) — PDF yang baru saja kita render/upload
+      // jadi mubazir (tersimpan di Storage tapi tidak dicatat, aman
+      // diabaikan), baca balik baris yang SUDAH tersimpan punya request lain.
+      const existingSelect =
+        reportType === "baseline"
+          ? supabase.from("business_reports").select("id").eq("business_profile_id", businessProfileId).eq("report_type", "baseline")
+          : supabase
+              .from("business_reports")
+              .select("id")
+              .eq("business_profile_id", businessProfileId)
+              .eq("report_type", "expiry")
+              .eq("period_end", periodEnd ?? "");
+      const { data: winner } = await existingSelect.maybeSingle();
+      if (winner) {
+        return { ok: true, reportId: winner.id, alreadyExisted: true };
+      }
+      console.error("generateFinalReport: unique_violation tapi baris pemenang tidak ditemukan:", insertError);
+      return { ok: false, error: "Gagal mencatat laporan." };
+    }
 
     if (insertError || !saved) {
       console.error("generateFinalReport: gagal simpan baris business_reports:", insertError);

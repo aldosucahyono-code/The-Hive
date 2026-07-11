@@ -3966,8 +3966,32 @@ function Workspace() {
     }, 2500);
   }
 
+  // Audit Juli 2026 (bug data-nyasar antar-bisnis): Kompetitor/Riwayat
+  // Update/Decision Journal/Final Reports semua di-fetch lewat gate "sudah
+  // dimuat belum" (competitorAnalysis !== null, updateHistory.length > 0,
+  // decisionsLoaded/reportsLoaded) yang TIDAK ikut reset saat ganti bisnis
+  // aktif — akibatnya data bisnis LAMA masih tampil sesaat (atau sampai
+  // pengguna pindah menu lalu balik lagi) setelah pindah ke bisnis lain.
+  // Dipanggil di SETIAP tempat yang mengubah activeBusinessId (switch,
+  // hapus-lalu-fallback, bisnis baru dibuat) supaya satu-satunya sumber
+  // "data ini sudah basi, muat ulang" konsisten di semua tempat.
+  function resetPerBusinessCaches() {
+    setCompetitorAnalysis(null);
+    setCompetitorError(false);
+    setCompetitorNotReadyMessage(null);
+    setUpdateHistory([]);
+    setUpdateHistoryError(false);
+    setDecisions([]);
+    setDecisionsLoaded(false);
+    setDecisionsError(false);
+    setReports([]);
+    setReportsLoaded(false);
+    setReportsError(false);
+  }
+
   async function handleSwitchBusiness(id: string) {
     setActiveBusinessId(id);
+    resetPerBusinessCaches();
     setConfirmingDelete(false);
     setDeleteError(null);
     if (user) {
@@ -4460,6 +4484,7 @@ function Workspace() {
 
   function handleBusinessCreated(newBusinessProfileId: string) {
     setActiveBusinessId(newBusinessProfileId);
+    resetPerBusinessCaches();
     setShowAddBusiness(false);
     // Ambil ulang daftar lengkap dari server supaya nama/industry akurat.
     supabase
@@ -5080,4 +5105,168 @@ function Workspace() {
               ) : updateHistory.length === 0 ? (
                 <p className="text-sm text-neutral-500">{t.workspace.updateHistoryEmpty}</p>
               ) : (
-                updateH
+                updateHistory.map((u) => (
+                  <div key={u.id as string} className="rounded-xl border border-white/10 bg-surface p-4">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-neutral-500">
+                        {new Date(u.created_at as string).toLocaleDateString(LOCALE_MAP[lang], {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </p>
+                      <span className="rounded-full border border-white/15 px-2.5 py-0.5 text-xs font-semibold text-neutral-300">
+                        {u.kondisi_penjualan === "naik" ? "📈" : u.kondisi_penjualan === "turun" ? "📉" : "➡️"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-neutral-300">{u.content as string}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recycle Bin — bisnis yang di-soft-delete, bisa dipulihkan atau
+          dihapus permanen. Sengaja diletakkan di bawah, tidak mencolok. */}
+      {deletedCount > 0 && (
+        <div className="mt-8 border-t border-white/10 pt-6">
+          <button
+            onClick={toggleRecycleBin}
+            className="text-xs font-semibold text-neutral-400 hover:text-white"
+          >
+            {fillTemplate(t.workspace.recycleBinToggle, { count: deletedCount })}
+          </button>
+
+          {showRecycleBin && (
+            <div className="mt-4 space-y-3">
+              {restoreError && <p className="text-sm text-red-400">{restoreError}</p>}
+              {recycleBinLoading ? (
+                <p className="text-sm text-neutral-500">{t.workspace.loadingDataLabel}</p>
+              ) : deletedBusinesses.length === 0 ? (
+                <p className="text-sm text-neutral-500">{t.workspace.recycleBinEmpty}</p>
+              ) : (
+                deletedBusinesses.map((b) => (
+                  <div
+                    key={b.id}
+                    className="rounded-xl border border-white/10 bg-surface p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-neutral-200">{b.business_name}</p>
+                        {b.industry && <p className="text-xs text-neutral-500">{b.industry}</p>}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleRestore(b.id)}
+                          disabled={restoringId === b.id}
+                          className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {restoringId === b.id ? t.workspace.restoring : t.workspace.restoreButton}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setConfirmingPermanentDeleteId(b.id);
+                            setPermanentDeleteError(null);
+                          }}
+                          className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 hover:border-red-500/50"
+                        >
+                          {t.workspace.permanentDeleteButton}
+                        </button>
+                      </div>
+                    </div>
+
+                    {confirmingPermanentDeleteId === b.id && (
+                      <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                        <p className="text-xs text-neutral-200">
+                          {fillTemplate(t.workspace.permanentDeleteConfirmMessage, { name: b.business_name })}
+                        </p>
+                        {permanentDeleteError && (
+                          <p className="mt-1.5 text-xs text-red-400">{permanentDeleteError}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handlePermanentDelete(b.id)}
+                            disabled={permanentDeleting}
+                            className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {permanentDeleting ? t.workspace.permanentDeleting : t.workspace.permanentDeleteConfirmYes}
+                          </button>
+                          <button
+                            onClick={() => setConfirmingPermanentDeleteId(null)}
+                            disabled={permanentDeleting}
+                            className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:text-white"
+                          >
+                            {t.workspace.deleteConfirmCancel}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showAddBusiness && (
+        <AddBusinessModal
+          onClose={() => setShowAddBusiness(false)}
+          onCreated={handleBusinessCreated}
+          onUpgradeClick={openUpgradeModal}
+        />
+      )}
+
+      {showBusinessUpdate && activeBusinessId && (
+        <BusinessUpdateModal
+          businessProfileId={activeBusinessId}
+          businessType={businessType}
+          onClose={() => setShowBusinessUpdate(false)}
+          onSaved={handleUpdateSaved}
+        />
+      )}
+
+      {newlyUnlocked.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-[110] max-w-sm space-y-2">
+          {newlyUnlocked.map((a) => {
+            const message =
+              lang === "id"
+                ? (a.celebrationMessageId as string | null) || (a.titleId as string)
+                : (a.celebrationMessageEn as string | null) || (a.titleEn as string);
+            return (
+              <div
+                key={a.code as string}
+                className="flex items-start justify-between gap-3 rounded-xl border border-primary/30 bg-black/95 p-4 shadow-lg backdrop-blur-md"
+              >
+                <div>
+                  <p className="mb-0.5 text-xs font-bold uppercase text-primary">{t.workspace.achievementUnlockedToast}</p>
+                  <p className="text-sm text-neutral-200">{message}</p>
+                </div>
+                <button
+                  onClick={() => setNewlyUnlocked((prev) => prev.filter((u) => u.code !== a.code))}
+                  aria-label={t.workspace.achievementUnlockedDismiss}
+                  className="text-neutral-500 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showUpgradeModal && activeBusinessId && (
+        <UpgradeModal
+          businessProfileId={activeBusinessId}
+          businessName={activeBusiness?.business_name || ""}
+          onClose={() => setShowUpgradeModal(false)}
+          onUpgraded={handleUpgraded}
+        />
+      )}
+    </section>
+  );
+}
+
+export default Workspace;

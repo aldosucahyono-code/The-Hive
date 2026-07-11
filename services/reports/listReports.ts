@@ -5,6 +5,14 @@
 // didownload sewaktu-waktu). Bucket "reports" PRIVATE (lihat
 // migrations/2026-07-11_final_reports.sql) jadi setiap baris dikembalikan
 // dengan signed URL sementara (1 jam), dibuat di sini — bukan public URL.
+//
+// Audit Juli 2026: sengaja TIDAK ada gate tier di sini (beda dengan
+// generateFinalReport.ts yang menolak tier "free") — keputusan produk:
+// laporan yang SUDAH dibuat selagi berlangganan tetap bisa diakses
+// pelanggan meski tier-nya turun/habis nanti (sama seperti pembelian
+// selesai tidak ditarik balik). Frontend tetap menyembunyikan
+// panelnya untuk tier "free" (Workspace.tsx) — baris ini hanya relevan
+// untuk bisnis yang PERNAH generate laporan saat masih Pro/Platinum.
 
 import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "../business/create.js";

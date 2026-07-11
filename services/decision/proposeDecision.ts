@@ -307,4 +307,11 @@ export async function proposeDecision(userId: string, payload: Record<string, un
         quotaLimit,
       },
     };
-  } cat
+  } catch (error) {
+    console.error("services/decision/proposeDecision error:", error);
+    return {
+      status: 500,
+      body: { error: lang === "en" ? "Beemo failed to analyze this decision. Please try again." : "Beemo gagal menganalisa keputusan ini. Coba lagi." },
+    };
+  }
+}
