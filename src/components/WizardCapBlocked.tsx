@@ -40,10 +40,16 @@ type WizardCapBlockedProps = {
   variant?: "adding" | "overLimit";
 };
 
-const TIER_BADGE: Record<CapTier, { label: string; className: string }> = {
-  free: { label: "GRATIS", className: "border-white/15 text-neutral-400" },
-  pro: { label: "PRO", className: "border-amber-500/40 text-amber-300" },
-  platinum: { label: "PLATINUM", className: "border-purple-500/40 text-purple-300" },
+// Audit QA Juli 2026 (ditemukan lewat browser test setelah deploy): label
+// tier ini SEBELUMNYA hardcode "GRATIS" walau UI lain sudah beralih ke
+// Bahasa Inggris (t.wizardCapBlocked.tierFree belum ada, cuma ini yang
+// lolos karena PRO/PLATINUM kebetulan sama di kedua bahasa). className tetap
+// statis di sini (bukan bagian dari terjemahan), cuma label "free" yang
+// sekarang diambil dari useLanguage().
+const TIER_BADGE_CLASSNAME: Record<CapTier, string> = {
+  free: "border-white/15 text-neutral-400",
+  pro: "border-amber-500/40 text-amber-300",
+  platinum: "border-purple-500/40 text-purple-300",
 };
 
 function WizardCapBlocked({ onUnblocked, variant = "adding" }: WizardCapBlockedProps) {
@@ -197,8 +203,8 @@ function WizardCapBlocked({ onUnblocked, variant = "adding" }: WizardCapBlockedP
                     <p className="text-sm font-semibold text-white">{b.businessName}</p>
                     {b.industry && <p className="text-xs text-neutral-500">{b.industry}</p>}
                   </div>
-                  <span className={"rounded-full border px-2 py-0.5 text-[10px] font-bold " + TIER_BADGE[b.tier].className}>
-                    {TIER_BADGE[b.tier].label}
+                  <span className={"rounded-full border px-2 py-0.5 text-[10px] font-bold " + TIER_BADGE_CLASSNAME[b.tier]}>
+                    {b.tier === "free" ? t.wizardCapBlocked.tierFree : b.tier.toUpperCase()}
                   </span>
                 </div>
                 {confirmingDeleteId !== b.id && (

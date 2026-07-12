@@ -1336,6 +1336,7 @@ const id = {
     goWorkspaceButton: "Buka Workspace untuk Upgrade",
     overLimitTitle: "Akunmu melebihi batas paket saat ini",
     overLimitDesc: "Salah satu langgananmu sudah kedaluwarsa, jadi jumlah bisnis aktifmu sekarang melebihi batas paket. Hapus permanen salah satu bisnis di bawah, atau upgrade, sebelum lanjut ke Workspace.",
+    tierFree: "GRATIS",
   },
 
   businessUpdateModal: {
@@ -2732,6 +2733,7 @@ const en: Translations = {
     goWorkspaceButton: "Open Workspace to Upgrade",
     overLimitTitle: "Your account is over your current plan's limit",
     overLimitDesc: "One of your subscriptions has expired, so your active business count now exceeds your plan's limit. Permanently delete one of the businesses below, or upgrade, before continuing to Workspace.",
+    tierFree: "FREE",
   },
 
   businessUpdateModal: {
