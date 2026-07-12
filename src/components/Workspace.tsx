@@ -1815,6 +1815,13 @@ function CompetitorPanel({
         </WorkspaceCard>
       )}
 
+      {/* Urutan halaman (revisi Juli 2026): (1) Ringkasan Pasar + Daftar
+          Kompetitor di atas (data asli area/kota pengguna, sudah ada di
+          atas), (2) Peluang + Posisi Pasar/Kekuatan/Kelemahan, (3) Medsos
+          Kompetitor, (4) "yang sebaiknya kamu lakukan" (Rekomendasi) paling
+          akhir — supaya alur bacanya: kondisi pasar -> apa peluangnya ->
+          bukti sosial media -> baru actionnya, bukan rekomendasi duluan
+          sebelum konteksnya jelas. */}
       {tier === "free" ? (
         <UpgradeLockCard
           description={
@@ -1827,6 +1834,10 @@ function CompetitorPanel({
         />
       ) : (
         <>
+          {opportunityInsights.length > 0 && (
+            <InsightGroup t={t} title={lang === "id" ? opportunityInsights[0].categoryLabelId : opportunityInsights[0].categoryLabelEn} insightList={opportunityInsights} lang={lang} showPriority />
+          )}
+
           {marketPositionInsight && (
             <InsightGroup
               t={t}
@@ -1842,32 +1853,6 @@ function CompetitorPanel({
 
           {weaknessInsights.length > 0 && (
             <InsightGroup t={t} title={lang === "id" ? weaknessInsights[0].categoryLabelId : weaknessInsights[0].categoryLabelEn} insightList={weaknessInsights} lang={lang} />
-          )}
-
-          {opportunityInsights.length > 0 && (
-            <InsightGroup t={t} title={lang === "id" ? opportunityInsights[0].categoryLabelId : opportunityInsights[0].categoryLabelEn} insightList={opportunityInsights} lang={lang} showPriority />
-          )}
-
-          {recommendationInsights.length > 0 && (
-            <WorkspaceCard>
-              <h3 className="mb-3 text-sm font-bold text-white">{lang === "id" ? recommendationInsights[0].categoryLabelId : recommendationInsights[0].categoryLabelEn}</h3>
-              <div className="space-y-4">
-                {RECOMMENDATION_BUCKET_ORDER.filter((bucket) => recommendationInsights.some((r) => r.bucket === bucket)).map((bucket) => {
-                  const bucketLabelMap: Record<RecommendationData["bucket"], string> = {
-                    today: t.workspace.competitorBucketToday,
-                    this_week: t.workspace.competitorBucketThisWeek,
-                    this_month: t.workspace.competitorBucketThisMonth,
-                    next_90_days: t.workspace.competitorBucketNext90Days,
-                  };
-                  return (
-                    <div key={bucket}>
-                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">{bucketLabelMap[bucket]}</p>
-                      <InsightList t={t} insightList={recommendationInsights.filter((r) => r.bucket === bucket)} lang={lang} />
-                    </div>
-                  );
-                })}
-              </div>
-            </WorkspaceCard>
           )}
         </>
       )}
@@ -1886,6 +1871,30 @@ function CompetitorPanel({
         onRetry={onRetrySocialMedia}
         onUpgradeClick={onUpgradeClick}
       />
+
+      {tier !== "free" && recommendationInsights.length > 0 && (
+        <div className="border-t border-white/10 pt-6">
+          <WorkspaceCard>
+            <h3 className="mb-3 text-sm font-bold text-white">{lang === "id" ? recommendationInsights[0].categoryLabelId : recommendationInsights[0].categoryLabelEn}</h3>
+            <div className="space-y-4">
+              {RECOMMENDATION_BUCKET_ORDER.filter((bucket) => recommendationInsights.some((r) => r.bucket === bucket)).map((bucket) => {
+                const bucketLabelMap: Record<RecommendationData["bucket"], string> = {
+                  today: t.workspace.competitorBucketToday,
+                  this_week: t.workspace.competitorBucketThisWeek,
+                  this_month: t.workspace.competitorBucketThisMonth,
+                  next_90_days: t.workspace.competitorBucketNext90Days,
+                };
+                return (
+                  <div key={bucket}>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">{bucketLabelMap[bucket]}</p>
+                    <InsightList t={t} insightList={recommendationInsights.filter((r) => r.bucket === bucket)} lang={lang} />
+                  </div>
+                );
+              })}
+            </div>
+          </WorkspaceCard>
+        </div>
+      )}
     </WorkspaceSection>
   );
 }
