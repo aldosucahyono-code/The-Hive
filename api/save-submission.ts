@@ -38,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "wizardData wajib diisi" });
     }
 
-    const required = ["email", "nama", "noHp", "jenisAnalisis", "profesi", "namaBisnis", "jenisBisnis", "lokasi", "tantangan", "target"];
+    const required = ["email", "nama", "noHp", "jenisAnalisis", "profesi", "namaBisnis", "jenisBisnis", "produkJasa", "lokasi", "tantangan", "target"];
     for (const field of required) {
       if (!wizardData[field] || typeof wizardData[field] !== "string") {
         return res.status(400).json({ error: `Field ${field} wajib diisi` });

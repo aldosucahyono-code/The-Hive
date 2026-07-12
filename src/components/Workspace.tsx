@@ -1633,8 +1633,10 @@ const RECOMMENDATION_BUCKET_ORDER: RecommendationData["bucket"][] = [
 
 /** Medsos Kompetitor (Task 14b, Juli 2026) — bagian dari tab Kompetitor,
  * bukan tab terpisah, karena datanya memang tentang kompetitor yang sama.
- * dataSource selalu "mock" untuk sekarang (lihat services/socialMedia/
- * getSocialMediaAnalysis.ts) — UI WAJIB menampilkan label jujur. */
+ * dataSource bisa "mock" (belum ada token Apify/gagal) atau "live_api"
+ * (Task 49, Juli 2026 — data asli username+followers via Apify) — UI WAJIB
+ * menampilkan label jujur sesuai sumber sebenarnya (lihat
+ * services/socialMedia/getSocialMediaAnalysis.ts). */
 type SocialMediaRecordData = {
   competitorName: string;
   platform: "instagram" | "tiktok" | "facebook";
@@ -1648,10 +1650,20 @@ type SocialMediaInsightData = {
   headline: string;
   evidenceSummary: string;
 };
+// Data ASLI (Apify) — HANYA username+followers, sengaja tidak ada
+// postsPerMonth/engagementRatePct (lihat catatan ToS di
+// services/socialMedia/instagramProvider.ts).
+type SocialMediaLiveRecordData = {
+  competitorName: string;
+  platform: "instagram";
+  username: string;
+  followers: number;
+};
 type SocialMediaAnalysisData = {
   socialMedia: {
-    dataSource: "mock";
-    records: SocialMediaRecordData[];
+    dataSource: "mock" | "live_api";
+    records: SocialMediaRecordData[]; // diisi hanya saat dataSource "mock"
+    liveRecords: SocialMediaLiveRecordData[]; // diisi hanya saat dataSource "live_api"
     summary: {
       totalProfilesFound: number;
       averageFollowers: number | null;
@@ -1659,7 +1671,8 @@ type SocialMediaAnalysisData = {
       mostActivePlatform: "instagram" | "tiktok" | "facebook" | null;
       platformsNotFound: Array<"instagram" | "tiktok" | "facebook">;
     };
-    insights: SocialMediaInsightData[];
+    insights: SocialMediaInsightData[]; // diisi hanya saat dataSource "mock"
+    aiSummary: string | null; // diisi hanya saat dataSource "live_api"
     fetchedAt: string;
   };
   tier: Tier;
@@ -1929,6 +1942,9 @@ function SocialMediaSection({
   onRetry: () => void;
   onUpgradeClick: () => void;
 }) {
+  const isLive = data?.socialMedia.dataSource === "live_api";
+  const visibleCount = !data ? 0 : isLive ? data.socialMedia.liveRecords.length : data.socialMedia.records.length;
+
   return (
     <div className="border-t border-white/10 pt-6">
       <h3 className="mb-1 text-sm font-bold text-white">{t.workspace.socialMediaSectionTitle}</h3>
@@ -1943,28 +1959,49 @@ function SocialMediaSection({
           retryLabel={t.workspace.workspaceRetryButton}
           onRetry={onRetry}
         />
-      ) : !data || data.socialMedia.records.length === 0 ? (
+      ) : !data || visibleCount === 0 ? (
         <EmptyState variant="default" icon="📱" title={t.workspace.socialMediaEmptyTitle} description={t.workspace.socialMediaEmptyDesc} />
       ) : (
         <>
-          <WorkspaceCard tone="warning">
-            <p className="text-sm font-semibold text-amber-300">{t.workspace.socialMediaMockDataBadge}</p>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.socialMediaMockDataDesc}</p>
-          </WorkspaceCard>
+          {isLive ? (
+            <WorkspaceCard tone="success">
+              <p className="text-sm font-semibold text-emerald-300">{t.workspace.socialMediaLiveDataBadge}</p>
+              <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.socialMediaLiveDataDesc}</p>
+            </WorkspaceCard>
+          ) : (
+            <WorkspaceCard tone="warning">
+              <p className="text-sm font-semibold text-amber-300">{t.workspace.socialMediaMockDataBadge}</p>
+              <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.socialMediaMockDataDesc}</p>
+            </WorkspaceCard>
+          )}
 
           <WorkspaceCard className="mt-3">
             <div className="space-y-2">
-              {data.socialMedia.records.map((r, i) => (
-                <div key={`${r.competitorName}-${i}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
-                  <div>
-                    <p className="text-sm font-semibold text-white">
-                      {PLATFORM_ICON[r.platform]} {r.competitorName}
-                    </p>
-                    <p className="text-xs text-neutral-500">{fillTemplate(t.workspace.socialMediaFollowersLabel, { count: r.followers.toLocaleString(lang === "id" ? "id-ID" : "en-US") })}</p>
-                  </div>
-                  <div className="text-right text-xs text-neutral-400">{fillTemplate(t.workspace.socialMediaEngagementLabel, { pct: String(r.engagementRatePct) })}</div>
-                </div>
-              ))}
+              {isLive
+                ? data.socialMedia.liveRecords.map((r, i) => (
+                    <div key={`${r.username}-${i}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          {PLATFORM_ICON[r.platform]} {r.competitorName}
+                        </p>
+                        <p className="text-xs text-neutral-500">@{r.username}</p>
+                      </div>
+                      <div className="text-right text-xs text-neutral-400">
+                        {fillTemplate(t.workspace.socialMediaFollowersLabel, { count: r.followers.toLocaleString(lang === "id" ? "id-ID" : "en-US") })}
+                      </div>
+                    </div>
+                  ))
+                : data.socialMedia.records.map((r, i) => (
+                    <div key={`${r.competitorName}-${i}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          {PLATFORM_ICON[r.platform]} {r.competitorName}
+                        </p>
+                        <p className="text-xs text-neutral-500">{fillTemplate(t.workspace.socialMediaFollowersLabel, { count: r.followers.toLocaleString(lang === "id" ? "id-ID" : "en-US") })}</p>
+                      </div>
+                      <div className="text-right text-xs text-neutral-400">{fillTemplate(t.workspace.socialMediaEngagementLabel, { pct: String(r.engagementRatePct) })}</div>
+                    </div>
+                  ))}
             </div>
           </WorkspaceCard>
 
@@ -1972,6 +2009,15 @@ function SocialMediaSection({
             <div className="mt-3">
               <UpgradeLockCard description={t.workspace.socialMediaLockedDesc} buttonLabel={t.workspace.competitorUpgradeButton} onUpgradeClick={onUpgradeClick} />
             </div>
+          ) : isLive ? (
+            data.socialMedia.aiSummary && (
+              <div className="mt-3">
+                <WorkspaceCard>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">{t.workspace.socialMediaAiSummaryTitle}</p>
+                  <p className="text-sm leading-relaxed text-neutral-200">{data.socialMedia.aiSummary}</p>
+                </WorkspaceCard>
+              </div>
+            )
           ) : (
             data.socialMedia.insights.length > 0 && (
               <div className="mt-3 space-y-2">

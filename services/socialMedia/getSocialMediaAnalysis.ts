@@ -5,57 +5,46 @@
 // tab Kompetitor di Workspace (bukan tab terpisah — datanya memang tentang
 // kompetitor yang sama).
 //
-// SATU FILE (bukan pipeline provider/normalizer/engine/adapter terpisah
-// seperti services/competitor/*) — keputusan sadar supaya v1 ini bisa
-// selesai dan jujur, bukan arsitektur besar untuk fitur yang belum ada
-// data nyatanya. Kalau nanti ada provider sungguhan (API resmi Instagram/
-// TikTok, atau scraping yang legal), pecah file ini mengikuti pola
-// services/competitor/* — struktur fungsi di bawah SUDAH dipisah per
-// tanggung jawab (buildMockRecords -> summarize -> buildInsights) supaya
-// pemisahan itu tidak perlu nulis ulang logika, cuma pindah folder.
+// Task 49 (Juli 2026): data ASLI via Apify ditambahkan di sini sebagai
+// PATH KEDUA yang dicoba lebih dulu — path mock TIDAK diubah sama sekali
+// (fallback jujur kalau live gagal/token belum diset). Live path:
+//   1. Baca cache (social_media_snapshots, TTL 1 minggu) — hemat biaya.
+//   2. Kalau cache kosong: ambil daftar nama kompetitor dari Competitor
+//      Engine yang SUDAH ADA (runCompetitorEngine, cache sendiri) — supaya
+//      Medsos Kompetitor membicarakan kompetitor YANG SAMA dengan yang
+//      tampil di atasnya di tab Kompetitor, bukan daftar kedua yang beda.
+//   3. Cari username Instagram + follower count tiap kompetitor lewat
+//      Apify (services/socialMedia/instagramProvider.ts), dibatasi top 3.
+//   4. Susun ringkasan AI tone-safe (services/socialMedia/summaryGenerator.ts).
+//   5. Simpan ke cache, kembalikan dataSource "live_api".
+// APAPUN yang gagal di langkah 1-4 (token belum diset, Apify error/timeout,
+// tidak ada kompetitor dengan lokasi lengkap, dst) -> jatuh ke path mock
+// yang sudah ada, TIDAK PERNAH membuat request gagal total.
 //
-// DATA HONESTY: dataSource SELALU "mock" untuk sekarang (belum ada provider
-// data medsos sungguhan) — UI WAJIB menampilkan label jujur, sama seperti
-// Competitor Engine menandai data contoh.
+// DATA HONESTY: dataSource mencerminkan sumber SEBENARNYA ("mock" atau
+// "live_api") — UI WAJIB menampilkan label ini jujur ke pengguna, sama
+// seperti Competitor Engine menandai data contoh.
 
 import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "../business/create.js";
 import { getActiveMembership } from "../membership/getActiveMembership.js";
+import type { SocialMediaCompetitorRecord, SocialMediaSnapshot, SocialPlatform } from "./types.js";
+import { getCachedSocialSnapshot, saveSocialSnapshot } from "./cache.js";
+import { fetchInstagramLiveRecords } from "./instagramProvider.js";
+import { generateLiveSummary } from "./summaryGenerator.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-export type SocialPlatform = "instagram" | "tiktok" | "facebook";
-
-export type SocialMediaCompetitorRecord = {
-  competitorName: string;
-  platform: SocialPlatform;
-  followers: number;
-  postsPerMonth: number;
-  engagementRatePct: number; // (rata-rata like+komentar per post / followers) x 100
-};
-
-export type SocialMediaInsight = {
-  id: string;
-  category: "summary" | "strength" | "weakness" | "opportunity";
-  headline: string; // sudah dalam bahasa yang diminta (id/en) — dibangun langsung bilingual, TIDAK seperti bug lama di Competitor Engine (lihat catatan audit Task 14a)
-  evidenceSummary: string;
-};
-
-export type SocialMediaSnapshot = {
-  dataSource: "mock";
-  records: SocialMediaCompetitorRecord[];
-  summary: {
-    totalProfilesFound: number;
-    averageFollowers: number | null;
-    averageEngagementRatePct: number | null;
-    mostActivePlatform: SocialPlatform | null;
-    platformsNotFound: SocialPlatform[]; // platform yang TIDAK ada satupun kompetitor aktif di sana -> sinyal peluang
-  };
-  insights: SocialMediaInsight[];
-  fetchedAt: string;
-};
+export type { SocialPlatform, SocialMediaCompetitorRecord, SocialMediaInsight, SocialMediaLiveRecord, SocialMediaSnapshot } from "./types.js";
 
 const ALL_PLATFORMS: SocialPlatform[] = ["instagram", "tiktok", "facebook"];
+
+// Anggaran waktu untuk SELURUH fase live (search+profile Apify, sequential)
+// — sisa waktu dari batas keras 60 detik (vercel.json maxDuration) dipakai
+// untuk Competitor Engine (biasanya cache-hit, cepat), ringkasan AI, dan
+// overhead request lain. Lihat instagramProvider.ts untuk detail timeout
+// per panggilan Apify.
+const SOCIAL_LIVE_BUDGET_MS = 30000;
 
 /** Data CONTOH (bukan data pasar nyata) — nama disusun dari industri bisnis
  * supaya terasa relevan ke pengguna, sama pola dengan
@@ -121,8 +110,8 @@ function buildInsights(
   records: SocialMediaCompetitorRecord[],
   summary: ReturnType<typeof summarize>,
   lang: "id" | "en"
-): SocialMediaInsight[] {
-  const insights: SocialMediaInsight[] = [];
+) {
+  const insights: SocialMediaSnapshot["insights"] = [];
   const id = lang === "id";
 
   if (summary.totalProfilesFound === 0) return insights;
@@ -179,6 +168,102 @@ function buildInsights(
   return insights;
 }
 
+function buildMockSnapshot(industry: string, lang: "id" | "en", tierIsFree: boolean): SocialMediaSnapshot {
+  const records = buildMockRecords(industry || "Usaha");
+  const summary = summarize(records);
+  // Free: teaser 1 profil saja, tanpa insight (sama pola dengan Competitor
+  // Panel — bukti kualitas data sebelum bayar, bukan dikunci total).
+  const visibleRecords = tierIsFree ? records.slice(0, 1) : records;
+  const insights = tierIsFree ? [] : buildInsights(records, summary, lang);
+
+  return {
+    dataSource: "mock",
+    records: visibleRecords,
+    liveRecords: [],
+    summary,
+    insights,
+    aiSummary: null,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+/** Mencoba jalur data ASLI (Apify). Mengembalikan null kalau tidak bisa
+ * dicoba sama sekali (token belum diset) atau kalau terjadi error tak
+ * terduga di sepanjang jalan — caller SELALU jatuh ke buildMockSnapshot()
+ * saat null, tidak pernah membiarkan pengguna melihat error mentah. */
+async function tryLiveSnapshot(
+  businessProfileId: string,
+  business: { business_name: string; industry: string | null },
+  lang: "id" | "en",
+  tierIsFree: boolean
+): Promise<SocialMediaSnapshot | null> {
+  const token = process.env.APIFY_API_TOKEN;
+  if (!token) return null;
+
+  try {
+    const cached = await getCachedSocialSnapshot(businessProfileId);
+    if (cached) return cached;
+
+    // Nama kompetitor dari Competitor Engine yang SUDAH ADA (cache sendiri,
+    // TIDAK query ulang provider di sini) — supaya Medsos Kompetitor
+    // membicarakan kompetitor yang sama persis dengan yang tampil di atas
+    // section ini pada tab Kompetitor yang sama.
+    const { runCompetitorEngine } = await import("../competitor/engine/index.js");
+    const engineResult = await runCompetitorEngine(businessProfileId);
+    if ("error" in engineResult || engineResult.competitors.length === 0) return null;
+
+    const { data: analysisRows } = await supabase
+      .from("analyses")
+      .select("raw_input")
+      .eq("business_profile_id", businessProfileId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    const rows = analysisRows || [];
+    const rowWithProduk = rows.find((r) => (r.raw_input as Record<string, unknown> | null)?.produkJasa);
+    const produkJasa = ((rowWithProduk?.raw_input as Record<string, unknown> | undefined)?.produkJasa as string) || "";
+    const rowWithLocation = rows.find((r) => (r.raw_input as Record<string, unknown> | null)?.lokasi);
+    const location = ((rowWithLocation?.raw_input as Record<string, unknown> | undefined)?.lokasi as string) || "";
+
+    const competitorNames = engineResult.competitors.map((c) => c.name);
+    const liveRecords = await fetchInstagramLiveRecords(
+      competitorNames,
+      { industry: business.industry || "", produkJasa, location },
+      token,
+      SOCIAL_LIVE_BUDGET_MS
+    );
+
+    // Tetap dikembalikan sebagai live_api walau liveRecords kosong — "belum
+    // ketemu akun medsos kompetitor" itu sendiri adalah hasil yang jujur,
+    // BUKAN alasan diam-diam menukar ke data contoh (yang bisa disalah
+    // artikan sebagai data nyata).
+    const aiSummary = await generateLiveSummary(liveRecords, business.business_name, lang);
+
+    const followerCounts = liveRecords.map((r) => r.followers);
+    const snapshot: SocialMediaSnapshot = {
+      dataSource: "live_api",
+      records: [],
+      liveRecords: tierIsFree ? liveRecords.slice(0, 1) : liveRecords,
+      summary: {
+        totalProfilesFound: liveRecords.length,
+        averageFollowers: average(followerCounts),
+        averageEngagementRatePct: null, // tidak dihitung dari data asli — lihat catatan ToS di instagramProvider.ts
+        mostActivePlatform: liveRecords.length > 0 ? "instagram" : null,
+        platformsNotFound: liveRecords.length > 0 ? ["tiktok", "facebook"] : ALL_PLATFORMS,
+      },
+      insights: [],
+      aiSummary: tierIsFree ? null : aiSummary,
+      fetchedAt: new Date().toISOString(),
+    };
+
+    await saveSocialSnapshot(businessProfileId, "apify", snapshot);
+    return snapshot;
+  } catch (err) {
+    console.error("[socialMedia] jalur data asli (Apify) gagal, jatuh ke mock:", err);
+    return null;
+  }
+}
+
 /** Entry point dipanggil dari api/workspace.ts action "getSocialMediaAnalysis".
  * Sama pola tier gating dengan getCompetitorAnalysis: Free tetap dapat
  * teaser (1 profil), Pro/Platinum dapat semuanya. Ownership check business
@@ -193,7 +278,7 @@ export async function getSocialMediaAnalysis(userId: string, payload: Record<str
 
   const { data: business, error: bpError } = await supabase
     .from("business_profiles")
-    .select("id, user_id, industry")
+    .select("id, user_id, business_name, industry")
     .eq("id", businessProfileId)
     .single();
 
@@ -202,21 +287,10 @@ export async function getSocialMediaAnalysis(userId: string, payload: Record<str
   }
 
   const membership = await getActiveMembership(businessProfileId);
-  const records = buildMockRecords(business.industry || "Usaha");
-  const summary = summarize(records);
+  const tierIsFree = membership.tier === "free";
 
-  // Free: teaser 1 profil saja, tanpa insight (sama pola dengan Competitor
-  // Panel — bukti kualitas data sebelum bayar, bukan dikunci total).
-  const visibleRecords = membership.tier === "free" ? records.slice(0, 1) : records;
-  const insights = membership.tier === "free" ? [] : buildInsights(records, summary, lang);
-
-  const snapshot: SocialMediaSnapshot = {
-    dataSource: "mock",
-    records: visibleRecords,
-    summary,
-    insights,
-    fetchedAt: new Date().toISOString(),
-  };
+  const liveSnapshot = await tryLiveSnapshot(businessProfileId, business, lang, tierIsFree);
+  const snapshot = liveSnapshot ?? buildMockSnapshot(business.industry || "Usaha", lang, tierIsFree);
 
   return { status: 200, body: { socialMedia: snapshot, tier: membership.tier } };
 }

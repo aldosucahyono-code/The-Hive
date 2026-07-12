@@ -25,6 +25,7 @@ import {
 // brand/bidang usaha memang bebas), jadi dibiarkan seperti sebelumnya.
 const SEMANTIC_CHECK_FIELDS = new Set<keyof WizardData>([
   "profesi",
+  "produkJasa",
   "lokasi",
   "targetPelanggan",
   "tantangan",
@@ -205,6 +206,19 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       inputType: "text",
       placeholder: t.stepOne.jenisBisnisPlaceholder,
       validate: isValidNameLike,
+      invalidNudge: t.chatFlow.invalidNudge,
+      phase: "kenal",
+    },
+    {
+      // Produk/Jasa Utama (revisi Juli 2026) — lebih spesifik dari
+      // jenisBisnis, dipakai buat mencari akun Instagram kompetitor yang
+      // benar-benar relevan (lihat services/socialMedia/instagramProvider.ts),
+      // bukan cuma nama bidang usaha yang terlalu umum.
+      field: "produkJasa",
+      prompt: (d) => fill(t.chatFlow.askProdukJasa, d),
+      inputType: "text",
+      placeholder: t.stepOne.produkJasaPlaceholder,
+      validate: (v: string) => isValidFreeText(v, 3, 1),
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "kenal",
     },
@@ -640,6 +654,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     { group: t.chatFlow.identitasTitle, label: t.chatFlow.profesiLabel, field: "profesi" },
     { group: t.chatFlow.identitasTitle, label: t.chatFlow.namaBisnisLabel, field: "namaBisnis" },
     { group: t.chatFlow.identitasTitle, label: t.chatFlow.jenisBisnisLabel, field: "jenisBisnis" },
+    { group: t.chatFlow.identitasTitle, label: t.chatFlow.produkJasaLabel, field: "produkJasa" },
     { group: t.chatFlow.lokasiKondisiTitle, label: t.chatFlow.lokasiLabel, field: "lokasi" },
     ...(isBaru
       ? [

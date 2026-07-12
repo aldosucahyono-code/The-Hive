@@ -17,6 +17,12 @@ export type WizardData = {
   profesi: string;
   namaBisnis: string;
   jenisBisnis: string;
+  // Produk/Jasa Utama (revisi Juli 2026) — lebih spesifik dari jenisBisnis
+  // (mis. jenisBisnis="Kuliner", produkJasa="Nasi goreng gerobak keliling").
+  // Dipakai Medsos Kompetitor (Apify) untuk menyusun kata kunci pencarian
+  // yang lebih akurat saat mencari akun Instagram kompetitor — lihat
+  // services/socialMedia/instagramProvider.ts.
+  produkJasa: string;
   lokasi: string;
   sejakKapan: string;
   rencanaLaunching: string;
@@ -45,6 +51,7 @@ const initialData: WizardData = {
   profesi: "",
   namaBisnis: "",
   jenisBisnis: "",
+  produkJasa: "",
   lokasi: "",
   sejakKapan: "",
   rencanaLaunching: "",

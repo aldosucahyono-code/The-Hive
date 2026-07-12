@@ -1,0 +1,128 @@
+// services/socialMedia/instagramProvider.ts
+//
+// Orkestrasi pencarian akun Instagram kompetitor + pengambilan follower
+// count via Apify — DIBATASI KETAT sesuai instruksi pemilik produk (dikutip
+// lengkap di services/socialMedia/summaryGenerator.ts):
+// 1. HANYA Instagram di v1 (TikTok/Facebook tetap mock — lihat
+//    getSocialMediaAnalysis.ts).
+// 2. HANYA username + followers yang diambil/ditampilkan/disimpan — TIDAK
+//    postsPerMonth, TIDAK engagementRatePct, TIDAK bio/foto/post individual.
+//    Makin sedikit yang diambil, makin kecil jejak risiko ToS-nya.
+// 3. Dibatasi TOP 3 kompetitor per request (biaya Apify + waktu Vercel
+//    maxDuration 60 detik untuk SELURUH request api/workspace.ts, bukan
+//    cuma bagian ini) — lihat SOCIAL_LIVE_BUDGET_MS di getSocialMediaAnalysis.ts.
+//
+// PENCARIAN username: query dibangun dari {nama kompetitor} + {industri
+// bisnis pengguna} + {produk/jasa pengguna} + {lokasi} — bukan cuma nama
+// kompetitor mentah, supaya hasil pencarian lebih presisi untuk nama umum
+// (mis. "Warung Makmur" saja terlalu generik; ditambah "kuliner nasi
+// goreng Jakarta Selatan" jauh lebih presisi). Field produkJasa memang
+// ditambahkan ke wizard KHUSUS untuk kebutuhan ini (lihat
+// src/components/ChatWizard.tsx, WizardData.produkJasa).
+
+import { runApifyActor } from "./apifyClient.js";
+import type { SocialMediaLiveRecord } from "./types.js";
+
+const SEARCH_ACTOR_ID = process.env.APIFY_INSTAGRAM_SEARCH_ACTOR_ID || "apify/instagram-search-scraper";
+const PROFILE_ACTOR_ID = process.env.APIFY_INSTAGRAM_PROFILE_ACTOR_ID || "apify/instagram-profile-scraper";
+
+const MAX_COMPETITORS = 3;
+const SEARCH_TIMEOUT_MS = 8000;
+const PROFILE_TIMEOUT_MS = 8000;
+
+export type BusinessSearchContext = {
+  industry: string;
+  produkJasa: string;
+  location: string;
+};
+
+type InstagramSearchItem = {
+  username?: string;
+  ownerUsername?: string;
+  url?: string;
+};
+
+type InstagramProfileItem = {
+  username?: string;
+  followersCount?: number;
+  followersCount_normalized?: number;
+};
+
+function buildSearchQuery(competitorName: string, context: BusinessSearchContext): string {
+  return [competitorName, context.industry, context.produkJasa, context.location].filter(Boolean).join(" ").trim();
+}
+
+/** Cari SATU username Instagram paling mungkin untuk satu kompetitor.
+ * Mengembalikan null (bukan melempar) kalau tidak ketemu/actor gagal —
+ * caller tetap lanjut ke kompetitor berikutnya; satu kegagalan tidak boleh
+ * menggagalkan seluruh batch. */
+async function searchInstagramUsername(competitorName: string, context: BusinessSearchContext, token: string): Promise<string | null> {
+  try {
+    const query = buildSearchQuery(competitorName, context);
+    const items = await runApifyActor<InstagramSearchItem>({
+      actorId: SEARCH_ACTOR_ID,
+      token,
+      timeoutMs: SEARCH_TIMEOUT_MS,
+      input: { search: query, searchType: "user", searchLimit: 1 },
+    });
+    const first = items[0];
+    const username = first?.username || first?.ownerUsername || null;
+    return username ? username.replace(/^@/, "") : null;
+  } catch (err) {
+    console.error(`[socialMedia] pencarian username Instagram gagal untuk "${competitorName}":`, err);
+    return null;
+  }
+}
+
+/** Ambil follower count untuk satu username. Fail-soft sama seperti
+ * searchInstagramUsername — null kalau gagal, bukan melempar. */
+async function fetchFollowerCount(username: string, token: string): Promise<number | null> {
+  try {
+    const items = await runApifyActor<InstagramProfileItem>({
+      actorId: PROFILE_ACTOR_ID,
+      token,
+      timeoutMs: PROFILE_TIMEOUT_MS,
+      input: { usernames: [username] },
+    });
+    const first = items[0];
+    const followers = first?.followersCount ?? first?.followersCount_normalized ?? null;
+    return typeof followers === "number" ? followers : null;
+  } catch (err) {
+    console.error(`[socialMedia] pengambilan follower count gagal untuk "@${username}":`, err);
+    return null;
+  }
+}
+
+/** Entry point dipanggil getSocialMediaAnalysis.ts. Mengambil username lalu
+ * follower count untuk tiap nama kompetitor SECARA BERURUTAN (bukan
+ * Promise.all) supaya total waktu tetap bisa dihentikan lebih awal kalau
+ * anggaran waktu (budgetMs) habis — lebih penting daripada kecepatan
+ * maksimal untuk fitur yang berbagi batas keras 60 detik dengan sisa
+ * request. Kompetitor yang gagal dicari/diambil dilewati saja (tidak
+ * menggagalkan kompetitor lain). */
+export async function fetchInstagramLiveRecords(
+  competitorNames: string[],
+  context: BusinessSearchContext,
+  token: string,
+  budgetMs: number
+): Promise<SocialMediaLiveRecord[]> {
+  const names = competitorNames.slice(0, MAX_COMPETITORS);
+  const results: SocialMediaLiveRecord[] = [];
+  const deadline = Date.now() + budgetMs;
+
+  for (const name of names) {
+    if (Date.now() >= deadline) break; // anggaran waktu habis — berhenti, jangan paksa lanjut
+
+    const username = await searchInstagramUsername(name, context, token);
+    if (!username) continue;
+
+    if (Date.now() >= deadline) break;
+
+    const followers = await fetchFollowerCount(username, token);
+    if (followers === null) continue;
+
+    results.push({ competitorName: name, platform: "instagram", username, followers });
+  }
+
+  return results;
+}
