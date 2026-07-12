@@ -483,29 +483,33 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
     // balasan yang SAMA — tidak ada panggilan Claude kedua. Disimpan ke
     // Decision Journal otomatis, question-nya diambil dari pesan pengguna
     // TERAKHIR di percakapan ini (bukan dikarang dari balasan Beemo).
-    let cleanReply = replyAfterMemory;
+    //
+    // Parsing/stripping blok ini SELALU dijalankan (bukan cuma saat
+    // canDetectDecision true) — system prompt hanya menyisipkan instruksi
+    // ini untuk PLATINUM, tapi kalau modelnya tetap menghasilkan blok ini
+    // (mis. tier PRO dengan histori chat campuran), tetap harus disaring
+    // dari balasan yang dilihat pengguna. Yang dibatasi tier/kuota hanyalah
+    // TERSIMPAN atau tidaknya ke Decision Journal — bukan penyaringannya.
+    const { cleanReply: replyAfterDecision, decision } = parseDecisionBlock(replyAfterMemory);
+    let cleanReply = replyAfterDecision;
     let decisionSaved = false;
     let decisionHeadline: string | null = null;
-    if (canDetectDecision) {
-      const { cleanReply: replyAfterDecision, decision } = parseDecisionBlock(replyAfterMemory);
-      cleanReply = replyAfterDecision;
-      if (decision) {
-        const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
-        const questionText = String(lastUserMessage?.content || "").trim().slice(0, 2000);
-        if (questionText) {
-          try {
-            const { decision: savedDecision } = await saveDecisionRecord({
-              businessProfileId,
-              question: questionText,
-              ...decision,
-              subscriptionId: membership.subscriptionId,
-              currentDecisionCount: membership.decisionCount,
-            });
-            decisionSaved = true;
-            decisionHeadline = savedDecision.conclusion || savedDecision.recommendation || null;
-          } catch (err) {
-            console.error("chatWithBeemo: gagal simpan Decision Journal otomatis:", err);
-          }
+    if (canDetectDecision && decision) {
+      const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+      const questionText = String(lastUserMessage?.content || "").trim().slice(0, 2000);
+      if (questionText) {
+        try {
+          const { decision: savedDecision } = await saveDecisionRecord({
+            businessProfileId,
+            question: questionText,
+            ...decision,
+            subscriptionId: membership.subscriptionId,
+            currentDecisionCount: membership.decisionCount,
+          });
+          decisionSaved = true;
+          decisionHeadline = savedDecision.conclusion || savedDecision.recommendation || null;
+        } catch (err) {
+          console.error("chatWithBeemo: gagal simpan Decision Journal otomatis:", err);
         }
       }
     }
