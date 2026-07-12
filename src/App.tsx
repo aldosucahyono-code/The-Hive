@@ -180,6 +180,23 @@ function App() {
     );
   }
 
+  // Route khusus "#mulai" — render ChatWizard langsung tanpa harus lewat
+  // Hero/tombol "Mulai" dulu (audit Juli 2026, directive PO: "satu-satunya
+  // pintu untuk analisa bisnis baru... hanya lewat chat wizzard"). Dipakai
+  // sebagai target redirect dari Workspace yang masih kosong dan tombol
+  // "Tambah Bisnis" di Workspace untuk user yang sudah login — ChatWizard
+  // sendiri (lewat useAuth) mendeteksi status login dan menyesuaikan alurnya
+  // (skip pertanyaan email, cek batas paket sebelum form, dst).
+  if (rawHash === "mulai") {
+    return (
+      <>
+        <Navbar />
+        <ChatWizard />
+        <Footer />
+      </>
+    );
+  }
+
   if (rawHash === "bayar-pro" || rawHash === "bayar-platinum") {
     return (
       <>

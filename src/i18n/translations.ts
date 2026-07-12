@@ -1321,6 +1321,17 @@ const id = {
     capBlockedCloseButton: "Tutup",
   },
 
+  wizardCapBlocked: {
+    checkingLabel: "Memeriksa slot bisnis kamu...",
+    businessListTitle: "Bisnis yang sudah kamu analisa",
+    archiveButton: "Arsipkan",
+    archiving: "Mengarsipkan...",
+    archiveError: "Gagal mengarsipkan bisnis. Coba lagi.",
+    archiveNote: "Mengarsipkan membuka 1 slot untuk bisnis baru. Data bisnis yang diarsipkan tidak hilang, bisa dipulihkan lagi lewat Pengaturan.",
+    upgradeNote: "Atau upgrade salah satu bisnis di atas ke paket lebih tinggi untuk menambah slot, tanpa perlu mengarsipkan apapun.",
+    goWorkspaceButton: "Buka Workspace untuk Upgrade",
+  },
+
   businessUpdateModal: {
     closeLabel: "Tutup",
     title: "Update Bisnis Mingguan",
@@ -2698,6 +2709,17 @@ const en: Translations = {
     capBlockedDescPlatinum: "You're at the maximum for a PLATINUM account (5 businesses). Remove an inactive business to add a new one.",
     capBlockedUpgradeButton: "View PRO/PLATINUM Plans",
     capBlockedCloseButton: "Close",
+  },
+
+  wizardCapBlocked: {
+    checkingLabel: "Checking your business slots...",
+    businessListTitle: "Businesses you've already analyzed",
+    archiveButton: "Archive",
+    archiving: "Archiving...",
+    archiveError: "Failed to archive business. Please try again.",
+    archiveNote: "Archiving frees up 1 slot for a new business. Archived business data isn't lost — you can restore it later from Settings.",
+    upgradeNote: "Or upgrade one of the businesses above to a higher plan to add more slots, without archiving anything.",
+    goWorkspaceButton: "Open Workspace to Upgrade",
   },
 
   businessUpdateModal: {

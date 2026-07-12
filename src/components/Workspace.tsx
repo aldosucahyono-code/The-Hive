@@ -3,7 +3,6 @@ import { useAuth } from "../context/AuthContext";
 import { useLanguage, fillTemplate, LOCALE_MAP } from "../i18n/LanguageContext";
 import { supabase } from "../lib/supabaseClient";
 import { hardNavigate } from "../utils/navigate";
-import AddBusinessModal from "./AddBusinessModal";
 import ChatBeemoPanel from "./ChatBeemoPanel";
 import BusinessUpdateModal from "./BusinessUpdateModal";
 import UpgradeModal from "./UpgradeModal";
@@ -720,15 +719,25 @@ function DecisionJournalList({
   );
 }
 
-/** Ditampilkan kalau user sudah login tapi belum punya business_profile
- * SAMA SEKALI (belum pernah menyelesaikan analisis apapun). */
+/** Ditampilkan sekilas kalau user sudah login tapi belum punya
+ * business_profile SAMA SEKALI (belum pernah menyelesaikan analisis
+ * apapun). Audit Juli 2026 (directive PO: "satu-satunya pintu untuk analisa
+ * bisnis... hanya lewat chat wizzard") — sebelumnya cuma tombol manual balik
+ * ke Beranda, sekarang auto-redirect langsung ke Chat Wizard (#mulai) tanpa
+ * perlu klik apapun, supaya email yang belum pernah dianalisa tidak nyasar
+ * lihat Workspace kosong. Tombol tetap ditaruh sebagai fallback kalau
+ * redirect gagal (mis. JS dinonaktifkan/diblokir). */
 function NoBusinessYet({ t }: { t: Translations }) {
+  useEffect(() => {
+    hardNavigate("mulai");
+  }, []);
+
   return (
     <section className="mx-auto max-w-lg px-6 py-20 text-center">
       <h1 className="text-2xl font-extrabold">{t.workspace.noBusinessTitle}</h1>
       <p className="mt-3 text-sm text-neutral-400">{t.workspace.noBusinessDesc}</p>
       <button
-        onClick={() => hardNavigate("")}
+        onClick={() => hardNavigate("mulai")}
         className="mt-6 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black hover:opacity-90"
       >
         {t.workspace.startAnalysisButton}
@@ -3868,7 +3877,6 @@ function Workspace() {
   const [newlyUnlocked, setNewlyUnlocked] = useState<Array<Record<string, unknown>>>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
-  const [showAddBusiness, setShowAddBusiness] = useState(false);
   const [showBusinessUpdate, setShowBusinessUpdate] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [checkingUpgrade, setCheckingUpgrade] = useState(false);
@@ -4891,21 +4899,6 @@ function Workspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenu]);
 
-  function handleBusinessCreated(newBusinessProfileId: string) {
-    setActiveBusinessId(newBusinessProfileId);
-    resetPerBusinessCaches();
-    setShowAddBusiness(false);
-    // Ambil ulang daftar lengkap dari server supaya nama/industry akurat.
-    supabase
-      .from("business_profiles")
-      .select("id, business_name, industry, business_type")
-      .eq("active", true)
-      .order("created_at", { ascending: true })
-      .then(({ data }) => {
-        if (data) setBusinesses(data as BusinessProfileRow[]);
-      });
-  }
-
   if (loading) {
     return (
       <section className="mx-auto flex min-h-[50vh] max-w-lg items-center justify-center px-6 py-20 text-center">
@@ -5170,7 +5163,7 @@ function Workspace() {
                 businesses={businesses}
                 activeId={activeBusinessId}
                 onSwitch={handleSwitchBusiness}
-                onAddNew={() => setShowAddBusiness(true)}
+                onAddNew={() => hardNavigate("mulai")}
                 addLabel={t.workspace.addBusinessButton}
               />
               <button
@@ -5671,13 +5664,7 @@ function Workspace() {
         </div>
       )}
 
-      {showAddBusiness && (
-        <AddBusinessModal
-          onClose={() => setShowAddBusiness(false)}
-          onCreated={handleBusinessCreated}
-          onUpgradeClick={openUpgradeModal}
-        />
-      )}
+
 
       {showBusinessUpdate && activeBusinessId && (
         <BusinessUpdateModal
@@ -5721,6 +5708,7 @@ function Workspace() {
         <UpgradeModal
           businessProfileId={activeBusinessId}
           businessName={activeBusiness?.business_name || ""}
+          currentTier={membership && membership.status === "active" ? membership.tier : "free"}
           onClose={() => setShowUpgradeModal(false)}
           onUpgraded={handleUpgraded}
         />

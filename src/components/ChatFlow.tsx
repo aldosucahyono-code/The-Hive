@@ -149,8 +149,23 @@ function produkJasaExamples(jenisBisnis: string, lang: "id" | "en"): [string, st
 
 function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const { t, lang } = useLanguage();
-  const { signInWithMagicLink } = useAuth();
+  const { signInWithMagicLink, user } = useAuth();
   const isBaru = data.jenisAnalisis === "baru";
+  // Audit Juli 2026 (directive PO: gateway satu-satunya lewat Chat Wizard,
+  // termasuk untuk user yang MEMANG sudah login mau tambah bisnis lain) —
+  // kalau sesi login browser ini sudah ada, kita SUDAH TAHU emailnya, jadi
+  // pertanyaan "siapa emailmu?" + pengecekan /api/check-email jadi
+  // percuma/membingungkan (bisa saja malah menyapa "email ini sudah
+  // terdaftar" ke pemilik email itu sendiri). Isi otomatis dari sesi &
+  // lewati pertanyaannya sama sekali — lihat pemakaian isLoggedIn di bawah.
+  const isLoggedIn = !!user;
+
+  useEffect(() => {
+    if (isLoggedIn && user?.email && !data.email) {
+      updateField("email", user.email);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, user?.email]);
 
   // 2 pertanyaan "bucket info" dinamis — dihasilkan Beemo AI sesuai nama &
   // jenis bisnis pengguna (directive PO: "jangan mutlak dan mengacu saja
@@ -211,15 +226,23 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "kenal",
     },
-    {
-      field: "email",
-      prompt: (d) => fill(t.chatFlow.askEmail, d),
-      inputType: "email",
-      placeholder: t.stepOne.emailPlaceholder,
-      validate: isValidEmail,
-      invalidNudge: t.chatFlow.invalidEmailNudge,
-      phase: "kenal",
-    },
+    // Dilewati kalau sudah login (lihat isLoggedIn di atas) — email diisi
+    // otomatis dari sesi, tidak perlu ditanya ulang atau dicek ke
+    // /api/check-email (yang justru bisa menyapa pemiliknya sendiri dengan
+    // "email ini sudah terdaftar").
+    ...(isLoggedIn
+      ? []
+      : ([
+          {
+            field: "email",
+            prompt: (d) => fill(t.chatFlow.askEmail, d),
+            inputType: "email",
+            placeholder: t.stepOne.emailPlaceholder,
+            validate: isValidEmail,
+            invalidNudge: t.chatFlow.invalidEmailNudge,
+            phase: "kenal",
+          },
+        ] as Question[])),
     {
       field: "noHp",
       prompt: (d) => fill(t.chatFlow.askNoHp, d),

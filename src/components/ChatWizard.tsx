@@ -4,7 +4,9 @@ import ChooseAnalysisType from "./ChooseAnalysisType";
 import ChatFlow from "./ChatFlow";
 import LoadingAI from "./LoadingAI";
 import PreviewReport, { type PreviewData } from "./PreviewReport";
+import WizardCapBlocked from "./WizardCapBlocked";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useAuth } from "../context/AuthContext";
 
 export type WizardData = {
   jenisAnalisis: "" | "baru" | "berjalan";
@@ -73,12 +75,21 @@ const initialData: WizardData = {
 // Step 7: hasil preview
 function ChatWizard() {
   const { lang, t } = useLanguage();
+  const { user, loading: authLoading } = useAuth();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<WizardData>(initialData);
   const [startTime] = useState(() => Date.now());
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
+  // Audit Juli 2026 (directive PO: "satu-satunya pintu... hanya lewat chat
+  // wizzard") — kalau pengunjung SUDAH LOGIN (mis. lewat tombol "Tambah
+  // Bisnis" di Workspace, atau Workspace yang masih kosong), cek batas
+  // jumlah bisnis paket (free 2/pro 3/platinum 5) SEBELUM pertanyaan
+  // apapun ditampilkan — supaya tidak isi form penuh dulu baru ditolak di
+  // akhir. Pengunjung anonim (belum login) TIDAK kena gate ini sama sekali,
+  // sama seperti alur "coba gratis" biasa.
+  const [capCleared, setCapCleared] = useState(false);
 
   function updateField(field: keyof WizardData, value: string) {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -140,6 +151,18 @@ function ChatWizard() {
 
   function retryPreview() {
     setStep(6);
+  }
+
+  if (authLoading) {
+    return (
+      <section className="mx-auto flex min-h-[40vh] max-w-lg items-center justify-center px-6 py-20 text-center">
+        <p className="text-neutral-400">{t.wizardCapBlocked.checkingLabel}</p>
+      </section>
+    );
+  }
+
+  if (user && !capCleared) {
+    return <WizardCapBlocked onUnblocked={() => setCapCleared(true)} />;
   }
 
   if (step === 0) {
