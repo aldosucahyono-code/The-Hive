@@ -3,6 +3,7 @@ import type { WizardData } from "./ChatWizard";
 import { hardNavigate } from "../utils/navigate";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
+import AuthModal from "./AuthModal";
 import beemoPro from "../assets/mascot/beemo-pro.png";
 import beemoPlatinum from "../assets/mascot/beemo-platinum.png";
 
@@ -67,6 +68,22 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
   // baru; tampilkan pemberitahuan yang jelas + arahkan upgrade, alih-alih
   // diam-diam gagal (log error saja) seperti sebelumnya.
   const [autoSaveCapped, setAutoSaveCapped] = useState(false);
+
+  // CTA "Coba Gratis, Masuk ke Workspace" (directive PO: pelanggan yang
+  // belum siap bayar tetap harus bisa merasakan Workspace pribadinya
+  // langsung dari hasil analisa gratis ini, supaya lebih tertarik upgrade
+  // nanti — bukan cuma diarahkan ke Pro/Platinum). Reuse AuthModal +
+  // autoPromote effect di atas yang SUDAH ADA (sebelumnya cuma jalan kalau
+  // pengunjung kebetulan sudah login di tab lain) — di sini kita cuma
+  // menambah pemicu login-nya untuk pengunjung anonim.
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  useEffect(() => {
+    // Tutup modal otomatis begitu login sukses (session tersinkron lewat
+    // magic link yang dibuka di tab lain) — tanpa ini modal "Cek Email
+    // Kamu" akan tetap menutupi layar walau user sudah login.
+    if (user && showAuthModal) setShowAuthModal(false);
+  }, [user, showAuthModal]);
 
   useEffect(() => {
     if (!preview || !user || !session?.access_token || autoSavedBusinessId || autoSaving) return;
@@ -494,6 +511,29 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           </div>
         </div>
 
+        {/* CTA "Coba Gratis" — disembunyikan begitu Workspace-nya sudah
+            siap/tersimpan (banner autoSavedNote/autoSaveCapped di atas
+            sudah mengambil alih perannya), supaya tidak ada dua ajakan
+            yang tumpang tindih. */}
+        {!autoSavedBusinessId && !autoSaveCapped && (
+          <div className="mt-6 flex flex-col items-center gap-3 border-t border-white/10 pt-6 text-center">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">
+              {t.previewReport.freeCtaDivider}
+            </span>
+            <p className="text-sm font-bold text-white">{t.previewReport.freeCtaTitle}</p>
+            <p className="max-w-md text-xs leading-relaxed text-neutral-400">{t.previewReport.freeCtaDesc}</p>
+            <button
+              onClick={() => {
+                if (!user) setShowAuthModal(true);
+              }}
+              disabled={autoSaving}
+              className="rounded-xl border border-white/20 px-6 py-2.5 text-sm font-bold text-neutral-200 transition-colors hover:border-primary/50 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {autoSaving ? t.previewReport.freeCtaPreparing : t.previewReport.freeCtaButton}
+            </button>
+          </div>
+        )}
+
         <p className="mt-6 text-center text-xs text-neutral-500">
           {t.previewReport.footerNote}
         </p>
@@ -504,6 +544,10 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           {t.previewReport.restartLink}
         </button>
       </div>
+
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} defaultEmail={data.email} />
+      )}
 
     </section>
   );

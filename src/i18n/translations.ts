@@ -204,6 +204,11 @@ const id = {
     preparingButton: "Menyiapkan...",
     footerNote: "🔒 Hasil analisis akan tersedia langsung dalam format PDF yang siap diunduh.",
     unlockCta: "Buka Laporan Lengkap",
+    freeCtaDivider: "atau",
+    freeCtaTitle: "Belum siap bayar? Coba dulu gratis.",
+    freeCtaDesc: "Masuk ke Workspace pribadimu sekarang — lihat langsung bagaimana Beemo membantu bisnismu, upgrade kapan saja kalau sudah cocok.",
+    freeCtaButton: "Coba Gratis, Masuk ke Workspace",
+    freeCtaPreparing: "Menyiapkan Workspace-mu...",
     swotMock: [
       "Kekuatan utama dari sisi produk dan operasional bisnis Anda",
       "Kelemahan yang perlu segera diperhatikan",
@@ -1573,6 +1578,11 @@ const en: Translations = {
     preparingButton: "Preparing...",
     footerNote: "🔒 Your analysis result will be available directly as a ready-to-download PDF.",
     unlockCta: "Open Full Report",
+    freeCtaDivider: "or",
+    freeCtaTitle: "Not ready to pay yet? Try it free first.",
+    freeCtaDesc: "Get into your personal Workspace now — see for yourself how Beemo helps your business, upgrade anytime once you're convinced.",
+    freeCtaButton: "Try Free, Open Workspace",
+    freeCtaPreparing: "Setting up your Workspace...",
     swotMock: [
       "Key strengths in your product and operations",
       "Weaknesses that need attention soon",
