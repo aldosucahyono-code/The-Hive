@@ -3,9 +3,6 @@
     "api/generate-preview.ts": {
       "maxDuration": 90
     },
-    "api/generate-report.ts": {
-      "maxDuration": 180
-    },
     "api/generate-monthly-report.ts": {
       "maxDuration": 180
     },
