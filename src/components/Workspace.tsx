@@ -6,6 +6,7 @@ import { hardNavigate } from "../utils/navigate";
 import ChatBeemoPanel from "./ChatBeemoPanel";
 import BusinessUpdateModal from "./BusinessUpdateModal";
 import UpgradeModal from "./UpgradeModal";
+import WizardCapBlocked from "./WizardCapBlocked";
 import type { Translations } from "../i18n/translations";
 import beemoMascot from "../assets/mascot/beemo.png";
 import {
@@ -3877,6 +3878,13 @@ function Workspace() {
   const [newlyUnlocked, setNewlyUnlocked] = useState<Array<Record<string, unknown>>>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
+  // Audit Juli 2026 (directive PO: "user ketika login lagi, sebelum alamat
+  // workspace, wajib diberi keterangan untuk hapus salah satu bisninsya,
+  // atau upgrade") — akun bisa MELEBIHI batas paketnya bukan lewat bug,
+  // tapi lewat langganan yang kedaluwarsa (mis. count=3 tapi cap balik ke 2
+  // begitu Pro-nya tidak diperpanjang). null = belum dicek, true = kelebihan
+  // slot (wajib diselesaikan dulu sebelum lihat Workspace sama sekali).
+  const [overLimitBlocked, setOverLimitBlocked] = useState<boolean | null>(null);
   const [showBusinessUpdate, setShowBusinessUpdate] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [checkingUpgrade, setCheckingUpgrade] = useState(false);
@@ -3989,6 +3997,37 @@ function Workspace() {
       cancelled = true;
     };
   }, [user]);
+
+  // Gate wajib begitu login (lihat overLimitBlocked di atas) — dicek SEKALI
+  // begitu daftar bisnis selesai dimuat, terpisah dari pengecekan cap di
+  // ChatWizard (yang cuma jalan saat mau MENAMBAH bisnis baru). Di sini
+  // kondisinya lebih ketat: count > cap (BENAR-BENAR kelebihan), bukan cuma
+  // count === cap (pas di batas itu normal, tidak perlu memblokir apapun,
+  // cuma tidak bisa nambah lagi).
+  useEffect(() => {
+    if (dataLoading || businesses.length === 0 || !session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/business", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ action: "getCap" }),
+        });
+        const json = await res.json();
+        if (cancelled) return;
+        if (res.ok && typeof json.count === "number" && typeof json.cap === "number") {
+          setOverLimitBlocked(json.count > json.cap);
+        }
+      } catch (err) {
+        console.error("Workspace overLimit check error:", err);
+        // Gagal cek -> jangan mengunci user gara-gara masalah jaringan sesaat.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dataLoading, businesses.length, session?.access_token]);
 
   // Muat analyses + subscription untuk business yang sedang aktif
   useEffect(() => {
@@ -4929,6 +4968,10 @@ function Workspace() {
 
   if (!dataLoading && businesses.length === 0) {
     return <NoBusinessYet t={t} />;
+  }
+
+  if (overLimitBlocked) {
+    return <WizardCapBlocked variant="overLimit" onUnblocked={() => setOverLimitBlocked(false)} />;
   }
 
   const activeBusiness = businesses.find((b) => b.id === activeBusinessId) || null;
