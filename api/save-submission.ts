@@ -20,6 +20,7 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
+import { checkRateLimit, getClientIp } from "../services/rateLimit/checkRateLimit.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -29,6 +30,17 @@ const supabase = createClient(
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Audit red-team Juli 2026: endpoint anonim ini tidak memanggil Claude
+  // (bukan risiko biaya API), tapi tetap tanpa batas bisa dipakai untuk
+  // membanjiri tabel wizard_drafts dengan baris sampah (storage abuse).
+  // 15x/10 menit per IP cukup longgar untuk pengguna sah (dipanggil sekali
+  // di akhir wizard setiap kali preview selesai dibuat).
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(`save-submission:${ip}`, 15, 600);
+  if (!rl.allowed) {
+    return res.status(429).json({ error: "Terlalu banyak permintaan dari perangkat ini. Coba lagi beberapa saat lagi." });
   }
 
   try {
