@@ -11,33 +11,14 @@ import {
 } from "./WorkspaceDesignSystem";
 
 type Tier = "free" | "pro" | "platinum";
-type ChatMessage = { role: "user" | "assistant"; content: string };
+// decisionSaved/decisionHeadline (revisi Juli 2026): Chat Beemo sekarang
+// mendeteksi OTOMATIS pertanyaan keputusan besar dan menjalankan Decision
+// Engine di dalam balasan yang sama (lihat parseDecisionBlock di
+// services/beemo/chat.ts) — tidak ada lagi form "Bantuan Keputusan"
+// terpisah. Field ini dipakai untuk menampilkan catatan kecil di bubble
+// chat kalau balasan itu baru saja tersimpan ke Decision Journal.
+type ChatMessage = { role: "user" | "assistant"; content: string; decisionSaved?: boolean };
 type PendingMemoryFact = { id: string; factKey: string; factValue: unknown; proposedAt: string };
-type DecisionRecord = {
-  id: string | null;
-  question: string;
-  goal: string;
-  risk: string;
-  opportunity: string;
-  supportingData: string[];
-  recommendation: string;
-  conclusion: string;
-  status: string;
-  createdAt: string;
-};
-
-// Decision Engine result field — dipakai untuk Goal/Risk/Opportunity/
-// Recommendation/Conclusion, tidak dirender kalau kosong (jangan sampai
-// tampil label tanpa isi kalau Beemo jujur bilang datanya belum cukup).
-function DecisionField({ label, value }: { label: string; value: string }) {
-  if (!value) return null;
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{label}</p>
-      <p className="mt-1 text-sm leading-relaxed text-neutral-200">{value}</p>
-    </div>
-  );
-}
 
 function ChatBeemoPanel({
   businessProfileId,
@@ -78,18 +59,6 @@ function ChatBeemoPanel({
   // (kartu ajakan upgrade, bukan teks merah generik).
   const [chatQuotaHit, setChatQuotaHit] = useState(false);
 
-  // Decision Engine ("AI Business Mentor, bukan AI Reporter") — entrypoint
-  // ringan di dalam Chat Beemo panel yang sudah ada, bukan halaman baru.
-  const [showDecisionForm, setShowDecisionForm] = useState(false);
-  const [decisionQuestion, setDecisionQuestion] = useState("");
-  const [decisionLoading, setDecisionLoading] = useState(false);
-  const [decisionError, setDecisionError] = useState<string | null>(null);
-  const [decisionResult, setDecisionResult] = useState<DecisionRecord | null>(null);
-  const [decisionQuotaHit, setDecisionQuotaHit] = useState(false);
-  const [decisionHistory, setDecisionHistory] = useState<DecisionRecord[]>([]);
-  const [decisionHistoryLoading, setDecisionHistoryLoading] = useState(false);
-  const [decisionHistoryLoaded, setDecisionHistoryLoaded] = useState(false);
-
   // Business Context: pertanyaan pancingan berbeda untuk mentor "membuka
   // usaha" vs "mengembangkan usaha" — reuse satu komponen Chat yang sama,
   // hanya kontennya yang menyesuaikan (bukan dua implementasi Chat).
@@ -129,7 +98,12 @@ function ChatBeemoPanel({
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ action: "chat", businessProfileId, messages: nextMessages, lang }),
+        body: JSON.stringify({
+          action: "chat",
+          businessProfileId,
+          messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+          lang,
+        }),
       });
       const json = await response.json();
 
@@ -143,7 +117,7 @@ function ChatBeemoPanel({
         return;
       }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: json.reply }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: json.reply, decisionSaved: Boolean(json.decisionSaved) }]);
       setSending(false);
     } catch (err) {
       console.error("chat-beemo error:", err);
@@ -152,126 +126,9 @@ function ChatBeemoPanel({
     }
   }
 
-  // Decision History dimuat sekali saat form pertama kali dibuka — bukan
-  // fetch terpisah berulang setiap render.
-  async function loadDecisionHistory() {
-    if (!session?.access_token) return;
-    setDecisionHistoryLoading(true);
-    try {
-      const response = await fetch("/api/workspace", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ action: "listDecisions", businessProfileId, lang }),
-      });
-      const json = await response.json();
-      if (response.ok) {
-        setDecisionHistory(json.decisions || []);
-      }
-    } catch (err) {
-      console.error("listDecisions error:", err);
-    }
-    setDecisionHistoryLoading(false);
-    setDecisionHistoryLoaded(true);
-  }
-
-  function handleToggleDecisionForm() {
-    const next = !showDecisionForm;
-    setShowDecisionForm(next);
-    setDecisionError(null);
-    if (next && !decisionHistoryLoaded) loadDecisionHistory();
-  }
-
-  async function handleProposeDecision() {
-    const trimmed = decisionQuestion.trim();
-    if (!trimmed || decisionLoading || !session?.access_token) return;
-    setDecisionLoading(true);
-    setDecisionError(null);
-    setDecisionQuotaHit(false);
-
-    try {
-      const response = await fetch("/api/workspace", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ action: "proposeDecision", businessProfileId, question: trimmed, lang }),
-      });
-      const json = await response.json();
-
-      if (!response.ok) {
-        if (json.quotaExceeded) {
-          setDecisionQuotaHit(true);
-        } else {
-          setDecisionError(json.error || t.workspace.decisionErrorGeneric);
-        }
-        setDecisionLoading(false);
-        return;
-      }
-
-      setDecisionResult(json.decision);
-      setDecisionHistory((prev) => [json.decision, ...prev]);
-      setDecisionQuestion("");
-      setDecisionLoading(false);
-    } catch (err) {
-      console.error("proposeDecision error:", err);
-      setDecisionError(t.workspace.decisionErrorGeneric);
-      setDecisionLoading(false);
-    }
-  }
-
   return (
     <WorkspaceSection>
       <SectionHeader title={t.workspace.menuChat} description={t.workspace.chatSectionDesc} />
-
-      {pendingMemoryFactsError ? (
-        <ErrorCard
-          title={t.workspace.memoryProposalErrorTitle}
-          description={t.workspace.workspaceSectionErrorDesc}
-          retryLabel={t.workspace.workspaceRetryButton}
-          onRetry={onRetryPendingMemoryFacts}
-        />
-      ) : (
-        !pendingMemoryFactsLoading &&
-        pendingMemoryFacts.length > 0 && (
-          <WorkspaceCard tone="primary">
-            <h3 className="mb-1 text-sm font-bold text-primary">{t.workspace.memoryProposalTitle}</h3>
-            <p className="mb-4 text-xs leading-relaxed text-neutral-400">{t.workspace.memoryProposalDesc}</p>
-            <div className="space-y-2">
-              {pendingMemoryFacts.map((fact) => (
-                <div
-                  key={fact.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-3"
-                >
-                  <p className="text-sm text-neutral-200">
-                    <span className="font-semibold text-white">{fact.factKey.replace(/_/g, " ")}:</span>{" "}
-                    {String(fact.factValue)}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => onReviewMemoryFact(fact.id, "approve")}
-                      disabled={reviewingFactId === fact.id}
-                      className="rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-black transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-                    >
-                      {t.workspace.memoryApproveButton}
-                    </button>
-                    <button
-                      onClick={() => onReviewMemoryFact(fact.id, "reject")}
-                      disabled={reviewingFactId === fact.id}
-                      className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-neutral-300 transition-colors duration-150 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-                    >
-                      {t.workspace.memoryRejectButton}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </WorkspaceCard>
-        )
-      )}
 
       <WorkspaceCard className="flex h-[min(70vh,500px)] min-h-[360px] flex-col !p-0">
         <div
@@ -303,13 +160,25 @@ function ChatBeemoPanel({
           )}
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={
-                  "max-w-[80%] rounded-xl px-4 py-2.5 text-sm leading-relaxed " +
-                  (m.role === "user" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-neutral-200")
-                }
-              >
-                {m.content}
+              <div className="max-w-[80%]">
+                <div
+                  className={
+                    "rounded-xl px-4 py-2.5 text-sm leading-relaxed " +
+                    (m.role === "user" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-neutral-200")
+                  }
+                >
+                  {m.content}
+                </div>
+                {/* Decision Engine Auto-Detect (revisi Juli 2026): tidak ada
+                    form "Bantuan Keputusan" terpisah lagi — kalau Beemo
+                    mendeteksi pertanyaan ini sebagai keputusan besar, catatan
+                    kecil ini muncul di bawah balasannya, memberi tahu bahwa
+                    analisanya sudah tersimpan ke Decision Journal. */}
+                {m.role === "assistant" && m.decisionSaved && (
+                  <p className="mt-1 text-[11px] font-semibold text-primary">
+                    🐝 {t.workspace.decisionAutoSavedNote}
+                  </p>
+                )}
               </div>
             </div>
           ))}
@@ -359,100 +228,57 @@ function ChatBeemoPanel({
         </div>
       </WorkspaceCard>
 
-      <WorkspaceCard tone="primary">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-bold text-primary">{t.workspace.decisionSectionTitle}</h3>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.decisionSectionDesc}</p>
-          </div>
-          <button
-            onClick={handleToggleDecisionForm}
-            className="rounded-full border border-white/15 px-4 py-2 text-xs font-bold text-white transition-colors duration-150 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-          >
-            {showDecisionForm ? t.workspace.decisionCancelButton : t.workspace.decisionOpenButton}
-          </button>
-        </div>
-
-        {showDecisionForm && (
-          <div className="mt-4 space-y-4">
+      {/* "Beemo mengusulkan pembaruan" (revisi Juli 2026): dipindah ke bawah
+          Chat — posisi bekas form "Bantuan Keputusan" yang sudah dihapus,
+          supaya Chat Beemo terasa satu alur percakapan utuh, bukan dua
+          "chat" terpisah. Isinya sudah, dan tetap, bersumber langsung dari
+          percakapan chat (lihat parseMemoryProposal di
+          services/beemo/chat.ts) — bukan diagang. */}
+      {pendingMemoryFactsError ? (
+        <ErrorCard
+          title={t.workspace.memoryProposalErrorTitle}
+          description={t.workspace.workspaceSectionErrorDesc}
+          retryLabel={t.workspace.workspaceRetryButton}
+          onRetry={onRetryPendingMemoryFacts}
+        />
+      ) : (
+        !pendingMemoryFactsLoading &&
+        pendingMemoryFacts.length > 0 && (
+          <WorkspaceCard tone="primary">
+            <h3 className="mb-1 text-sm font-bold text-primary">{t.workspace.memoryProposalTitle}</h3>
+            <p className="mb-4 text-xs leading-relaxed text-neutral-400">{t.workspace.memoryProposalDesc}</p>
             <div className="space-y-2">
-              <textarea
-                value={decisionQuestion}
-                onChange={(e) => setDecisionQuestion(e.target.value)}
-                placeholder={t.workspace.decisionInputPlaceholder}
-                rows={3}
-                disabled={decisionLoading}
-                className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-neutral-500 outline-none transition-colors duration-150 focus:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/70 disabled:cursor-not-allowed disabled:opacity-60"
-              />
-              <button
-                onClick={handleProposeDecision}
-                disabled={decisionLoading || !decisionQuestion.trim()}
-                className="rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-              >
-                {decisionLoading ? t.workspace.decisionSubmitLoading : t.workspace.decisionSubmitButton}
-              </button>
-              {decisionError && <p className="text-sm text-red-400">{decisionError}</p>}
-              {decisionQuotaHit && (
-                <div className="rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
-                  <p className="text-sm font-bold text-primary">🐝 {t.workspace.decisionQuotaNudgeTitle}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-neutral-300">
-                    {tier === "pro" ? t.workspace.decisionQuotaNudgeDescPro : t.workspace.decisionQuotaNudgeDescPlatinum}
+              {pendingMemoryFacts.map((fact) => (
+                <div
+                  key={fact.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-3"
+                >
+                  <p className="text-sm text-neutral-200">
+                    <span className="font-semibold text-white">{fact.factKey.replace(/_/g, " ")}:</span>{" "}
+                    {String(fact.factValue)}
                   </p>
-                  {tier === "pro" && (
+                  <div className="flex gap-2">
                     <button
-                      onClick={onUpgradeClick}
-                      className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                      onClick={() => onReviewMemoryFact(fact.id, "approve")}
+                      disabled={reviewingFactId === fact.id}
+                      className="rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-black transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
                     >
-                      {t.workspace.chatQuotaNudgeButton}
+                      {t.workspace.memoryApproveButton}
                     </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {decisionResult && (
-              <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
-                <DecisionField label={t.workspace.decisionGoalLabel} value={decisionResult.goal} />
-                <DecisionField label={t.workspace.decisionRiskLabel} value={decisionResult.risk} />
-                <DecisionField label={t.workspace.decisionOpportunityLabel} value={decisionResult.opportunity} />
-                {decisionResult.supportingData && decisionResult.supportingData.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                      {t.workspace.decisionSupportingDataLabel}
-                    </p>
-                    <ul className="mt-1 list-disc space-y-1 pl-4 text-sm text-neutral-200">
-                      {decisionResult.supportingData.map((d, i) => (
-                        <li key={i}>{d}</li>
-                      ))}
-                    </ul>
+                    <button
+                      onClick={() => onReviewMemoryFact(fact.id, "reject")}
+                      disabled={reviewingFactId === fact.id}
+                      className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-neutral-300 transition-colors duration-150 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                    >
+                      {t.workspace.memoryRejectButton}
+                    </button>
                   </div>
-                )}
-                <DecisionField label={t.workspace.decisionRecommendationLabel} value={decisionResult.recommendation} />
-                <DecisionField label={t.workspace.decisionConclusionLabel} value={decisionResult.conclusion} />
-              </div>
-            )}
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                {t.workspace.decisionHistoryTitle}
-              </p>
-              {!decisionHistoryLoading && decisionHistory.length === 0 && (
-                <p className="text-xs text-neutral-500">{t.workspace.decisionHistoryEmpty}</p>
-              )}
-              {decisionHistory.length > 0 && (
-                <div className="space-y-2">
-                  {decisionHistory.map((d, i) => (
-                    <div key={d.id || i} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                      <p className="text-sm font-semibold text-white">{d.question}</p>
-                      {d.conclusion && <p className="mt-1 text-xs text-neutral-400">{d.conclusion}</p>}
-                    </div>
-                  ))}
                 </div>
-              )}
+              ))}
             </div>
-          </div>
-        )}
-      </WorkspaceCard>
+          </WorkspaceCard>
+        )
+      )}
     </WorkspaceSection>
   );
 }

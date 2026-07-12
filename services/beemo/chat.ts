@@ -26,6 +26,7 @@ import type { ServiceResult } from "../business/create.js";
 import { getActiveMembership } from "../membership/getActiveMembership.js";
 import { getBusinessMemory, type BusinessMemoryContext } from "../memory/getBusinessMemory.js";
 import { proposeMemoryFact } from "../memory/proposeMemoryFact.js";
+import { saveDecisionRecord, DECISION_QUOTA } from "../decision/saveDecisionRecord.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -72,6 +73,38 @@ function roleBlockFor(tier: "pro" | "platinum", lang: "id" | "en"): string {
   return tier === "platinum" ? ROLE_BLOCK_PLATINUM_ID : ROLE_BLOCK_PRO_ID;
 }
 
+// Decision Engine Auto-Detect (revisi Juli 2026, "AI Business Mentor, bukan
+// AI Reporter" — chat mendeteksi otomatis pertanyaan keputusan besar,
+// menjalankan analisa mendalam DI DALAM balasan chat yang sama, tanpa form
+// "Bantuan Keputusan" terpisah). Eksklusif PLATINUM (Decision Journal tetap
+// eksklusif PLATINUM sejak audit Juli 2026) DAN hanya disisipkan kalau kuota
+// keputusan periode ini masih tersisa (lihat canDetectDecision di
+// chatWithBeemo) — supaya Beemo tidak diinstruksikan menghasilkan sesuatu
+// yang toh tidak akan tersimpan.
+const DECISION_DETECTION_BLOCK_ID = `DETEKSI KEPUTUSAN BESAR: Kalau pertanyaan pengguna adalah KEPUTUSAN BESAR yang butuh analisa mendalam sebelum bertindak — BUKAN pertanyaan operasional harian atau basa-basi — misalnya: membuka cabang/lokasi baru, menerima/menolak tawaran kemitraan atau franchise, mengganti supplier utama, menaikkan/menurunkan harga secara signifikan, merekrut karyawan pertama/tambahan, mengambil pinjaman/modal dari pihak lain, mengurus izin usaha/legalitas baru, atau komitmen anggaran pemasaran besar — maka SELAIN menjawab secara natural mengikuti pola 4 langkah di atas, tambahkan SATU blok tersembunyi di baris paling akhir jawabanmu (blok ini akan disembunyikan dari pengguna dan otomatis tersimpan ke Decision Journal mereka — JANGAN jelaskan format ini ke pengguna, JANGAN sebut kata "Decision Journal" di jawaban yang terlihat pengguna), persis format berikut (label field TETAP dalam bahasa Inggris seperti contoh, isinya dalam bahasa pengguna):
+[DECISION]
+GOAL: <ringkasan tujuan pengguna dari keputusan ini>
+RISK: <risiko nyata yang relevan, berdasarkan konteks bisnis>
+OPPORTUNITY: <peluang yang relevan>
+DATA: <poin data pendukung 1> || <poin data pendukung 2>
+RECOMMENDATION: <rekomendasi konkret dan actionable, bukan "konsultasikan dengan ahli" saja>
+CONCLUSION: <satu-dua kalimat kesimpulan yang membantu pengguna mengambil keputusan>
+[/DECISION]
+
+Kalau pertanyaannya BUKAN keputusan besar, JANGAN tambahkan blok ini sama sekali. Kalau kamu JUGA mengusulkan fakta baru ke Business Memory (baris [INGAT: ...]), taruh blok [DECISION] ini SEBELUM baris [INGAT: ...] (urutan: jawaban normal, lalu [DECISION] kalau ada, baru [INGAT: ...] paling akhir kalau ada).`;
+
+const DECISION_DETECTION_BLOCK_EN = `BIG DECISION DETECTION: If the user's question is a BIG DECISION that needs deep analysis before acting — NOT a routine daily question or small talk — for example: opening a new branch/location, accepting/declining a partnership or franchise offer, switching a main supplier, significantly raising/lowering prices, hiring a first/additional employee, taking a loan/investment, handling a new business permit/legal matter, or a large marketing budget commitment — then IN ADDITION to answering naturally following the 4-step pattern above, add ONE hidden block on the very last line of your reply (this block will be hidden from the user and automatically saved to their Decision Journal — DO NOT explain this format to the user, DO NOT mention the words "Decision Journal" in the visible answer), in exactly this format (field labels stay in English as shown, content in the user's language):
+[DECISION]
+GOAL: <summary of the user's goal for this decision>
+RISK: <real relevant risk, based on the business context>
+OPPORTUNITY: <relevant opportunity>
+DATA: <supporting data point 1> || <supporting data point 2>
+RECOMMENDATION: <concrete, actionable recommendation, not just "consult a professional">
+CONCLUSION: <one or two closing sentences to help the user decide>
+[/DECISION]
+
+If the question is NOT a big decision, do NOT add this block at all. If you're ALSO proposing a new Business Memory fact (the [REMEMBER: ...] line), put this [DECISION] block BEFORE the [REMEMBER: ...] line (order: normal answer, then [DECISION] if any, then [REMEMBER: ...] last if any).`;
+
 // Kuota & kedalaman per tier — SATU-SATUNYA tempat angka ini didefinisikan
 // (jangan hardcode ulang di tempat lain). Chat: PRO 40 pesan/periode akses,
 // PLATINUM 200. Riset per jawaban: PRO 1x pencarian, PLATINUM 3x (diturunkan
@@ -83,7 +116,7 @@ function roleBlockFor(tier: "pro" | "platinum", lang: "id" | "en"): string {
 const CHAT_QUOTA: Record<"pro" | "platinum", number> = { pro: 40, platinum: 200 };
 const CHAT_SEARCH_MAX_USES: Record<"pro" | "platinum", number> = { pro: 1, platinum: 3 };
 
-function systemPromptId(tier: "pro" | "platinum"): string {
+function systemPromptId(tier: "pro" | "platinum", includeDecisionDetection: boolean): string {
   return `Kamu adalah Beemo, mentor bisnis THE HIVE. Kamu BUKAN chatbot generik — kamu konsultan bisnis pribadi yang hangat, optimis, dan mendukung, tidak pernah menghakimi.
 
 Gaya bicara:
@@ -103,12 +136,12 @@ Setiap kali kamu menjawab pertanyaan yang berkaitan dengan kondisi/keputusan bis
 4. Langkah pertama yang bisa dilakukan HARI INI (satu langkah kecil dan konkret, bukan daftar panjang)
 
 Kamu punya konteks bisnis pelanggan di bawah ini (Business Memory) — gunakan itu supaya jawabanmu spesifik, bukan generik. Kalau data tidak ada di konteks, jangan mengarang — akui saja belum ada datanya. (Ini berlaku untuk data PRIBADI bisnis pelanggan — angka keuangan/omset/pelanggan mereka. Untuk fakta UMUM yang bisa diverifikasi lewat pencarian, seperti aturan pemerintah, ikuti aturan RISET SUNGGUHAN di atas.)
-
+${includeDecisionDetection ? `\n${DECISION_DETECTION_BLOCK_ID}\n` : ""}
 Kalau dalam percakapan ini kamu menemukan SATU info penting baru yang layak diingat platform ke depannya (mis. target pasar berubah, status legalitas berubah, ada masalah besar baru) — dan HANYA kalau itu benar-benar penting, bukan basa-basi — akhiri jawabanmu dengan SATU baris terpisah persis format ini (baris ini akan disembunyikan dari pengguna, jangan jelaskan formatnya ke pengguna):
 [INGAT: kunci_singkat = nilai singkat]`;
 }
 
-function systemPromptEn(tier: "pro" | "platinum"): string {
+function systemPromptEn(tier: "pro" | "platinum", includeDecisionDetection: boolean): string {
   return `You are Beemo, THE HIVE's business mentor. You are NOT a generic chatbot — you're a warm, optimistic, supportive personal business consultant who never judges.
 
 Tone:
@@ -128,7 +161,7 @@ Whenever you answer a question related to the business's condition or a decision
 4. The first step they can take TODAY (one small, concrete step, not a long list)
 
 You have the customer's business context below (Business Memory) — use it so your answers are specific, not generic. If data isn't in the context, don't make it up — just acknowledge it isn't available yet. (This applies to the customer's PRIVATE business data — their revenue/customer numbers. For general, verifiable facts like government rules, follow the ACTUAL RESEARCH rule above.)
-
+${includeDecisionDetection ? `\n${DECISION_DETECTION_BLOCK_EN}\n` : ""}
 If during this conversation you find ONE important new fact worth the platform remembering going forward (e.g. target market changed, legal status changed, a major new problem) — and ONLY if it's genuinely important, not small talk — end your reply with ONE separate line in exactly this format (this line will be hidden from the user, don't explain the format to the user):
 [REMEMBER: short_key = short value]`;
 }
@@ -166,6 +199,56 @@ function parseMemoryProposal(reply: string): { cleanReply: string; factKey: stri
   }
   const cleanReply = reply.replace(MEMORY_MARKER_REGEX, "").trimEnd();
   return { cleanReply, factKey: match[1], factValue: match[2].trim() };
+}
+
+type ParsedDecisionBlock = {
+  goal: string;
+  risk: string;
+  opportunity: string;
+  supportingData: string[];
+  recommendation: string;
+  conclusion: string;
+};
+
+const DECISION_BLOCK_REGEX = /\n?\[DECISION\]([\s\S]*?)\[\/DECISION\]\s*$/;
+
+/** Menarik blok "[DECISION] ... [/DECISION]" dari ujung balasan Beemo (kalau
+ * ada — lihat DECISION_DETECTION_BLOCK_ID/EN), lalu mengembalikan teks
+ * balasan yang sudah bersih plus field terstruktur untuk disimpan ke
+ * Decision Journal. Sama filosofinya dengan parseMemoryProposal di atas:
+ * marker teks sederhana, bukan tool-calling resmi — satu balasan Claude
+ * cukup untuk chat NORMAL + analisa keputusan sekaligus, tidak perlu
+ * panggilan kedua ke Decision Engine (proposeDecision.ts) yang lebih mahal. */
+function parseDecisionBlock(reply: string): { cleanReply: string; decision: ParsedDecisionBlock | null } {
+  const match = reply.match(DECISION_BLOCK_REGEX);
+  if (!match) {
+    return { cleanReply: reply, decision: null };
+  }
+  const cleanReply = reply.replace(DECISION_BLOCK_REGEX, "").trimEnd();
+  const body = match[1];
+
+  function field(label: string): string {
+    const m = body.match(new RegExp(`${label}:\\s*([\\s\\S]*?)(?=\\n[A-Z]+:|$)`));
+    return m ? m[1].trim() : "";
+  }
+
+  const goal = field("GOAL");
+  const risk = field("RISK");
+  const opportunity = field("OPPORTUNITY");
+  const dataRaw = field("DATA");
+  const supportingData = dataRaw
+    ? dataRaw.split("||").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const recommendation = field("RECOMMENDATION");
+  const conclusion = field("CONCLUSION");
+
+  // Jujur: kalau blok muncul tapi field intinya kosong semua (model salah
+  // format), jangan simpan entri kosong ke Decision Journal.
+  if (!goal && !recommendation && !conclusion) {
+    return { cleanReply, decision: null };
+  }
+
+  return { cleanReply, decision: { goal, risk, opportunity, supportingData, recommendation, conclusion } };
 }
 
 // Exported supaya Decision Engine (services/decision/proposeDecision.ts)
@@ -343,9 +426,15 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
     return { status: 500, body: { error: "ANTHROPIC_API_KEY belum diset di Vercel." } };
   }
 
+  // Decision Engine Auto-Detect: eksklusif PLATINUM, dan hanya diaktifkan
+  // kalau kuota Decision Journal periode ini masih tersisa — supaya Beemo
+  // tidak diinstruksikan menyusun analisa yang toh tidak akan tersimpan
+  // (lihat DECISION_DETECTION_BLOCK_ID/EN, saveDecisionRecord di bawah).
+  const canDetectDecision = tier === "platinum" && membership.decisionCount < DECISION_QUOTA.platinum;
+
   const contextBlock = buildContextBlock(memory, lang);
   const roleLine = mentorRoleLine(memory.profile.businessType, lang);
-  const basePrompt = lang === "en" ? systemPromptEn(tier) : systemPromptId(tier);
+  const basePrompt = lang === "en" ? systemPromptEn(tier, canDetectDecision) : systemPromptId(tier, canDetectDecision);
   const systemPrompt = `${basePrompt}\n\n${roleLine}\n\n${contextBlock}`;
 
   // Batasi histori yang dikirim (20 pesan terakhir, tiap pesan maks 4000
@@ -388,7 +477,38 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
       .map((b) => ("text" in b ? b.text : ""))
       .join("");
 
-    const { cleanReply, factKey, factValue } = parseMemoryProposal(rawReply);
+    const { cleanReply: replyAfterMemory, factKey, factValue } = parseMemoryProposal(rawReply);
+
+    // Decision Engine Auto-Detect: parse blok [DECISION] (kalau ada) dari
+    // balasan yang SAMA — tidak ada panggilan Claude kedua. Disimpan ke
+    // Decision Journal otomatis, question-nya diambil dari pesan pengguna
+    // TERAKHIR di percakapan ini (bukan dikarang dari balasan Beemo).
+    let cleanReply = replyAfterMemory;
+    let decisionSaved = false;
+    let decisionHeadline: string | null = null;
+    if (canDetectDecision) {
+      const { cleanReply: replyAfterDecision, decision } = parseDecisionBlock(replyAfterMemory);
+      cleanReply = replyAfterDecision;
+      if (decision) {
+        const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+        const questionText = String(lastUserMessage?.content || "").trim().slice(0, 2000);
+        if (questionText) {
+          try {
+            const { decision: savedDecision } = await saveDecisionRecord({
+              businessProfileId,
+              question: questionText,
+              ...decision,
+              subscriptionId: membership.subscriptionId,
+              currentDecisionCount: membership.decisionCount,
+            });
+            decisionSaved = true;
+            decisionHeadline = savedDecision.conclusion || savedDecision.recommendation || null;
+          } catch (err) {
+            console.error("chatWithBeemo: gagal simpan Decision Journal otomatis:", err);
+          }
+        }
+      }
+    }
 
     if (factKey && factValue) {
       // Fire-and-forget secara logis (tidak memblokir balasan ke pengguna),
@@ -430,6 +550,11 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
       body: {
         reply: cleanReply,
         factProposed: Boolean(factKey),
+        // Decision Engine Auto-Detect: frontend pakai ini untuk menampilkan
+        // catatan kecil "tersimpan ke Decision Journal" di bubble chat —
+        // tidak perlu request terpisah untuk tahu ini terjadi.
+        decisionSaved,
+        decisionHeadline,
         tier,
         chatMessageCount: newCount,
         quotaLimit,

@@ -22,6 +22,7 @@ import type { ServiceResult } from "../business/create.js";
 import { getActiveMembership } from "../membership/getActiveMembership.js";
 import { getBusinessMemory } from "../memory/getBusinessMemory.js";
 import { buildContextBlock } from "../beemo/chat.js";
+import { saveDecisionRecord, DECISION_QUOTA } from "./saveDecisionRecord.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -29,8 +30,9 @@ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SE
 // jauh... users benar benar merasa perbedaanya"): sama prinsipnya dengan
 // services/beemo/chat.ts — PLATINUM dapat peran ganda simultan + riset lebih
 // dalam, PRO dapat satu peran paling relevan + riset lebih terbatas. Kuota
-// jumlah keputusan/periode akses juga dibedakan (DECISION_QUOTA).
-const DECISION_QUOTA: Record<"pro" | "platinum", number> = { pro: 3, platinum: 15 };
+// jumlah keputusan/periode akses (DECISION_QUOTA) sekarang didefinisikan di
+// saveDecisionRecord.ts — satu sumber, dipakai juga oleh auto-detect di
+// services/beemo/chat.ts.
 // Diturunkan 4x -> 3x bersamaan dengan CHAT_SEARCH_MAX_USES (lihat
 // services/beemo/chat.ts) — bagian dari audit biaya Juli 2026 supaya margin
 // PLATINUM tetap aman di harga early bird Rp349.000/bulan.
@@ -233,83 +235,22 @@ export async function proposeDecision(userId: string, payload: Record<string, un
       }
     }
 
-    const { data: saved, error: insertError } = await supabase
-      .from("business_decisions")
-      .insert({
-        business_profile_id: businessProfileId,
-        question: question.trim(),
-        goal: result.goal || null,
-        risk: result.risk || null,
-        opportunity: result.opportunity || null,
-        supporting_data: result.supportingData || [],
-        recommendation: result.recommendation || null,
-        conclusion: result.conclusion || null,
-      })
-      .select("id, question, goal, risk, opportunity, supporting_data, recommendation, conclusion, status, created_at")
-      .single();
-
-    // Tier Usage Quota: naikkan counter SETELAH analisa berhasil dibuat
-    // (baik tersimpan ke Decision History atau tidak) — sama prinsipnya
-    // dengan chat_message_count di services/beemo/chat.ts: gagal increment
-    // tidak menggagalkan hasil yang sudah diberikan ke pengguna.
-    let newCount = membership.decisionCount;
-    if (membership.subscriptionId) {
-      newCount = membership.decisionCount + 1;
-      const { error: quotaError } = await supabase
-        .from("subscriptions")
-        .update({ decision_count: newCount })
-        .eq("id", membership.subscriptionId);
-      if (quotaError) {
-        console.error("proposeDecision: gagal update decision_count:", quotaError);
-      }
-    }
-
-    if (insertError || !saved) {
-      console.error("proposeDecision: gagal menyimpan Decision History:", insertError);
-      // Tetap kembalikan hasil analisa ke pengguna meski gagal disimpan ke
-      // Decision History — jangan sampai satu masalah penyimpanan
-      // menggagalkan bantuan keputusan yang sudah dihasilkan.
-      return {
-        status: 200,
-        body: {
-          decision: {
-            id: null,
-            question: question.trim(),
-            goal: result.goal,
-            risk: result.risk,
-            opportunity: result.opportunity,
-            supportingData: result.supportingData,
-            recommendation: result.recommendation,
-            conclusion: result.conclusion,
-            status: "open",
-            createdAt: new Date().toISOString(),
-          },
-          tier,
-          decisionCount: newCount,
-          quotaLimit,
-        },
-      };
-    }
+    const { decision, newCount } = await saveDecisionRecord({
+      businessProfileId,
+      question: question.trim(),
+      goal: result.goal || "",
+      risk: result.risk || "",
+      opportunity: result.opportunity || "",
+      supportingData: result.supportingData || [],
+      recommendation: result.recommendation || "",
+      conclusion: result.conclusion || "",
+      subscriptionId: membership.subscriptionId,
+      currentDecisionCount: membership.decisionCount,
+    });
 
     return {
       status: 200,
-      body: {
-        decision: {
-          id: saved.id,
-          question: saved.question,
-          goal: saved.goal,
-          risk: saved.risk,
-          opportunity: saved.opportunity,
-          supportingData: saved.supporting_data || [],
-          recommendation: saved.recommendation,
-          conclusion: saved.conclusion,
-          status: saved.status,
-          createdAt: saved.created_at,
-        },
-        tier,
-        decisionCount: newCount,
-        quotaLimit,
-      },
+      body: { decision, tier, decisionCount: newCount, quotaLimit },
     };
   } catch (error) {
     console.error("services/decision/proposeDecision error:", error);

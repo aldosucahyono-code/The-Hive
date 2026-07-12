@@ -589,12 +589,6 @@ function DecisionJournalList({
   error,
   onRetry,
   onUpgradeClick,
-  question,
-  onQuestionChange,
-  onSubmit,
-  submitting,
-  submitError,
-  quotaHit,
 }: {
   tier: Tier;
   t: Translations;
@@ -604,12 +598,6 @@ function DecisionJournalList({
   error: boolean;
   onRetry: () => void;
   onUpgradeClick: () => void;
-  question: string;
-  onQuestionChange: (value: string) => void;
-  onSubmit: () => void;
-  submitting: boolean;
-  submitError: string | null;
-  quotaHit: boolean;
 }) {
   if (tier !== "platinum") {
     return (
@@ -639,35 +627,11 @@ function DecisionJournalList({
     <WorkspaceSection>
       <SectionHeader title={t.workspace.menuDecisionJournal} description={t.workspace.decisionJournalSectionDesc} />
 
-      {/* Ajukan keputusan baru — input bebas, langsung memanggil Decision
-          Engine (bukan cuma arsip pasif). Reuse kunci i18n decisionXxx yang
-          sudah ada sejak Decision Engine MVP (belum pernah dipasang ke UI
-          manapun sebelum ini — bukan bikin set kunci kedua). */}
-      <WorkspaceCard>
-        <h3 className="mb-1 text-sm font-bold text-neutral-200">{t.workspace.decisionSectionTitle}</h3>
-        <p className="mb-3 text-xs text-neutral-500">{t.workspace.decisionSectionDesc}</p>
-        <textarea
-          value={question}
-          onChange={(e) => onQuestionChange(e.target.value)}
-          placeholder={t.workspace.decisionInputPlaceholder}
-          rows={3}
-          disabled={submitting}
-          className="w-full resize-none rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-neutral-100 outline-none focus:border-primary disabled:opacity-60"
-        />
-        {submitError && <p className="mt-2 text-sm text-red-400">{submitError}</p>}
-        <div className="mt-3">
-          <RetryButton
-            label={submitting ? t.workspace.decisionSubmitLoading : t.workspace.decisionSubmitButton}
-            onRetry={onSubmit}
-          />
-        </div>
-        {quotaHit && (
-          <div className="mt-3 rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
-            <p className="text-sm font-bold text-primary">🐝 {t.workspace.decisionQuotaNudgeTitle}</p>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-300">{t.workspace.decisionQuotaNudgeDescPlatinum}</p>
-          </div>
-        )}
-      </WorkspaceCard>
+      {/* Revisi Juli 2026: form "Ajukan keputusan baru" dihapus — Decision
+          Journal sekarang MURNI riwayat. Keputusan besar terdeteksi otomatis
+          di Chat Beemo (lihat services/beemo/chat.ts parseDecisionBlock) dan
+          tersimpan ke sini tanpa form terpisah, supaya tidak terasa seperti
+          "2 chat/2 tempat". */}
 
       {error && !loading ? (
         <ErrorCard
@@ -3824,19 +3788,13 @@ function Workspace() {
   const [updateHistory, setUpdateHistory] = useState<Array<Record<string, unknown>>>([]);
   const [showUpdateHistory, setShowUpdateHistory] = useState(false);
   const [updateHistoryLoading, setUpdateHistoryLoading] = useState(false);
-  // Decision Journal (halaman nyata, bukan lagi placeholder — directive PO
-  // "penyelarasan visi funnel": pendukung keputusan harus benar-benar hidup).
+  // Decision Journal — murni riwayat sejak revisi Juli 2026 (form "Ajukan
+  // keputusan baru" dihapus, keputusan besar terdeteksi otomatis di Chat
+  // Beemo — lihat DecisionJournalList & ChatBeemoPanel.tsx).
   const [decisions, setDecisions] = useState<Array<Record<string, unknown>>>([]);
   const [decisionsLoading, setDecisionsLoading] = useState(false);
   const [decisionsError, setDecisionsError] = useState(false);
   const [decisionsLoaded, setDecisionsLoaded] = useState(false);
-  const [decisionQuestion, setDecisionQuestion] = useState("");
-  const [decisionSubmitting, setDecisionSubmitting] = useState(false);
-  const [decisionSubmitError, setDecisionSubmitError] = useState<string | null>(null);
-  // Nudge Upgrade (lihat catatan sama di ChatBeemoPanel.tsx) — halaman
-  // Decision Journal sungguhan (menu terpisah dari mini-form di dalam Chat
-  // Beemo panel) juga perlu nudge yang sama saat kuota Pro habis.
-  const [decisionQuotaHit, setDecisionQuotaHit] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   // Final Reports (Task 13 — "riwayat diganti final reports"): dua PDF
@@ -4466,41 +4424,6 @@ function Workspace() {
       setDecisionsError(true);
     }
     setDecisionsLoading(false);
-  }
-
-  async function handleProposeDecision() {
-    if (!activeBusinessId || !session?.access_token || !decisionQuestion.trim()) return;
-    setDecisionSubmitting(true);
-    setDecisionSubmitError(null);
-    setDecisionQuotaHit(false);
-    try {
-      const response = await fetch("/api/workspace", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({
-          action: "proposeDecision",
-          businessProfileId: activeBusinessId,
-          question: decisionQuestion.trim(),
-          lang,
-        }),
-      });
-      const json = await response.json();
-      if (response.ok) {
-        setDecisionQuestion("");
-        // Refetch daripada menormalkan bentuk respons proposeDecision
-        // (snake_case) vs listDecisions (camelCase) secara manual — satu
-        // sumber bentuk data, konsisten dengan pola submitUpdate.
-        await loadDecisions();
-      } else if (json.quotaExceeded) {
-        setDecisionQuotaHit(true);
-      } else {
-        setDecisionSubmitError(json.error || t.workspace.decisionErrorGeneric);
-      }
-    } catch (err) {
-      console.error("proposeDecision error:", err);
-      setDecisionSubmitError(t.workspace.decisionErrorGeneric);
-    }
-    setDecisionSubmitting(false);
   }
 
   async function toggleUpdateHistory() {
@@ -5424,12 +5347,6 @@ function Workspace() {
               error={decisionsError}
               onRetry={loadDecisions}
               onUpgradeClick={openUpgradeModal}
-              question={decisionQuestion}
-              onQuestionChange={setDecisionQuestion}
-              onSubmit={handleProposeDecision}
-              submitting={decisionSubmitting}
-              submitError={decisionSubmitError}
-              quotaHit={decisionQuotaHit}
             />
           ) : (
             <EmptyState
