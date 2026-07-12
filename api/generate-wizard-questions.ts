@@ -23,6 +23,7 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import Anthropic from "@anthropic-ai/sdk";
+import { checkRateLimit, getClientIp, RATE_LIMIT_MESSAGE_ID, RATE_LIMIT_MESSAGE_EN } from "../services/rateLimit/checkRateLimit.js";
 
 type Payload = {
   jenisAnalisis: "baru" | "berjalan";
@@ -101,12 +102,23 @@ RULES:
 async function handleValidateAnswer(
   payload: ValidateAnswerPayload,
   apiKey: string,
-  res: VercelResponse
+  res: VercelResponse,
+  ip: string
 ) {
   const activeLang: "id" | "en" = payload.lang === "en" ? "en" : "id";
   if (!payload.questionText || !payload.answer || !payload.fieldKind) {
     // Data tidak lengkap — fail-open, jangan menghalangi wizard gara-gara
     // request yang salah bentuk dari frontend.
+    return res.status(200).json({ valid: true });
+  }
+
+  // Audit red-team Juli 2026: mode ini dipanggil per-field (bisa 8-10x per
+  // sesi wizard yang wajar), jadi limitnya lebih longgar dari mode generate
+  // pertanyaan di bawah — tapi tetap fail-open ke "valid: true" (bukan 429)
+  // supaya pengguna sah yang kebetulan mengisi wizard sangat cepat tidak
+  // pernah terblokir menyelesaikan wizard-nya sendiri.
+  const rl = await checkRateLimit(`generate-wizard-questions:validate:${ip}`, 40, 3600);
+  if (!rl.allowed) {
     return res.status(200).json({ valid: true });
   }
 
@@ -257,12 +269,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "ANTHROPIC_API_KEY belum diset di Vercel." });
   }
 
+  const ip = getClientIp(req);
+
   if ((req.body as { mode?: string })?.mode === "validateAnswer") {
-    return handleValidateAnswer(req.body as ValidateAnswerPayload, apiKey, res);
+    return handleValidateAnswer(req.body as ValidateAnswerPayload, apiKey, res, ip);
   }
 
   const { jenisAnalisis, namaBisnis, jenisBisnis, lang } = req.body as Payload;
   const activeLang: "id" | "en" = lang === "en" ? "en" : "id";
+
+  // Audit red-team Juli 2026: mode ini (generate 2 pertanyaan + web search
+  // tool) hanya wajar dipanggil sekali per sesi wizard — 10x/jam per IP
+  // cukup untuk beberapa kali percobaan/reload tanpa membuka pintu abuse.
+  const rl = await checkRateLimit(`generate-wizard-questions:generate:${ip}`, 10, 3600);
+  if (!rl.allowed) {
+    return res.status(429).json({ error: activeLang === "en" ? RATE_LIMIT_MESSAGE_EN : RATE_LIMIT_MESSAGE_ID });
+  }
 
   if (!namaBisnis || !jenisBisnis || (jenisAnalisis !== "baru" && jenisAnalisis !== "berjalan")) {
     return res.status(400).json({ error: "Data tidak lengkap." });

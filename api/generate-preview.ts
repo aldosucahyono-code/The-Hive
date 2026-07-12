@@ -13,6 +13,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import Anthropic from "@anthropic-ai/sdk";
 import { sendFreeSummaryEmail } from "../services/email/sendFreeSummaryEmail.js";
+import { checkRateLimit, getClientIp, RATE_LIMIT_MESSAGE_ID, RATE_LIMIT_MESSAGE_EN } from "../services/rateLimit/checkRateLimit.js";
 
 type WizardPayload = {
   jenisAnalisis: "baru" | "berjalan" | "";
@@ -191,6 +192,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { wizardData, lang } = req.body as { wizardData: WizardPayload; lang?: "id" | "en" };
   const activeLang: "id" | "en" = lang === "en" ? "en" : "id";
+
+  // Audit red-team Juli 2026: endpoint paling mahal di antara ketiga endpoint
+  // anonim (max_tokens 3000 + email) — pengguna sah hanya perlu memanggil
+  // ini sekali (mungkin dua kali kalau retry), jadi 5x/jam per IP aman untuk
+  // pengalaman normal tapi menutup abuse-cost dari spam otomatis.
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(`generate-preview:${ip}`, 5, 3600);
+  if (!rl.allowed) {
+    return res.status(429).json({ error: activeLang === "en" ? RATE_LIMIT_MESSAGE_EN : RATE_LIMIT_MESSAGE_ID });
+  }
 
   if (!wizardData?.namaBisnis || !wizardData?.tantangan || !wizardData?.target) {
     return res.status(400).json({ error: "Data tidak lengkap." });

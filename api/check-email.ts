@@ -19,6 +19,7 @@
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
+import { checkRateLimit, getClientIp } from "../services/rateLimit/checkRateLimit.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -28,6 +29,17 @@ const supabase = createClient(
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Audit red-team Juli 2026: endpoint ini bisa dipakai enumerasi email
+  // (lihat catatan di atas — jawabannya sendiri sengaja tidak jadi kunci
+  // akses apapun, tapi tetap bisa disalahgunakan untuk cek massal email
+  // mana yang sudah terdaftar). 20x/10 menit per IP cukup longgar untuk
+  // pengunjung sah (dipanggil sekali tiap kali mengetik email di wizard).
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(`check-email:${ip}`, 20, 600);
+  if (!rl.allowed) {
+    return res.status(200).json({ exists: false });
   }
 
   try {
