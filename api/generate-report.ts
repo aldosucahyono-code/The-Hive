@@ -19,6 +19,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { buildSystemPrompt } from "../report-engine/reportPrompt.js";
 import { renderReportPdf } from "../report-engine/renderPdf.js";
 import type { ReportData, Tier } from "../report-engine/types.js";
+import { checkRateLimit, getClientIp, RATE_LIMIT_MESSAGE_ID, RATE_LIMIT_MESSAGE_EN } from "../services/rateLimit/checkRateLimit.js";
 
 type WizardPayload = {
   jenisAnalisis: "baru" | "berjalan" | "";
@@ -133,6 +134,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const activeLang: "id" | "en" = lang === "en" ? "en" : "id";
   if (!wizardData?.namaBisnis || !tier || (tier !== "pro" && tier !== "platinum")) {
     return res.status(400).json({ error: "Data tidak lengkap atau tier tidak valid." });
+  }
+
+  // Audit red-team Juli 2026 (CATATAN PENTING): endpoint ini TIDAK dipanggil
+  // dari frontend manapun (sudah digantikan alur wizard -> generate-preview
+  // -> promoteDraft -> generateFinalReport.ts yang benar-benar cek
+  // pembayaran/membership) — kemungkinan besar kode mati yang masih
+  // ter-deploy live sebagai Vercel Function, TANPA cek login maupun
+  // pembayaran, dan `tier` di sini 100% dikontrol pemanggil. Artinya siapa
+  // pun yang menemukan endpoint ini bisa mendapat PDF paket Platinum LENGKAP
+  // secara gratis, sekaligus membebani biaya Claude (sampai 8000 token +
+  // 8x web search) dan Playwright per panggilan — tanpa batas. Rate limit
+  // di bawah ini HANYA tindakan darurat sementara, BUKAN solusi akhir;
+  // keputusan yang tepat (hapus endpoint ini sepenuhnya, atau kalau memang
+  // masih dipakai, pasang cek login+pembayaran yang sama seperti
+  // generateFinalReport.ts) perlu dikonfirmasi dulu, bukan diputuskan
+  // sepihak di sini.
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(`generate-report:${ip}`, 3, 3600);
+  if (!rl.allowed) {
+    return res.status(429).json({ error: activeLang === "en" ? RATE_LIMIT_MESSAGE_EN : RATE_LIMIT_MESSAGE_ID });
   }
 
   try {
