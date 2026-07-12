@@ -85,8 +85,15 @@ export async function renderReportPdf(data: ReportData): Promise<Buffer> {
     const accent = data.tier === "platinum" ? PLAT_GOLD : PRO_GREEN;
     const hexFill = data.tier === "platinum" ? PLAT_GOLD : PRO_GREEN_LIGHT;
 
+    // Audit Juli 2026 (red team): javaScriptEnabled: false pada KEDUA page
+    // di bawah ini — laporan tidak pernah butuh JS (semua chart dirender
+    // sebagai SVG statis, lihat svgCharts.ts), jadi ini bukan mengorbankan
+    // fitur apapun. Ini lapis pertahanan terhadap kemungkinan output AI
+    // (page.extraHtml, lihat pageRenderer.ts) yang lolos dari
+    // sanitizeExtraHtml() tetap tidak bisa mengeksekusi <script> saat
+    // Playwright merender HTML jadi PDF di server kita.
     // 1. Render content pages (everything except the cover).
-    const contentPage = await browser.newPage();
+    const contentPage = await browser.newPage({ javaScriptEnabled: false });
     await contentPage.setContent(renderContentHtml(data), { waitUntil: "networkidle" });
     const contentPdf = await contentPage.pdf({
       format: "A4",
@@ -105,7 +112,7 @@ export async function renderReportPdf(data: ReportData): Promise<Buffer> {
 
     // 2. Render the cover now that the real page count is known — a
     // single extra render, not a full-document rebuild.
-    const coverPage = await browser.newPage();
+    const coverPage = await browser.newPage({ javaScriptEnabled: false });
     await coverPage.setContent(renderCoverHtml(data, totalPages, readingTimeMin), {
       waitUntil: "networkidle",
     });

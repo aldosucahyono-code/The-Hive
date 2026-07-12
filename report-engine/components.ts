@@ -6,8 +6,34 @@
 import { Kpi, Decision, SwotSpec } from "./types.js";
 import { DECISION_COLORS, GOLD, GREEN, RED, INK, GREY, MIST, LINE, HONEY_DEEP } from "./theme.js";
 
-const esc = (s: string) =>
+export const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// Audit Juli 2026 (red team): `extraHtml` (IntelligencePage.extraHtml) is a
+// deliberate escape hatch — the ONLY field in this whole engine where we
+// print AI-generated markup directly into the PDF instead of escaping text
+// into it (see reportPrompt.ts: dipakai untuk tabel "Data Completeness").
+// That means a crafted business text (product description, business update,
+// decision journal question — all user free-text that feeds the report
+// prompt as context) could in principle coerce the model into emitting
+// something other than a plain table: a <script>, an <img src="https://...">
+// beacon, an <a href="javascript:...">, etc. Even with Playwright JS
+// disabled for this render (see renderPdf.ts), an <img>/<link> tag still
+// triggers a real outbound network request purely from the rendering
+// engine — a live SSRF/data-exfil vector from OUR server, not just a
+// cosmetic bug. So this field gets a strict denylist sanitizer instead of
+// trusting the model to only ever emit the `<table>...</table>` it was
+// asked for.
+const DANGEROUS_TAGS = /<\/?(script|iframe|object|embed|link|meta|style|img|svg|form|input|button|textarea|select|video|audio|source|base|frame|frameset|applet|embed)\b[^>]*>/gi;
+const EVENT_HANDLER_ATTR = /\s+on[a-z]+\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi;
+const DANGEROUS_URI_ATTR = /\s+(href|src)\s*=\s*(["'])\s*(javascript:|data:text\/html)[^"']*\2/gi;
+
+export function sanitizeExtraHtml(html: string): string {
+  return html
+    .replace(DANGEROUS_TAGS, "")
+    .replace(EVENT_HANDLER_ATTR, "")
+    .replace(DANGEROUS_URI_ATTR, "");
+}
 
 /**
  * One shared font size for every KPI card in a row, sized to the single
