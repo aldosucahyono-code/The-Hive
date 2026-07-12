@@ -140,9 +140,47 @@ export async function runCompetitorEngine(
     return { error: "Lokasi atau industri bisnis belum lengkap untuk analisis kompetitor." };
   }
 
-  const ownScore = (rows[0]?.ai_output as Record<string, unknown> | undefined)?.businessHealthScore as
-    | number
-    | undefined;
+  // Audit Juli 2026 (bug ditemukan lewat QA: "makin lama user Platinum
+  // pakai THE HIVE, makin salah klaim posisi pasarnya") — SEBELUMNYA
+  // ownScore diambil dari rows[0]?.ai_output.businessHealthScore, yaitu
+  // baris `analyses` PALING BARU. Tapi `analyses` cuma pernah ditulis SEKALI
+  // (saat bisnis pertama kali dibuat lewat promoteDraft.ts) — tidak pernah
+  // ada baris baru lagi setelahnya, jadi angka itu BEKU selamanya di hari
+  // pertama walau Business Health Score asli (business_health, dihitung
+  // ulang tiap ada Business Update/checklist baru — lihat recalculateHealth.ts)
+  // terus berubah. Sekarang ownScore diambil dari sumber yang SAMA dengan
+  // yang ditampilkan di halaman Business Score (live), query sama persis
+  // dengan services/memory/getBusinessMemory.ts supaya tidak ada definisi
+  // kedua. Fallback ke skor analisa awal HANYA kalau business_health belum
+  // punya baris sama sekali (bisnis baru, belum pernah update apapun) —
+  // itu bukan "beku", itu memang satu-satunya angka yang ada saat ini.
+  const HEALTH_DIMENSIONS = ["marketing", "sales", "operations", "finance", "customer", "brand"] as const;
+  const { data: healthRows } = await supabase
+    .from("business_health")
+    .select("dimension, score, evaluated_at")
+    .eq("business_profile_id", businessProfileId)
+    .order("evaluated_at", { ascending: false });
+
+  let ownScore: number | undefined;
+  if (healthRows && healthRows.length > 0) {
+    const latestByDimension: Record<string, number> = {};
+    const seenDimensions = new Set<string>();
+    for (const row of healthRows) {
+      if (!seenDimensions.has(row.dimension)) {
+        latestByDimension[row.dimension] = row.score;
+        seenDimensions.add(row.dimension);
+      }
+    }
+    const scores = HEALTH_DIMENSIONS.map((d) => latestByDimension[d]).filter((s) => typeof s === "number");
+    if (scores.length > 0) {
+      ownScore = Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length);
+    }
+  }
+  if (ownScore == null) {
+    ownScore = (rows[0]?.ai_output as Record<string, unknown> | undefined)?.businessHealthScore as
+      | number
+      | undefined;
+  }
 
   const providerResult = await fetchCompetitorsWithFallback({
     industry: business.industry,
