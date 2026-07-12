@@ -55,11 +55,15 @@ diberikan — BUKAN menilai kualitas, kelengkapan, atau kebenaran isi jawaban.
 
 ATURAN:
 1. Kalau fieldKind = "lokasi": jawaban harus berupa alamat/lokasi. Kalau
-   jawaban menyebut kota DAN provinsi, keduanya harus benar-benar selaras
-   secara geografi nyata di Indonesia (contoh: "Surabaya, Jawa Timur" valid;
-   "Surabaya, Jawa Barat" TIDAK valid karena Surabaya berada di Jawa Timur,
-   bukan Jawa Barat). Kalau hanya kota/kabupaten saja (tanpa provinsi) dan
-   nama itu memang tempat nyata di Indonesia, tetap valid.
+   jawaban menyebut kota/kabupaten/wilayah DAN provinsi, keduanya harus
+   benar-benar selaras secara geografi nyata di Indonesia (contoh:
+   "Surabaya, Jawa Timur" valid; "Surabaya, Jawa Barat" TIDAK valid karena
+   Surabaya berada di Jawa Timur, bukan Jawa Barat; "Papua, Jawa Timur"
+   TIDAK valid karena Papua adalah provinsi/pulau sendiri, sama sekali
+   bukan bagian dari Jawa Timur — ini kesalahan yang WAJIB ditangkap,
+   bukan cuma kesalahan provinsi tetangga). Kalau hanya kota/kabupaten/
+   provinsi saja (tanpa kombinasi dua tingkat wilayah) dan nama itu memang
+   tempat nyata di Indonesia, tetap valid.
 2. Untuk fieldKind = "freeText": jawaban invalid HANYA kalau jelas-jelas
    TIDAK NYAMBUNG dengan topik pertanyaan (contoh: pertanyaan soal posisi/
    peran di bisnis dijawab dengan alamat rumah; pertanyaan soal tantangan
@@ -76,11 +80,14 @@ given — NOT to judge the quality, completeness, or truthfulness of the answer.
 
 RULES:
 1. If fieldKind = "lokasi": the answer should be an address/location. If the
-   answer names BOTH a city and a province, they must be genuinely
-   geographically consistent in Indonesia (e.g. "Surabaya, East Java" is
-   valid; "Surabaya, West Java" is NOT valid because Surabaya is in East
-   Java, not West Java). If only a city/regency is given (no province) and
-   it's a real place in Indonesia, it's still valid.
+   answer names BOTH a city/regency/region and a province, they must be
+   genuinely geographically consistent in Indonesia (e.g. "Surabaya, East
+   Java" is valid; "Surabaya, West Java" is NOT valid because Surabaya is
+   in East Java, not West Java; "Papua, East Java" is NOT valid because
+   Papua is its own province/island, nowhere near East Java — this MUST be
+   caught, not just neighboring-province mistakes). If only a single level
+   (just a city, or just a province) is given and it's a real place in
+   Indonesia, it's still valid.
 2. For fieldKind = "freeText": the answer is invalid ONLY if it's clearly
    UNRELATED to the question's topic (e.g. a question about the person's
    role in the business answered with a home address; a question about the

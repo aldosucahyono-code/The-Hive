@@ -325,15 +325,15 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           dulu. Disembunyikan begitu banner autoSavedNote/autoSaveCapped di
           atas sudah tampil, supaya tidak ada ajakan ganda. */}
       {!autoSavedBusinessId && !autoSaveCapped && (
-        <div className="mb-6 rounded-2xl border border-primary/20 bg-surface p-6 text-center">
-          <p className="text-sm font-bold text-white">{t.previewReport.freeCtaTitle}</p>
-          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-400">{t.previewReport.freeCtaDesc}</p>
+        <div className="mb-6 rounded-2xl border-2 border-primary/50 bg-primary/[0.08] p-6 text-center shadow-[0_0_30px_-10px_rgba(255,152,0,0.5)]">
+          <p className="text-base font-extrabold text-white">🐝 {t.previewReport.freeCtaTitle}</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-300">{t.previewReport.freeCtaDesc}</p>
           <button
             onClick={() => {
               if (!user) setShowAuthModal(true);
             }}
             disabled={autoSaving}
-            className="mt-4 rounded-xl border border-white/20 px-6 py-2.5 text-sm font-bold text-neutral-200 transition-colors hover:border-primary/50 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-4 rounded-xl bg-primary px-7 py-3 text-sm font-bold text-black shadow-[0_0_20px_-6px_rgba(255,152,0,0.6)] transition-transform hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {autoSaving ? t.previewReport.freeCtaPreparing : t.previewReport.freeCtaButton}
           </button>

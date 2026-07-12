@@ -31,10 +31,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signInWithMagicLink = async (email: string) => {
+    // Arahkan langsung ke #workspace (bukan cuma origin) supaya begitu link
+    // di email diklik, pelanggan langsung masuk Workspace pribadinya --
+    // tidak perlu klik tombol "Workspace" manual di halaman utama. App.tsx
+    // tetap membersihkan/menormalkan URL ini lewat window.location.reload()
+    // setelah sesi berhasil ditukar, jadi aman dipakai untuk kedua jenis
+    // flow Supabase Auth (PKCE ?code=... maupun implicit #access_token=...).
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}/#workspace`,
       },
     })
     return { error: error?.message ?? null }

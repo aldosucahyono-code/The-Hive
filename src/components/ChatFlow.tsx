@@ -100,6 +100,53 @@ function fill(template: string, data: WizardData): string {
     .replace(/\{namaBisnis\}/g, data.namaBisnis || "");
 }
 
+// Contoh produk/jasa untuk pertanyaan produkJasa (audit Juli 2026): SEBELUM
+// ini, contohnya SELALU "Nasi goreng gerobak keliling"/"Kopi susu gula
+// aren" tidak peduli jenisBisnis-nya apa — jadi pengguna yang jenis
+// bisnisnya sudah jelas "Rumah Makan"/bakso tetap disodori contoh kopi.
+// Dipetakan dari kata kunci di jenisBisnis (yang sudah dijawab SEBELUM
+// pertanyaan ini muncul, lihat urutan questions di bawah) — bukan
+// panggilan AI baru, supaya tidak ada jeda loading tepat sebelum
+// pertanyaan ini tampil (beda dengan dynamicQuestions yang punya banyak
+// waktu di background sebelum dipakai).
+const PRODUK_JASA_EXAMPLE_MAP: Array<{ keywords: string[]; id: [string, string]; en: [string, string] }> = [
+  {
+    keywords: ["makan", "kuliner", "resto", "warung", "catering", "bakso", "sate", "nasi", "ayam", "seafood", "food"],
+    id: ["Bakso urat komplit", "Ayam geprek sambal matah"],
+    en: ["Full bakso meatball bowl", "Spicy sambal fried chicken"],
+  },
+  {
+    keywords: ["kopi", "kedai", "cafe", "kafe", "coffee"],
+    id: ["Kopi susu gula aren", "Es kopi kenangan"],
+    en: ["Palm sugar milk coffee", "Iced signature coffee"],
+  },
+  {
+    keywords: ["fashion", "pakaian", "baju", "distro", "hijab", "konveksi", "clothing"],
+    id: ["Kaos distro custom", "Hijab instan motif bunga"],
+    en: ["Custom graphic t-shirts", "Ready-to-wear floral hijab"],
+  },
+  {
+    keywords: ["jasa", "servis", "service", "konsultasi", "reparasi", "bengkel", "cuci"],
+    id: ["Jasa reparasi AC rumah", "Konsultasi pajak UMKM"],
+    en: ["Home AC repair service", "SME tax consulting"],
+  },
+  {
+    keywords: ["salon", "spa", "kecantikan", "beauty", "skincare"],
+    id: ["Perawatan facial wajah", "Creambath rambut rileksasi"],
+    en: ["Facial skin treatment", "Relaxing hair creambath"],
+  },
+];
+const DEFAULT_PRODUK_JASA_EXAMPLE: { id: [string, string]; en: [string, string] } = {
+  id: ["Nasi goreng gerobak keliling", "Kopi susu gula aren"],
+  en: ["Mobile cart fried rice", "Palm sugar milk coffee"],
+};
+
+function produkJasaExamples(jenisBisnis: string, lang: "id" | "en"): [string, string] {
+  const lower = (jenisBisnis || "").toLowerCase();
+  const match = PRODUK_JASA_EXAMPLE_MAP.find((entry) => entry.keywords.some((k) => lower.includes(k)));
+  return match ? match[lang] : DEFAULT_PRODUK_JASA_EXAMPLE[lang];
+}
+
 function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const { t, lang } = useLanguage();
   const { signInWithMagicLink } = useAuth();
@@ -213,11 +260,17 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       // Produk/Jasa Utama (revisi Juli 2026) — lebih spesifik dari
       // jenisBisnis, dipakai buat mencari akun Instagram kompetitor yang
       // benar-benar relevan (lihat services/socialMedia/instagramProvider.ts),
-      // bukan cuma nama bidang usaha yang terlalu umum.
+      // bukan cuma nama bidang usaha yang terlalu umum. Contoh di pertanyaan
+      // & placeholder-nya dinamis sesuai jenisBisnis (lihat
+      // produkJasaExamples() di atas) — sebelumnya selalu contoh nasi
+      // goreng/kopi walau jenisBisnis-nya sudah jelas beda (mis. bakso).
       field: "produkJasa",
-      prompt: (d) => fill(t.chatFlow.askProdukJasa, d),
+      prompt: (d) => {
+        const [ex1, ex2] = produkJasaExamples(d.jenisBisnis, lang);
+        return fill(t.chatFlow.askProdukJasa, d).replace("{contoh1}", ex1).replace("{contoh2}", ex2);
+      },
       inputType: "text",
-      placeholder: t.stepOne.produkJasaPlaceholder,
+      placeholder: produkJasaExamples(data.jenisBisnis, lang).join(", ") + "...",
       validate: (v: string) => isValidFreeText(v, 3, 1),
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "kenal",
@@ -340,12 +393,20 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   // Validasi semantik (directive PO: "jawaban harus sesuai dengan
   // pertanyaan"): semanticChecking = sedang menunggu Beemo AI menilai
   // relevansi jawaban. semanticRetryField = field yang sedang diminta
-  // dijawab ULANG karena percobaan SEBELUMNYA dinilai tidak nyambung —
-  // dibatasi maksimal 1x re-ask per field (percobaan kedua langsung
-  // diterima apa adanya) supaya tidak membuat pengguna jujur frustrasi
-  // kalau penilaian AI meleset.
+  // dijawab ULANG karena percobaan SEBELUMNYA dinilai tidak nyambung.
+  //
+  // AUDIT Juli 2026: sebelumnya dibatasi HANYA 1x cek per field (percobaan
+  // kedua langsung diterima apa adanya, tanpa dicek ulang sama sekali) —
+  // celah ini yang menyebabkan lokasi mustahil seperti "Papua, Jawa Timur"
+  // bisa lolos begitu percobaan pertama gagal lalu diisi ulang. Sekarang
+  // divalidasi hingga MAX_SEMANTIC_ATTEMPTS kali per field; baru diterima
+  // apa adanya SETELAH itu, supaya tetap ada jalan keluar kalau penilaian
+  // AI memang meleset berulang, tapi tidak langsung membuka celah di
+  // percobaan kedua.
   const [semanticChecking, setSemanticChecking] = useState(false);
   const [semanticRetryField, setSemanticRetryField] = useState<keyof WizardData | null>(null);
+  const semanticAttemptCountsRef = useRef<Partial<Record<keyof WizardData, number>>>({});
+  const MAX_SEMANTIC_ATTEMPTS = 2;
   const scrollRef = useRef<HTMLDivElement>(null);
   const currencyInputRef = useRef<HTMLInputElement>(null);
 
@@ -492,16 +553,20 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     // edit dilewati, lihat catatan di bawah) — SEBELUM jawaban dianggap
     // final, supaya jawaban yang "tidak nyambung" dengan pertanyaan (mis.
     // alamat dijawab untuk pertanyaan posisi/peran) diminta ditulis ulang,
-    // bukan langsung lolos ke pertanyaan berikutnya.
-    if (!editingField && SEMANTIC_CHECK_FIELDS.has(activeQuestion.field) && semanticRetryField !== activeQuestion.field) {
+    // bukan langsung lolos ke pertanyaan berikutnya. Divalidasi hingga
+    // MAX_SEMANTIC_ATTEMPTS kali per field (lihat catatan audit di
+    // deklarasi state di atas) — bukan cuma sekali.
+    const attemptsSoFar = semanticAttemptCountsRef.current[activeQuestion.field] || 0;
+    if (!editingField && SEMANTIC_CHECK_FIELDS.has(activeQuestion.field) && attemptsSoFar < MAX_SEMANTIC_ATTEMPTS) {
       setSemanticChecking(true);
       const questionText = activeQuestion.prompt(data);
       const fieldKind = activeQuestion.field === "lokasi" ? "lokasi" : "freeText";
       const isMatch = await checkSemanticMatch(questionText, value, fieldKind, lang);
       setSemanticChecking(false);
       if (!isMatch) {
-        // Percobaan pertama gagal — minta ditulis ulang, JANGAN advance ke
+        // Percobaan gagal — minta ditulis ulang, JANGAN advance ke
         // pertanyaan berikutnya. Jawaban lama tidak disimpan.
+        semanticAttemptCountsRef.current[activeQuestion.field] = attemptsSoFar + 1;
         setSemanticRetryField(activeQuestion.field);
         setInputValue("");
         return;

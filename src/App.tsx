@@ -18,23 +18,45 @@ function App() {
   const [start, setStart] = useState(false);
   const { loading } = useAuth();
 
-  const rawHash = window.location.hash.replace("#", "");
+  const rawHashRaw = window.location.hash.replace("#", "");
 
-  // Setelah user klik Magic Link di email, Supabase (mode PKCE) akan
-  // menambahkan ?code=xxxx di URL. Selama proses tukar-kode-jadi-sesi
-  // belum selesai (loading), tampilkan layar transisi singkat.
+  // Setelah user klik Magic Link di email, Supabase bisa memakai salah satu
+  // dari DUA cara mengembalikan token, tergantung konfigurasi Auth flow
+  // project (PKCE vs implicit) — kita TIDAK mengasumsikan salah satunya:
+  // 1. PKCE (umumnya default sekarang): ?code=xxxx di query string.
+  // 2. Implicit (lama): #access_token=...&type=magiclink di hash fragment.
+  // AUDIT Juli 2026: sebelumnya HANYA mendeteksi kasus #1 — kalau project
+  // ternyata memakai flow #2, rawHash berisi teks token yang tidak cocok
+  // rute manapun, jatuh ke halaman utama (Beranda), dan pelanggan harus
+  // klik "Workspace" manual alih-alih langsung masuk. Sekarang keduanya
+  // dideteksi, supaya SELALU diarahkan ke #workspace terlepas dari flow
+  // yang aktif di project ini.
   const urlParams = new URLSearchParams(window.location.search);
   const hasAuthCode = urlParams.has("code");
+  const hasHashToken =
+    rawHashRaw.includes("access_token=") || rawHashRaw.includes("type=magiclink") || rawHashRaw.includes("type=recovery");
+  const isAuthCallback = hasAuthCode || hasHashToken;
+  // Kalau hash-nya sendiri berisi token mentah (flow implicit), JANGAN
+  // dipakai sebagai rawHash rute biasa (bukan "workspace"/"bayar-pro"/dst)
+  // — anggap kosong sampai useEffect di bawah membersihkannya jadi
+  // "#workspace" lewat reload.
+  const rawHash = hasHashToken ? "" : rawHashRaw;
 
   useEffect(() => {
-    if (hasAuthCode && !loading) {
-      // Bersihkan ?code=xxxx dari URL biar rapi, lalu arahkan ke workspace
+    if (isAuthCallback && !loading) {
+      // Bersihkan ?code=xxxx / #access_token=... dari URL biar rapi DAN
+      // supaya pengguna tidak bisa refresh/bookmark URL yang masih membawa
+      // token mentah, lalu arahkan langsung ke Workspace-nya sendiri.
+      // window.location.reload() di bawah memuat ulang seluruh halaman dari
+      // nol (bukan navigasi client-side) — memastikan tidak ada state React
+      // basi dari sesi sebelumnya (mis. kalau browser ini tadinya login
+      // sebagai akun lain) yang ikut terbawa ke tampilan Workspace baru ini.
       window.history.replaceState({}, "", window.location.pathname + "#workspace");
       window.location.reload();
     }
-  }, [hasAuthCode, loading]);
+  }, [isAuthCallback, loading]);
 
-  if (hasAuthCode && loading) {
+  if (isAuthCallback && loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
         <p className="text-neutral-400">Mengaktifkan Workspace kamu...</p>
