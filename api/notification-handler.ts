@@ -25,7 +25,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     const notification = req.body;
-    const { order_id, status_code, gross_amount, signature_key, transaction_status } =
+    const { order_id, status_code, gross_amount, signature_key, transaction_status, fraud_status } =
       notification;
 
     const expectedSignature = crypto
@@ -55,7 +55,18 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ message: 'OK (payment not found, logged)' });
     }
 
-    if (transaction_status === 'settlement' || transaction_status === 'capture') {
+    // Audit red-team Juli 2026: untuk transaction_status "capture" (jalur
+    // kartu kredit/debit), Midtrans WAJIB dicek fraud_status-nya juga —
+    // "capture" saja TIDAK berarti pembayaran aman, Fraud Detection System
+    // Midtrans bisa menandainya "challenge" (butuh review manual, BUKAN
+    // ditolak tapi juga belum boleh dianggap lunas) atau "deny". Sebelumnya
+    // kode ini menganggap SEMUA "capture" sebagai lunas tanpa cek
+    // fraud_status sama sekali — celah yang didokumentasikan Midtrans
+    // sendiri sebagai kesalahan integrasi umum. "settlement" (jalur
+    // non-kartu: transfer bank/e-wallet/QRIS) tidak membawa fraud_status,
+    // jadi tidak perlu dicek.
+    const isCaptureAccepted = transaction_status === 'capture' && fraud_status === 'accept';
+    if (transaction_status === 'settlement' || isCaptureAccepted) {
       // Hindari upgrade subscription dua kali kalau Midtrans mengirim
       // notifikasi settlement lebih dari sekali untuk order yang sama
       // (webhook Midtrans memang bisa retry).
@@ -94,6 +105,14 @@ export default async function handler(req: any, res: any) {
       }
     } else if (transaction_status === 'pending') {
       await supabase.from('payments').update({ status: 'pending' }).eq('id', payment.id);
+    } else if (transaction_status === 'capture' && fraud_status === 'challenge') {
+      // Ditahan Fraud Detection System Midtrans untuk review manual — BUKAN
+      // ditolak, tapi juga belum boleh dianggap lunas (lihat catatan di
+      // atas). Ditandai 'pending' supaya tidak nyangkut sebagai transaksi
+      // hilang begitu saja; kalau reviewer Midtrans meloloskannya nanti,
+      // notifikasi susulan akan datang dengan status yang sudah final.
+      await supabase.from('payments').update({ status: 'pending' }).eq('id', payment.id);
+      console.log(`Transaksi ${order_id} ditahan Fraud Detection System (challenge) — menunggu review manual.`);
     } else if (
       transaction_status === 'deny' ||
       transaction_status === 'cancel' ||
