@@ -318,6 +318,28 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
         </div>
       </div>
 
+      {/* CTA "Coba Gratis" — sengaja ditaruh di sini, SEBELUM bagian yang
+          di-blur (SWOT/Kompetitor/Rencana 30 Hari) dan pitch Pro/Platinum,
+          supaya siapapun yang cuma mau eksplorasi Workspace-nya sendiri
+          langsung ketemu pilihan itu tanpa scroll ngelewatin pitch bayar
+          dulu. Disembunyikan begitu banner autoSavedNote/autoSaveCapped di
+          atas sudah tampil, supaya tidak ada ajakan ganda. */}
+      {!autoSavedBusinessId && !autoSaveCapped && (
+        <div className="mb-6 rounded-2xl border border-primary/20 bg-surface p-6 text-center">
+          <p className="text-sm font-bold text-white">{t.previewReport.freeCtaTitle}</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-400">{t.previewReport.freeCtaDesc}</p>
+          <button
+            onClick={() => {
+              if (!user) setShowAuthModal(true);
+            }}
+            disabled={autoSaving}
+            className="mt-4 rounded-xl border border-white/20 px-6 py-2.5 text-sm font-bold text-neutral-200 transition-colors hover:border-primary/50 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {autoSaving ? t.previewReport.freeCtaPreparing : t.previewReport.freeCtaButton}
+          </button>
+        </div>
+      )}
+
       {/* Preview SWOT — blur, bukan ikon gembok (supaya tidak terasa "dikunci") */}
       <BlurTeaser
         title={t.previewReport.swotTitle}
@@ -510,29 +532,6 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
             </div>
           </div>
         </div>
-
-        {/* CTA "Coba Gratis" — disembunyikan begitu Workspace-nya sudah
-            siap/tersimpan (banner autoSavedNote/autoSaveCapped di atas
-            sudah mengambil alih perannya), supaya tidak ada dua ajakan
-            yang tumpang tindih. */}
-        {!autoSavedBusinessId && !autoSaveCapped && (
-          <div className="mt-6 flex flex-col items-center gap-3 border-t border-white/10 pt-6 text-center">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">
-              {t.previewReport.freeCtaDivider}
-            </span>
-            <p className="text-sm font-bold text-white">{t.previewReport.freeCtaTitle}</p>
-            <p className="max-w-md text-xs leading-relaxed text-neutral-400">{t.previewReport.freeCtaDesc}</p>
-            <button
-              onClick={() => {
-                if (!user) setShowAuthModal(true);
-              }}
-              disabled={autoSaving}
-              className="rounded-xl border border-white/20 px-6 py-2.5 text-sm font-bold text-neutral-200 transition-colors hover:border-primary/50 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {autoSaving ? t.previewReport.freeCtaPreparing : t.previewReport.freeCtaButton}
-            </button>
-          </div>
-        )}
 
         <p className="mt-6 text-center text-xs text-neutral-500">
           {t.previewReport.footerNote}
