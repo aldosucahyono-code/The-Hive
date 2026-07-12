@@ -1,4 +1,4 @@
-import mascot from "../assets/mascot/beemo-laptop.png";
+import mascot from "../assets/mascot/beemo-laptop-v2.png";
 import { useLanguage } from "../i18n/LanguageContext";
 
 type HeroProps = {
@@ -27,7 +27,7 @@ function Hero({ onStart, animate }: HeroProps) {
   return (
     <section className="py-16 sm:py-20">
       <div className="mx-auto max-w-6xl px-6">
-        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-2">
+        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-[1fr_1.15fr]">
           <div>
             <span className={"mb-4 inline-block rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold text-primary " + fade()}>
               {t.hero.eyebrow}
@@ -80,11 +80,11 @@ function Hero({ onStart, animate }: HeroProps) {
           </div>
 
           <div className="relative flex items-center justify-center">
-            <div className="absolute h-[24rem] w-[24rem] rounded-full bg-primary/10 blur-3xl"></div>
+            <div className="absolute h-[26rem] w-[34rem] rounded-full bg-primary/10 blur-3xl"></div>
             <img
               src={mascot}
               alt="Beemo AI"
-              className={"relative w-[26rem] max-w-[85vw] drop-shadow-[0_10px_40px_rgba(255,152,0,0.25)] " + (animate ? "animate-float-y" : "")}
+              className={"relative w-full max-w-2xl drop-shadow-[0_10px_40px_rgba(255,152,0,0.25)] " + (animate ? "animate-float-y" : "")}
             />
           </div>
         </div>
