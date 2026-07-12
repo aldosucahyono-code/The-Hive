@@ -8,20 +8,27 @@ function navigateTo(hash: string) {
   };
 }
 
-function Footer() {
+function Footer({ variant = "dark" }: { variant?: "dark" | "light" }) {
   const { t } = useLanguage();
+  const isLight = variant === "light";
+
+  const footerClassName = isLight
+    ? "border-t border-neutral-200 py-8 text-center text-sm text-neutral-500"
+    : "border-t border-white/10 py-8 text-center text-sm text-neutral-400";
+  const linkClassName = isLight ? "hover:text-neutral-900" : "hover:text-white";
+  const dotClassName = isLight ? "text-neutral-300" : "text-neutral-700";
 
   return (
-    <footer className="border-t border-white/10 py-8 text-center text-sm text-neutral-400">
+    <footer className={footerClassName}>
       <p className="mb-3">{t.footer.copyright}</p>
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs">
-        <a href="#privasi" onClick={navigateTo("privasi")} className="hover:text-white">{t.footer.privacyPolicy}</a>
-        <span className="text-neutral-700">•</span>
-        <a href="#syarat" onClick={navigateTo("syarat")} className="hover:text-white">{t.footer.terms}</a>
-        <span className="text-neutral-700">•</span>
-        <a href="#refund" onClick={navigateTo("refund")} className="hover:text-white">{t.footer.refundPolicy}</a>
-        <span className="text-neutral-700">•</span>
-        <a href="#referensi" onClick={navigateTo("referensi")} className="hover:text-white">{t.footer.shareToFriend}</a>
+        <a href="#privasi" onClick={navigateTo("privasi")} className={linkClassName}>{t.footer.privacyPolicy}</a>
+        <span className={dotClassName}>•</span>
+        <a href="#syarat" onClick={navigateTo("syarat")} className={linkClassName}>{t.footer.terms}</a>
+        <span className={dotClassName}>•</span>
+        <a href="#refund" onClick={navigateTo("refund")} className={linkClassName}>{t.footer.refundPolicy}</a>
+        <span className={dotClassName}>•</span>
+        <a href="#referensi" onClick={navigateTo("referensi")} className={linkClassName}>{t.footer.shareToFriend}</a>
       </div>
     </footer>
   );

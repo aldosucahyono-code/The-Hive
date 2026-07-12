@@ -276,21 +276,28 @@ const id = {
     tentangKami: "Tentang Kami",
     workspaceButton: "Workspace",
     activateWorkspaceButton: "Aktifkan Workspace",
+    // Ditambah untuk landing page versi terang (Juli 2026) — nav khusus
+    // homepage pakai anchor Fitur/Cara Kerja/FAQ + dua tombol terpisah
+    // (Login/Coba Gratis), BUKAN mengganti nav lama di variant gelap
+    // (Workspace/rute lain tetap pakai fiturAI/tentangKami di atas, tidak
+    // disentuh, supaya nol risiko regresi di luar homepage).
+    fitur: "Fitur",
+    caraKerja: "Cara Kerja",
+    faq: "FAQ",
+    loginButton: "Login",
   },
 
   hero: {
-    badge: "🔥 Harga Beta Terbatas",
-    title: "Keputusan Bisnis Yang Tepat Dimulai Disini",
+    eyebrow: "AI BUSINESS CONSULTANT",
+    titleLine1: "Pahami Bisnismu.",
+    titleLine2: "Petakan Kompetitormu.",
+    titleLine3: "Raih 100jt Pertamamu.",
     subtitle:
-      "Dalam hitungan menit, Beemo akan menganalisis bisnismu, menemukan peluang tersembunyi, memetakan kompetitor, dan menyusun strategi yang bisa langsung kamu jalankan. Jangan biarkan peluangmu diambil orang lain!",
-    ctaButton: "🚀 Mulai Analisis Bisnis Gratis!!",
-    beemoGreeting: "Halo, saya Beemo.",
-    beemoDesc:
-      "Ceritakan bisnis Anda. Saya akan membantu menganalisis kondisi bisnis, menemukan peluang pasar, mempelajari kompetitor, dan menyusun rekomendasi yang dapat langsung digunakan.",
-    badge1: "Laporan Profesional",
-    badge2: "Data Bisnis Aman",
-    badge3: "Hasil dalam Beberapa Menit",
-    badge4: "Untuk UMKM, Startup & Perusahaan",
+      "THE HIVE membantu kamu memahami kondisi bisnis, memetakan kompetitor, menemukan peluang pasar, dan menghasilkan Business Intelligence Report yang bisa langsung kamu jalankan.",
+    ctaPrimary: "Coba Analisa Gratis",
+    ctaSecondary: "Lihat Contoh Laporan",
+    industriesLabel: "Cocok untuk pebisnis di berbagai industri",
+    industries: ["Kuliner & F&B", "Retail & Fashion", "Jasa & Konsultasi", "Kesehatan & Kecantikan", "Otomotif", "Pendidikan"],
   },
 
   features: {
@@ -319,6 +326,51 @@ const id = {
         title: "Menentukan Strategi",
         desc: "Dapatkan rekomendasi langkah yang dapat langsung diterapkan sesuai kondisi bisnis Anda.",
       },
+    ],
+  },
+
+  // Landing page versi terang, Juli 2026 — dua section baru ("Cara Kerja",
+  // "Contoh Laporan") + FAQ menggantikan posisi nav "Tentang Kami" (rute
+  // #tentang-kami lama TETAP ada, cuma tidak lagi ditaut dari nav homepage).
+  howItWorks: {
+    eyebrow: "CARA KERJA",
+    title: "Analisa Bisnis dalam 3 Langkah Mudah",
+    steps: [
+      { title: "Jawab Beberapa Pertanyaan", desc: "Ceritakan tentang bisnismu, tantangan, dan targetmu." },
+      { title: "Beemo AI Menganalisa", desc: "AI kami menganalisa kondisi bisnis, kompetitor, dan peluang pasar." },
+      { title: "Dapatkan Laporan & Rekomendasi", desc: "Terima Business Intelligence Report lengkap dengan langkah tindakan yang konkret." },
+    ],
+  },
+
+  // Panel contoh laporan SENGAJA diberi label "Contoh Ilustrasi" yang jelas
+  // (exampleLabel) — bukan testimoni/data pelanggan asli (THE HIVE belum
+  // punya pelanggan asli saat ini), murni menunjukkan FORMAT & jenis insight
+  // yang benar-benar dihasilkan platform (SWOT, peta kompetitor, dst — semua
+  // fitur nyata, bukan dikarang).
+  reportPreview: {
+    eyebrow: "CONTOH PREVIEW LAPORAN",
+    exampleLabel: "Contoh Ilustrasi",
+    title: "Intip Sedikit Hasil Analisa Kami",
+    desc: "Dapatkan gambaran singkat tentang kondisi bisnismu. Laporan lengkap tersedia setelah kamu mencoba analisa gratis.",
+    checklist: ["Analisa SWOT", "Peta Kompetitor Sekitar", "Peluang Pasar", "Strategi Marketing", "Rekomendasi Operasional", "Target & Rencana Aksi"],
+    ctaButton: "Coba Gratis Sekarang",
+    sampleBusinessName: "Toko Kopi Nusantara",
+    swotStrengths: ["Lokasi strategis dekat kampus", "Cita rasa konsisten"],
+    swotWeaknesses: ["Belum ada kehadiran media sosial", "Jam operasional terbatas"],
+    swotOpportunities: ["Permintaan kopi susu kekinian terus naik", "Belum ada kompetitor kuat di radius 1km"],
+    swotThreats: ["3 kompetitor baru buka dalam 6 bulan terakhir"],
+  },
+
+  faq: {
+    eyebrow: "FAQ",
+    title: "Pertanyaan yang Sering Ditanyakan",
+    items: [
+      { q: "Apa itu THE HIVE?", a: "THE HIVE adalah platform AI Business Consultant yang membantu kamu memahami kondisi bisnis, memetakan kompetitor, menemukan peluang pasar, dan menyusun strategi yang bisa langsung dijalankan — dipandu oleh Beemo, asisten AI kami." },
+      { q: "Siapa itu Beemo?", a: "Beemo adalah AI Business Consultant THE HIVE yang menganalisa data bisnismu dan menyusun rekomendasi. Beemo bekerja berdasarkan data yang kamu berikan dan riset pasar nyata — bukan template generik yang sama untuk semua bisnis." },
+      { q: "Apakah data bisnis saya aman?", a: "Ya. Data bisnismu hanya digunakan untuk menyusun analisa dan rekomendasimu sendiri, dan tidak dibagikan ke pihak lain." },
+      { q: "Apakah hasil analisanya menjamin bisnis saya pasti berhasil?", a: "Tidak ada yang bisa menjamin itu — bahkan konsultan bisnis terbaik sekalipun. Hasil bisnis dipengaruhi banyak hal di luar kendali kami: eksekusi, modal, kondisi pasar, dan faktor lain. Yang THE HIVE lakukan adalah memberi kamu data dan strategi terbaik untuk memperbesar peluangmu — bukan janji hasil." },
+      { q: "Berapa lama proses analisanya?", a: "Preview gratis siap dalam hitungan menit setelah kamu menjawab beberapa pertanyaan. Laporan lengkap (PRO/PLATINUM) tersedia begitu kamu memilih paket." },
+      { q: "Bagaimana cara mulai?", a: "Klik \"Coba Analisa Gratis\", ceritakan tentang bisnismu, dan Beemo akan langsung mulai menganalisa." },
     ],
   },
 
@@ -1676,21 +1728,23 @@ const en: Translations = {
     tentangKami: "About Us",
     workspaceButton: "Workspace",
     activateWorkspaceButton: "Activate Workspace",
+    fitur: "Features",
+    caraKerja: "How It Works",
+    faq: "FAQ",
+    loginButton: "Login",
   },
 
   hero: {
-    badge: "🔥 Limited Beta Pricing",
-    title: "The Right Business Decision Starts Here",
+    eyebrow: "AI BUSINESS CONSULTANT",
+    titleLine1: "Understand Your Business.",
+    titleLine2: "Map Your Competitors.",
+    titleLine3: "Reach Your First Rp100 Million.",
     subtitle:
-      "In just minutes, Beemo will analyze your business, uncover hidden opportunities, map out your competitors, and build a strategy you can put into action right away. Don't let someone else seize your opportunity!",
-    ctaButton: "🚀 Start Your Free Business Analysis!!",
-    beemoGreeting: "Hi, I'm Beemo.",
-    beemoDesc:
-      "Tell me about your business. I'll help analyze your business condition, find market opportunities, study competitors, and put together recommendations you can use right away.",
-    badge1: "Professional Report",
-    badge2: "Your Data Stays Safe",
-    badge3: "Results in Minutes",
-    badge4: "For SMEs, Startups & Enterprises",
+      "THE HIVE helps you understand your business condition, map your competitors, uncover market opportunities, and get a Business Intelligence Report you can act on right away.",
+    ctaPrimary: "Try Free Analysis",
+    ctaSecondary: "See a Sample Report",
+    industriesLabel: "Built for business owners across industries",
+    industries: ["Food & Beverage", "Retail & Fashion", "Services & Consulting", "Health & Beauty", "Automotive", "Education"],
   },
 
   features: {
@@ -1719,6 +1773,43 @@ const en: Translations = {
         title: "Define Your Strategy",
         desc: "Get recommended steps you can put into action right away, tailored to your business.",
       },
+    ],
+  },
+
+  howItWorks: {
+    eyebrow: "HOW IT WORKS",
+    title: "Business Analysis in 3 Easy Steps",
+    steps: [
+      { title: "Answer a Few Questions", desc: "Tell us about your business, challenges, and goals." },
+      { title: "Beemo AI Analyzes", desc: "Our AI analyzes your business condition, competitors, and market opportunities." },
+      { title: "Get Your Report & Recommendations", desc: "Receive a complete Business Intelligence Report with concrete next steps." },
+    ],
+  },
+
+  reportPreview: {
+    eyebrow: "SAMPLE REPORT PREVIEW",
+    exampleLabel: "Illustrative Example",
+    title: "A Glimpse of What You'll Get",
+    desc: "Get a quick sense of your business condition. The full report is available once you try the free analysis.",
+    checklist: ["SWOT Analysis", "Nearby Competitor Map", "Market Opportunities", "Marketing Strategy", "Operational Recommendations", "Targets & Action Plan"],
+    ctaButton: "Try It Free Now",
+    sampleBusinessName: "Nusantara Coffee Shop",
+    swotStrengths: ["Strategic location near a campus", "Consistent taste quality"],
+    swotWeaknesses: ["No social media presence yet", "Limited operating hours"],
+    swotOpportunities: ["Rising demand for milk-based coffee drinks", "No strong competitor within 1km"],
+    swotThreats: ["3 new competitors opened in the last 6 months"],
+  },
+
+  faq: {
+    eyebrow: "FAQ",
+    title: "Frequently Asked Questions",
+    items: [
+      { q: "What is THE HIVE?", a: "THE HIVE is an AI Business Consultant platform that helps you understand your business condition, map competitors, find market opportunities, and build a strategy you can act on right away — guided by Beemo, our AI assistant." },
+      { q: "Who is Beemo?", a: "Beemo is THE HIVE's AI Business Consultant, analyzing your business data and building recommendations. Beemo works from the data you provide and real market research — not a generic template used for every business." },
+      { q: "Is my business data safe?", a: "Yes. Your data is only used to build your own analysis and recommendations, and is never shared with third parties." },
+      { q: "Does the analysis guarantee my business will succeed?", a: "No one can guarantee that — not even the best business consultants. Business outcomes depend on many things outside our control: execution, capital, market conditions, and more. What THE HIVE does is give you the best data and strategy to maximize your chances — not a promise of results." },
+      { q: "How long does the analysis take?", a: "The free preview is ready within minutes after answering a few questions. The full report (PRO/PLATINUM) is available once you choose a plan." },
+      { q: "How do I get started?", a: "Click \"Try Free Analysis\", tell us about your business, and Beemo will start analyzing right away." },
     ],
   },
 

@@ -4,6 +4,9 @@ import { useAuth } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import Features from "./components/Features";
+import HowItWorks from "./components/HowItWorks";
+import ReportPreview from "./components/ReportPreview";
+import FAQSection from "./components/FAQSection";
 import ChatWizard from "./components/ChatWizard";
 import Footer from "./components/Footer";
 import LegalPage from "./components/LegalPage";
@@ -207,21 +210,32 @@ function App() {
     );
   }
 
+  // Homepage (Beranda) — landing page terang, Juli 2026 (redesign per
+  // instruksi PO: "lebih ringan, profesional, background putih"). Ini
+  // SATU-SATUNYA rute yang memakai variant="light" pada Navbar/Footer;
+  // semua rute lain (Workspace, ChatWizard lewat #mulai, halaman legal,
+  // dst) tetap memakai default "dark" tanpa perubahan apapun. Setelah
+  // user klik CTA (start=true), tampilan kembali ke ChatWizard gelap
+  // seperti sebelumnya — konsisten dengan directive "satu-satunya pintu
+  // untuk analisa bisnis baru... hanya lewat chat wizzard".
+  if (!start) {
+    return (
+      <div className="bg-white text-neutral-900">
+        <Navbar variant="light" />
+        <Hero onStart={() => setStart(true)} animate={animateHero} />
+        <Features animate={animateHero} />
+        <HowItWorks animate={animateHero} />
+        <ReportPreview onStart={() => setStart(true)} animate={animateHero} />
+        <FAQSection animate={animateHero} />
+        <Footer variant="light" />
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className="hex-pattern" aria-hidden="true"></div>
-
       <Navbar />
-
-      {!start ? (
-        <>
-          <Hero onStart={() => setStart(true)} animate={animateHero} />
-          <Features animate={animateHero} />
-        </>
-      ) : (
-        <ChatWizard />
-      )}
-
+      <ChatWizard />
       <Footer />
     </>
   );

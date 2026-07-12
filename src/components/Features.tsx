@@ -20,8 +20,8 @@ function Features({ animate }: FeaturesProps) {
             after:h-px after:w-5 after:bg-gradient-to-r after:from-primary after:to-transparent after:content-['']">
             {t.features.eyebrow}
           </span>
-          <h2 className="mt-2 text-3xl font-extrabold">{t.features.title}</h2>
-          <p className="mt-3 text-neutral-300">
+          <h2 className="mt-2 text-3xl font-extrabold text-neutral-900">{t.features.title}</h2>
+          <p className="mt-3 text-neutral-600">
             {t.features.subtitle}
           </p>
         </div>
@@ -30,14 +30,14 @@ function Features({ animate }: FeaturesProps) {
           {t.features.items.map((f, i) => (
             <div
               key={f.title}
-              className={"group relative overflow-hidden rounded-2xl border border-white/10 bg-surface p-6 transition-transform hover:-translate-y-1 hover:border-primary/40 " + fade(delays[i])}
+              className={"group relative overflow-hidden rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition-transform hover:-translate-y-1 hover:border-primary/40 hover:shadow-md " + fade(delays[i])}
             >
               <span className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-primary transition-transform duration-300 group-hover:scale-x-100"></span>
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-2xl transition-transform duration-300 group-hover:scale-110">
                 {f.icon}
               </div>
-              <h3 className="mb-2 font-bold">{f.title}</h3>
-              <p className="text-sm leading-relaxed text-neutral-300">{f.desc}</p>
+              <h3 className="mb-2 font-bold text-neutral-900">{f.title}</h3>
+              <p className="text-sm leading-relaxed text-neutral-600">{f.desc}</p>
               <span className="mt-3 inline-block text-primary opacity-0 transition-all duration-300 group-hover:translate-x-1 group-hover:opacity-100">→</span>
             </div>
           ))}
