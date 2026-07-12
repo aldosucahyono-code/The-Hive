@@ -1699,6 +1699,21 @@ type MacroSnapshotData = {
   };
 };
 
+/** Lonceng Notifikasi (Juli 2026) — lihat services/notifications/getNotifications.ts
+ * untuk bagaimana daftar ini dihitung (on-the-fly dari achievement/decision/
+ * report/subscription-expiring/update-reminder, bukan tabel notifikasi
+ * tersendiri). menuKey null berarti notifikasi ini tidak mengarah ke
+ * halaman spesifik (klik tidak pindah menu). */
+type NotificationItemData = {
+  id: string;
+  type: "achievement" | "decision" | "report" | "subscription_expiring" | "update_reminder";
+  title: string;
+  body: string;
+  timestamp: string;
+  unread: boolean;
+  menuKey: MenuKey | null;
+};
+
 function CompetitorPanel({
   tier,
   t,
@@ -2621,6 +2636,17 @@ function personalGreeting(
   const profesiPart = opts.profesi ? `, ${opts.profesi}` : "";
   const businessPart = opts.businessName ? ` - ${opts.businessName}` : "";
   return `${prefix} ${namePart}${profesiPart}${businessPart}! 👋`;
+}
+
+/** Label waktu relatif untuk item lonceng Notifikasi — reuse
+ * t.workspace.todayDaysAgo ("{days} hari lalu") yang sudah ada, supaya
+ * tidak ada dua definisi "X hari lalu" berbeda. Di bawah 1 hari dianggap
+ * "baru saja", tidak dipecah ke jam/menit (tidak perlu presisi setinggi
+ * itu untuk notifikasi ringkasan). */
+function relativeTimeLabel(timestamp: string, t: Translations): string {
+  const days = Math.floor((Date.now() - new Date(timestamp).getTime()) / (1000 * 60 * 60 * 24));
+  if (days <= 0) return t.workspace.notificationsJustNow;
+  return fillTemplate(t.workspace.todayDaysAgo, { days });
 }
 
 type RuleItem = { key: string; params?: Record<string, string | number>; whyKey?: string };
@@ -3816,6 +3842,14 @@ function Workspace() {
   const [macroSnapshot, setMacroSnapshot] = useState<MacroSnapshotData | null>(null);
   const [macroLoading, setMacroLoading] = useState(false);
   const [macroError, setMacroError] = useState(false);
+  // Lonceng Notifikasi (Juli 2026) — dimuat begitu activeBusinessId siap
+  // (bukan menunggu tombol lonceng diklik) supaya badge unread langsung
+  // terlihat begitu Workspace dibuka. Lihat useEffect [activeBusinessId]
+  // di bawah dan services/notifications/getNotifications.ts.
+  const [notifications, setNotifications] = useState<NotificationItemData[]>([]);
+  const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [todaySnapshot, setTodaySnapshot] = useState<TodaySnapshotPayload | null>(null);
   const [todaySnapshotLoading, setTodaySnapshotLoading] = useState(false);
   // Error state Today — supaya gagal memuat snapshot tidak tampil sebagai
@@ -4086,6 +4120,16 @@ function Workspace() {
     };
   }, [activeBusinessId, refreshKey]);
 
+  // Lonceng Notifikasi — dimuat begitu activeBusinessId siap/berganti
+  // (bukan menunggu dropdown diklik), supaya badge unread langsung akurat
+  // saat Workspace dibuka. TIDAK diikutkan ke Promise.all besar di atas
+  // supaya kalau panel utama gagal dimuat, lonceng tetap bisa jalan sendiri
+  // (dan sebaliknya).
+  useEffect(() => {
+    if (activeBusinessId) loadNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBusinessId]);
+
   // Reload Today snapshot SAJA (bukan seluruh Promise.all di atas) — dipakai
   // tombol "Coba Lagi" di kartu error Today, supaya retry ringan & cepat,
   // tidak memicu ulang fetch getBusinessHealth/getProgress/getMembership/
@@ -4281,6 +4325,8 @@ function Workspace() {
     setReports([]);
     setReportsLoaded(false);
     setReportsError(false);
+    setNotifications([]);
+    setNotificationsUnreadCount(0);
   }
 
   async function handleSwitchBusiness(id: string) {
@@ -4691,6 +4737,50 @@ function Workspace() {
     setMacroLoading(false);
   }
 
+  // Lonceng Notifikasi — dimuat begitu activeBusinessId siap (useEffect di
+  // bawah), bukan cuma saat dropdown dibuka, supaya badge unread langsung
+  // terlihat begitu Workspace dibuka. Gagal diam-diam (log saja) — lonceng
+  // bukan bagian kritis, tidak perlu ErrorCard/retry seperti panel utama.
+  async function loadNotifications() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setNotificationsLoading(true);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "getNotifications", businessProfileId: activeBusinessId, lang }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setNotifications((json.notifications as NotificationItemData[]) || []);
+        setNotificationsUnreadCount((json.unreadCount as number) || 0);
+      } else {
+        console.error("getNotifications error:", json.error);
+      }
+    } catch (err) {
+      console.error("getNotifications error:", err);
+    }
+    setNotificationsLoading(false);
+  }
+
+  // Dipanggil begitu dropdown lonceng dibuka — tandai semua notifikasi saat
+  // ini sudah dibaca (baik di server lewat markNotificationsSeen, maupun
+  // langsung di state lokal supaya badge hilang seketika tanpa nunggu
+  // roundtrip lagi).
+  function openNotifications() {
+    setShowNotifications(true);
+    if (notificationsUnreadCount === 0) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+    setNotificationsUnreadCount(0);
+    if (activeBusinessId && session?.access_token) {
+      fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "markNotificationsSeen", businessProfileId: activeBusinessId }),
+      }).catch((err) => console.error("markNotificationsSeen error:", err));
+    }
+  }
+
   async function reviewMemoryFactDecision(factId: string, decision: "approve" | "reject") {
     if (!session?.access_token) return;
     setReviewingFactId(factId);
@@ -5006,22 +5096,68 @@ function Workspace() {
             Bantuan/switcher/tombol punya tinggi berbeda-beda (py-1.5 vs
             py-2 vs py-2.5) yang membuat baris terasa tidak rata. */}
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            title={t.workspace.todayNotifTooltip}
-            aria-label={t.workspace.todayNotifTooltip}
-            className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-surface text-neutral-400 transition-colors duration-200 hover:border-primary/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
-              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-            {/* Badge murni visual placeholder (belum ada sistem notifikasi
-                nyata) — sesuai arahan Design Authority: boleh dipakai
-                sebagai placeholder, tanpa backend. */}
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
-              1
-            </span>
-          </button>
+          <div className="relative">
+            <button
+              title={t.workspace.todayNotifTooltip}
+              aria-label={t.workspace.todayNotifTooltip}
+              onClick={() => (showNotifications ? setShowNotifications(false) : openNotifications())}
+              className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-surface text-neutral-400 transition-colors duration-200 hover:border-primary/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {notificationsUnreadCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                  {notificationsUnreadCount > 9 ? "9+" : notificationsUnreadCount}
+                </span>
+              )}
+            </button>
+            {showNotifications && (
+              <div className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-lg">
+                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                  <p className="text-sm font-bold text-white">{t.workspace.notificationsTitle}</p>
+                  <button
+                    onClick={() => setShowNotifications(false)}
+                    aria-label={t.workspace.notificationsCloseLabel}
+                    className="text-neutral-500 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="max-h-96 overflow-y-auto">
+                  {notificationsLoading && notifications.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-xs text-neutral-500">{t.workspace.notificationsLoading}</p>
+                  ) : notifications.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-xs text-neutral-500">{t.workspace.notificationsEmpty}</p>
+                  ) : (
+                    notifications.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => {
+                          if (n.menuKey) setActiveMenu(n.menuKey);
+                          setShowNotifications(false);
+                        }}
+                        disabled={!n.menuKey}
+                        className={
+                          "block w-full border-b border-white/5 px-4 py-3 text-left transition-colors last:border-b-0 " +
+                          (n.menuKey ? "hover:bg-white/5 cursor-pointer" : "cursor-default") +
+                          (n.unread ? " bg-primary/[0.04]" : "")
+                        }
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs font-bold text-white">{n.title}</p>
+                          {n.unread && <span className="mt-0.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" />}
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-neutral-400">{n.body}</p>
+                        <p className="mt-1.5 text-[10px] text-neutral-600">{relativeTimeLabel(n.timestamp, t)}</p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <button
             title={t.workspace.todayHelpTooltip}
             className="hidden h-10 flex-shrink-0 items-center gap-1.5 rounded-2xl border border-white/10 bg-surface px-4 text-xs font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black sm:flex"

@@ -29,6 +29,8 @@ import { listReports } from "../services/reports/listReports.js";
 import { promoteDraft } from "../services/business/promoteDraft.js";
 import { getSocialMediaAnalysis } from "../services/socialMedia/getSocialMediaAnalysis.js";
 import { getMacroSnapshot } from "../services/macro/getMacroSnapshot.js";
+import { getNotifications } from "../services/notifications/getNotifications.js";
+import { markNotificationsSeen } from "../services/notifications/markNotificationsSeen.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -121,6 +123,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "getMacroSnapshot":
       result = await getMacroSnapshot(userId, payload);
+      break;
+    case "getNotifications":
+      result = await getNotifications(userId, payload);
+      break;
+    case "markNotificationsSeen":
+      result = await markNotificationsSeen(userId, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });
