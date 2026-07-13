@@ -296,14 +296,26 @@ function FinalReportsList({
                 <p className="text-xs text-neutral-500">
                   {t.workspace.finalReportsCreatedAtLabel}: {formatDate(baselineReport.createdAt as string, lang)}
                 </p>
-                <a
-                  href={(baselineReport.downloadUrl as string) || undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-opacity hover:opacity-90"
-                >
-                  {t.workspace.finalReportsDownloadButton}
-                </a>
+                {baselineReport.downloadUrl ? (
+                  <a
+                    href={baselineReport.downloadUrl as string}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-opacity hover:opacity-90"
+                  >
+                    {t.workspace.finalReportsDownloadButton}
+                  </a>
+                ) : (
+                  // Bugfix (QA Juli 2026): listReports.ts bisa mengembalikan
+                  // downloadUrl: null kalau signed URL Storage gagal dibuat
+                  // (error transient) walau baris laporannya ADA -- sebelumnya
+                  // tombol ini tetap dirender penuh warna/terlihat aktif tapi
+                  // href-nya kosong, jadi diklik tidak melakukan apa-apa tanpa
+                  // penjelasan. Sekarang jujur ditampilkan sebagai teks pudar.
+                  <span className="cursor-not-allowed rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-neutral-500">
+                    {t.workspace.finalReportsDownloadUnavailable}
+                  </span>
+                )}
               </div>
             ) : (
               <div className="mt-3">
@@ -330,14 +342,20 @@ function FinalReportsList({
                     <p className="text-xs text-neutral-500">
                       {t.workspace.finalReportsCreatedAtLabel}: {formatDate(r.createdAt as string, lang)}
                     </p>
-                    <a
-                      href={(r.downloadUrl as string) || undefined}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-opacity hover:opacity-90"
-                    >
-                      {t.workspace.finalReportsDownloadButton}
-                    </a>
+                    {r.downloadUrl ? (
+                      <a
+                        href={r.downloadUrl as string}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-opacity hover:opacity-90"
+                      >
+                        {t.workspace.finalReportsDownloadButton}
+                      </a>
+                    ) : (
+                      <span className="cursor-not-allowed rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-neutral-500">
+                        {t.workspace.finalReportsDownloadUnavailable}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -2513,14 +2531,20 @@ function SettingsPanel({
                     </p>
                     <p className="mt-0.5 text-xs text-neutral-500">{formatDate(r.createdAt as string, lang)}</p>
                   </div>
-                  <a
-                    href={(r.downloadUrl as string) || undefined}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-full border border-white/20 px-4 py-2 text-xs font-bold text-neutral-200 transition-colors hover:border-primary/50 hover:text-primary"
-                  >
-                    {t.workspace.finalReportsDownloadButton}
-                  </a>
+                  {r.downloadUrl ? (
+                    <a
+                      href={r.downloadUrl as string}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border border-white/20 px-4 py-2 text-xs font-bold text-neutral-200 transition-colors hover:border-primary/50 hover:text-primary"
+                    >
+                      {t.workspace.finalReportsDownloadButton}
+                    </a>
+                  ) : (
+                    <span className="cursor-not-allowed rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-neutral-500">
+                      {t.workspace.finalReportsDownloadUnavailable}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -5282,9 +5306,18 @@ function Workspace() {
               </div>
             )}
           </div>
+          {/* Bugfix (QA Juli 2026): tombol ini TIDAK punya onClick sama sekali —
+              fiturnya memang belum ada (tooltip sudah jujur bilang "Bantuan
+              segera hadir"), tapi sebelumnya masih pakai style hover/focus
+              interaktif penuh (border+teks berubah saat hover, ring saat
+              focus) persis seperti tombol yang benar-benar berfungsi, jadi
+              terlihat seperti tombol rusak/tidak bisa diklik. Disamakan
+              dengan pola "Segera Hadir" di Pengaturan -> Edit Profil
+              (disabled + cursor-not-allowed + warna pudar, tanpa hover). */}
           <button
+            disabled
             title={t.workspace.todayHelpTooltip}
-            className="hidden h-10 flex-shrink-0 items-center gap-1.5 rounded-2xl border border-white/10 bg-surface px-4 text-xs font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black sm:flex"
+            className="hidden h-10 flex-shrink-0 cursor-not-allowed items-center gap-1.5 rounded-2xl border border-white/10 bg-surface px-4 text-xs font-semibold text-neutral-500 sm:flex"
           >
             <span aria-hidden="true">❔</span> {t.workspace.todayHelpButton}
           </button>

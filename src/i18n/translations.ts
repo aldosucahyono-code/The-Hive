@@ -609,7 +609,7 @@ const id = {
       eyebrow: "Tentang Pendiri",
       heading: "Dibangun oleh Seseorang yang Percaya Bahwa Setiap Bisnis Berhak Bertumbuh",
       paragraphs: [
-        "THE-HIVE didirikan oleh seorang profesional yang menghabiskan bertahun-tahun mendampingi dunia bisnis, mulai dari sektor perbankan hingga pengembangan strategi usaha umkm ataupun korporasi.",
+        "THE HIVE didirikan oleh seorang profesional yang menghabiskan bertahun-tahun mendampingi dunia bisnis, mulai dari sektor perbankan hingga pengembangan strategi usaha umkm ataupun korporasi.",
         "Dari pengalaman tersebut, ia menyadari bahwa banyak keputusan bisnis gagal bukan karena kurangnya semangat, melainkan karena minimnya akses terhadap analisis yang tepat.",
         "Berangkat dari keyakinan bahwa teknologi seharusnya membantu, bukan menggantikan manusia, ia membangun THE HIVE — platform AI yang membuat analisis bisnis profesional, yang dulunya cuma bisa diakses perusahaan besar, sekarang bisa dipakai UMKM, startup, sampai perusahaan mana pun.",
       ],
@@ -852,6 +852,13 @@ const id = {
     finalReportsGenerateLoading: "Membuat laporan...",
     finalReportsGenerateError: "Gagal membuat laporan. Coba lagi.",
     finalReportsDownloadButton: "Download PDF",
+    // Bugfix (QA Juli 2026): listReports.ts bisa mengembalikan downloadUrl:
+    // null kalau pembuatan signed URL Storage sempat gagal (error transient)
+    // walau baris laporannya sendiri ADA -- sebelumnya tombol download tetap
+    // dirender full-color/terlihat aktif tapi href-nya kosong, jadi diklik
+    // tidak melakukan apa-apa tanpa penjelasan. Sekarang tombolnya diganti
+    // teks ini (non-link, warna pudar) supaya jujur.
+    finalReportsDownloadUnavailable: "PDF tidak tersedia sementara — coba lagi nanti",
     finalReportsExpiryTitle: "Laporan Perbandingan Periode",
     finalReportsExpiryDesc: "Ringkasan semua yang sudah kamu lakukan selama berlangganan, plus kesimpulannya. Jadi bekal target kalau kamu lanjut lagi.",
     finalReportsExpiryEmptyDesc: "Belum ada laporan perbandingan. Laporan ini dibuat otomatis di hari terakhir masa aksesmu.",
@@ -2300,6 +2307,7 @@ const en: Translations = {
     finalReportsGenerateLoading: "Creating report...",
     finalReportsGenerateError: "Failed to create the report. Please try again.",
     finalReportsDownloadButton: "Download PDF",
+    finalReportsDownloadUnavailable: "PDF temporarily unavailable — try again later",
     finalReportsExpiryTitle: "Period Comparison Report",
     finalReportsExpiryDesc: "A summary of everything you did during your subscription, plus a takeaway — useful as your target if you resubscribe.",
     finalReportsExpiryEmptyDesc: "No comparison report yet. This is generated automatically on the last day of your access period.",
