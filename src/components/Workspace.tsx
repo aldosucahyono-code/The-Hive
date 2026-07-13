@@ -4415,6 +4415,15 @@ function Workspace() {
   // hapus-lalu-fallback, bisnis baru dibuat) supaya satu-satunya sumber
   // "data ini sudah basi, muat ulang" konsisten di semua tempat.
   function resetPerBusinessCaches() {
+    // BUGFIX QA Juli 2026: membership TIDAK ikut direset di sini sebelumnya
+    // — akibatnya badge "STATUS AKSES" di header sempat menampilkan tier
+    // bisnis LAMA (mis. "PLATINUM Aktif") selama beberapa detik setelah
+    // pindah ke bisnis baru yang sebenarnya masih Gratis, sampai fetch
+    // getMembership untuk bisnis baru selesai. AccessStatusCard menganggap
+    // membership === null sama seperti "free" (lihat komponennya), jadi
+    // reset ke null di sini aman — pengguna melihat "Paket Gratis" sesaat
+    // sebagai default yang jujur, bukan tier yang salah dari bisnis lain.
+    setMembership(null);
     setCompetitorAnalysis(null);
     setCompetitorError(false);
     setCompetitorNotReadyMessage(null);
