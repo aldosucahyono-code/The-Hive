@@ -126,7 +126,7 @@ const PRODUK_JASA_EXAMPLE_MAP: Array<{ keywords: string[]; id: [string, string];
     en: ["Custom graphic t-shirts", "Ready-to-wear floral hijab"],
   },
   {
-    keywords: ["jasa", "servis", "service", "konsultasi", "reparasi", "bengkel", "cuci"],
+    keywords: ["jasa", "servis", "service", "konsultasi", "reparasi", "cuci"],
     id: ["Jasa reparasi AC rumah", "Konsultasi pajak UMKM"],
     en: ["Home AC repair service", "SME tax consulting"],
   },
@@ -134,6 +134,24 @@ const PRODUK_JASA_EXAMPLE_MAP: Array<{ keywords: string[]; id: [string, string];
     keywords: ["salon", "spa", "kecantikan", "beauty", "skincare"],
     id: ["Perawatan facial wajah", "Creambath rambut rileksasi"],
     en: ["Facial skin treatment", "Relaxing hair creambath"],
+  },
+  {
+    // Toko HP/gadget/elektronik — kategori baru (QA Juli 2026: sebelumnya
+    // jatuh ke contoh default nasi goreng/kopi walau jenisBisnis-nya sudah
+    // jelas "Toko HP", karena belum ada kategori yang cocok).
+    keywords: ["hp", "handphone", "ponsel", "gadget", "elektronik", "aksesoris", "laptop", "komputer", "gawai", "phone", "electronic"],
+    id: ["Case & pelindung layar HP", "Charger dan aksesoris original"],
+    en: ["Phone case & screen protector", "Original chargers & accessories"],
+  },
+  {
+    keywords: ["motor", "mobil", "otomotif", "bengkel", "onderdil", "spare part", "ban", "automotive"],
+    id: ["Servis rutin motor matic", "Spare part & oli mesin mobil"],
+    en: ["Routine scooter servicing", "Car spare parts & engine oil"],
+  },
+  {
+    keywords: ["pendidikan", "les", "kursus", "bimbel", "sekolah", "pelatihan", "education", "tutoring"],
+    id: ["Kelas les privat matematika", "Modul & materi kursus online"],
+    en: ["Private math tutoring class", "Online course materials"],
   },
 ];
 const DEFAULT_PRODUK_JASA_EXAMPLE: { id: [string, string]; en: [string, string] } = {

@@ -112,7 +112,7 @@ function PricingCards({
               <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-amber-500 text-[11px] text-black">
                 ★
               </span>
-              <p className="text-xs leading-relaxed text-amber-100/90">{t.pricing.proHighlightTagline}</p>
+              <p className={"text-xs leading-relaxed " + (isLight ? "text-amber-900" : "text-amber-100/90")}>{t.pricing.proHighlightTagline}</p>
             </div>
 
             <button
@@ -184,7 +184,7 @@ function PricingCards({
               <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-purple-500 text-[11px] text-white">
                 ★
               </span>
-              <p className="text-xs leading-relaxed text-purple-100/90">{t.pricing.platinumHighlightTagline}</p>
+              <p className={"text-xs leading-relaxed " + (isLight ? "text-purple-900" : "text-purple-100/90")}>{t.pricing.platinumHighlightTagline}</p>
             </div>
 
             <button
