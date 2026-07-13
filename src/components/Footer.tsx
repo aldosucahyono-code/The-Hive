@@ -8,7 +8,7 @@ function navigateTo(hash: string) {
   };
 }
 
-function Footer({ variant = "dark" }: { variant?: "dark" | "light" }) {
+function Footer({ variant = "light" }: { variant?: "dark" | "light" }) {
   const { t } = useLanguage();
   const isLight = variant === "light";
 

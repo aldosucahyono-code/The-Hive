@@ -50,15 +50,30 @@
     scroll-behavior: smooth;
   }
 
+  /* Landing page redesign Juli 2026 (directive PO: "background hitam
+     ketika masuk workspace saja, lainnya putih") — default body sekarang
+     TERANG. Tema gelap yang dulu jadi default global dipindah ke class
+     .theme-dark di bawah, dipakai HANYA membungkus rute Workspace (lihat
+     App.tsx) supaya satu-satunya halaman gelap adalah Workspace. */
   body {
     font-family: var(--font-sans);
+    background-color: #ffffff;
+    color: #171717;
+    overflow-x: hidden;
+  }
+}
+
+@layer utilities {
+  /* Tema gelap lama (persis nilai body sebelum redesign) — dipakai sebagai
+     wrapper eksplisit di sekitar konten Workspace saja. */
+  .theme-dark {
     background-color: var(--color-bg);
     color: var(--color-text);
-    overflow-x: hidden;
     background-image:
       radial-gradient(circle at 65% 18%, rgba(255, 145, 0, 0.1), transparent 38%),
       radial-gradient(circle at 10% 85%, rgba(255, 120, 0, 0.06), transparent 42%);
     box-shadow: inset 0 0 220px rgba(0, 0, 0, 0.55);
+    min-height: 100vh;
   }
 }
 

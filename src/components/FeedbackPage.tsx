@@ -29,14 +29,14 @@ function FeedbackPage() {
       <div className="mb-8 text-center">
         <span className="text-xs font-bold uppercase tracking-widest text-primary">{t.feedbackPage.internalLabel}</span>
         <h1 className="mt-2 text-2xl font-extrabold">{t.feedbackPage.title}</h1>
-        <p className="mt-2 text-sm text-neutral-400">
+        <p className="mt-2 text-sm text-neutral-600">
           {t.feedbackPage.descPrefix}
-          <strong className="text-white">{t.feedbackPage.descBold}</strong>
+          <strong className="text-neutral-900">{t.feedbackPage.descBold}</strong>
           {t.feedbackPage.descSuffix}
         </p>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-surface p-6 sm:p-8">
+      <div className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8">
 
         <div className="mb-5">
           <label className="mb-2 block text-sm">{t.feedbackPage.namaLabel}</label>
@@ -44,7 +44,7 @@ function FeedbackPage() {
             type="text"
             value={nama}
             onChange={(e) => setNama(e.target.value)}
-            className="w-full rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary"
+            className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm outline-none focus:border-primary"
             placeholder={t.feedbackPage.namaPlaceholder}
           />
         </div>
@@ -55,7 +55,7 @@ function FeedbackPage() {
             type="text"
             value={kontak}
             onChange={(e) => setKontak(e.target.value)}
-            className="w-full rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary"
+            className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm outline-none focus:border-primary"
             placeholder={t.feedbackPage.kontakPlaceholder}
           />
         </div>
@@ -67,7 +67,7 @@ function FeedbackPage() {
               <button
                 key={n}
                 onClick={() => setRating(n)}
-                className={"h-10 w-10 rounded-lg border text-sm font-bold " + (rating >= n ? "border-primary bg-primary text-black" : "border-white/15 text-neutral-400")}
+                className={"h-10 w-10 rounded-lg border text-sm font-bold " + (rating >= n ? "border-primary bg-primary text-black" : "border-neutral-300 text-neutral-600")}
               >
                 {n}
               </button>
@@ -81,13 +81,13 @@ function FeedbackPage() {
             rows={5}
             value={pesan}
             onChange={(e) => setPesan(e.target.value)}
-            className="w-full resize-none rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary"
+            className="w-full resize-none rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm outline-none focus:border-primary"
             placeholder={t.feedbackPage.pesanPlaceholder}
           />
         </div>
 
         {sent && (
-          <p className="mb-4 text-sm text-amber-300">
+          <p className="mb-4 text-sm text-amber-700">
             {t.feedbackPage.sentMessage}
           </p>
         )}

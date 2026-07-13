@@ -193,8 +193,8 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           <span className="text-xs font-bold uppercase tracking-widest text-primary">{t.previewReport.eyebrow}</span>
           <h2 className="mt-2 text-2xl font-extrabold">{namaBisnis}</h2>
         </div>
-        <div className="rounded-2xl border border-red-500/30 bg-surface p-8">
-          <p className="text-sm text-neutral-300">
+        <div className="rounded-2xl border border-red-500/30 bg-white p-8">
+          <p className="text-sm text-neutral-700">
             {error || t.previewReport.errorFallback}
           </p>
           <p className="mt-2 text-xs text-neutral-500">
@@ -208,7 +208,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           </button>
         </div>
         <div className="mt-6">
-          <button onClick={onRestart} className="text-sm text-neutral-400 underline">
+          <button onClick={onRestart} className="text-sm text-neutral-600 underline">
             {t.previewReport.restartLink}
           </button>
         </div>
@@ -230,7 +230,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
 
       {autoSavedBusinessId && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/[0.06] px-5 py-3 text-center sm:text-left">
-          <p className="text-sm text-neutral-200">✓ {t.previewReport.autoSavedNote}</p>
+          <p className="text-sm text-neutral-800">✓ {t.previewReport.autoSavedNote}</p>
           <button
             onClick={() => hardNavigate("workspace")}
             className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-black transition-transform hover:-translate-y-0.5"
@@ -242,10 +242,10 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
 
       {autoSaveCapped && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] px-5 py-3 text-center sm:text-left">
-          <p className="text-sm text-neutral-200">🔒 {t.previewReport.autoSaveCappedNote}</p>
+          <p className="text-sm text-neutral-800">🔒 {t.previewReport.autoSaveCappedNote}</p>
           <button
             onClick={() => hardNavigate("workspace")}
-            className="rounded-full border border-amber-500/40 px-4 py-2 text-xs font-bold text-amber-300 transition-transform hover:-translate-y-0.5"
+            className="rounded-full border border-amber-500/40 px-4 py-2 text-xs font-bold text-amber-700 transition-transform hover:-translate-y-0.5"
           >
             {t.previewReport.autoSaveCappedButton}
           </button>
@@ -253,23 +253,23 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
       )}
 
       {/* Business Health/Readiness Score */}
-      <div className="mb-6 rounded-2xl border border-primary/30 bg-surface p-6 text-center">
-        <p className="text-sm text-neutral-400">{scoreLabel}</p>
+      <div className="mb-6 rounded-2xl border border-primary/30 bg-white p-6 text-center">
+        <p className="text-sm text-neutral-600">{scoreLabel}</p>
         <p className="mt-1 text-5xl font-black text-primary">
           {score}<span className="text-xl text-neutral-500">/100</span>
         </p>
-        <p className="mt-2 text-sm font-semibold text-amber-300">{status}</p>
-        <div className="mx-auto mt-4 h-2 w-full max-w-xs overflow-hidden rounded-full bg-white/10">
+        <p className="mt-2 text-sm font-semibold text-amber-700">{status}</p>
+        <div className="mx-auto mt-4 h-2 w-full max-w-xs overflow-hidden rounded-full bg-neutral-200">
           <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${score}%` }}></div>
         </div>
       </div>
 
       {/* AI sedang menganalisa */}
-      <div className="mb-6 rounded-2xl border border-white/10 bg-surface p-6">
+      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-6">
         <h3 className="mb-3 font-bold">{t.previewReport.checklistTitle}</h3>
         <ul className="grid grid-cols-2 gap-2">
           {analysisChecklist.map((item) => (
-            <li key={item.label} className={"flex items-center gap-2 text-sm " + (item.done ? "text-neutral-200" : "text-neutral-500")}>
+            <li key={item.label} className={"flex items-center gap-2 text-sm " + (item.done ? "text-neutral-800" : "text-neutral-500")}>
               <span>{item.done ? "✓" : "🔒"}</span> {item.label}
             </li>
           ))}
@@ -277,15 +277,15 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
       </div>
 
       {/* Ringkasan Singkat — dari Claude */}
-      <div className="mb-6 rounded-2xl border border-white/10 bg-surface p-6">
+      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-6">
         <h3 className="mb-2 font-bold">{t.previewReport.summaryTitle}</h3>
-        <p className="text-sm leading-relaxed text-neutral-300">{preview.summary}</p>
+        <p className="text-sm leading-relaxed text-neutral-700">{preview.summary}</p>
       </div>
 
       {/* Temuan Penting — dari Claude */}
-      <div className="mb-6 rounded-2xl border border-white/10 bg-surface p-6">
+      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-6">
         <h3 className="mb-3 font-bold">{t.previewReport.findingsTitle}</h3>
-        <ol className="space-y-2 text-sm text-neutral-300">
+        <ol className="space-y-2 text-sm text-neutral-700">
           {findings.map((f, i) => (
             <li key={i}><strong className="text-primary">{i + 1}.</strong> {f}</li>
           ))}
@@ -294,17 +294,17 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
 
       {/* Sudah Baik / Perlu Diperbaiki / Peluang — dari Claude */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-surface p-4">
+        <div className="rounded-xl border border-neutral-200 bg-white p-4">
           <p className="mb-1 text-xs font-bold uppercase text-primary">{t.previewReport.strengthsTitle}</p>
-          <p className="text-sm text-neutral-300">{preview.strengths}</p>
+          <p className="text-sm text-neutral-700">{preview.strengths}</p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-surface p-4">
+        <div className="rounded-xl border border-neutral-200 bg-white p-4">
           <p className="mb-1 text-xs font-bold uppercase text-primary">{t.previewReport.improvementsTitle}</p>
-          <p className="text-sm text-neutral-300">{preview.improvements}</p>
+          <p className="text-sm text-neutral-700">{preview.improvements}</p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-surface p-4">
+        <div className="rounded-xl border border-neutral-200 bg-white p-4">
           <p className="mb-1 text-xs font-bold uppercase text-primary">{t.previewReport.opportunityTitle}</p>
-          <p className="text-sm text-neutral-300">{preview.opportunity}</p>
+          <p className="text-sm text-neutral-700">{preview.opportunity}</p>
         </div>
       </div>
 
@@ -316,8 +316,8 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           atas sudah tampil, supaya tidak ada ajakan ganda. */}
       {!autoSavedBusinessId && !autoSaveCapped && (
         <div className="mb-6 rounded-2xl border-2 border-primary/50 bg-primary/[0.08] p-6 text-center shadow-[0_0_30px_-10px_rgba(255,152,0,0.5)]">
-          <p className="text-base font-extrabold text-white">🐝 {t.previewReport.freeCtaTitle}</p>
-          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-300">{t.previewReport.freeCtaDesc}</p>
+          <p className="text-base font-extrabold text-neutral-900">🐝 {t.previewReport.freeCtaTitle}</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-700">{t.previewReport.freeCtaDesc}</p>
           <button
             onClick={() => {
               if (!user) setShowAuthModal(true);
@@ -353,7 +353,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
       />
 
       {/* Unlock Laporan Lengkap — dua paket */}
-      <div id="unlock-section" className="mb-8 rounded-3xl border border-white/10 bg-surface p-6 sm:p-8">
+      <div id="unlock-section" className="mb-8 rounded-3xl border border-neutral-200 bg-white p-6 sm:p-8">
         <div className="mb-6 text-center">
           <span className="text-xs font-bold uppercase tracking-widest text-primary">
             {t.previewReport.unlockEyebrow}
@@ -361,7 +361,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           <h3 className="mt-2 text-xl font-extrabold sm:text-2xl">
             {t.previewReport.unlockTitle}
           </h3>
-          <p className="mt-2 text-sm text-neutral-400">
+          <p className="mt-2 text-sm text-neutral-600">
             {t.previewReport.unlockSubtitle}
           </p>
         </div>
@@ -373,7 +373,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
             <p className="mb-1 text-xs font-bold uppercase tracking-wide text-primary">
               🐝 {t.previewReport.recommendationTitle}
             </p>
-            <p className="text-sm leading-relaxed text-neutral-200">{preview.recommendationNote}</p>
+            <p className="text-sm leading-relaxed text-neutral-800">{preview.recommendationNote}</p>
           </div>
         )}
 
@@ -382,6 +382,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           onSelect={goToPayment}
           loadingPlan={preparingPlan}
           ctaLabel={{ pro: t.previewReport.proButton, platinum: t.previewReport.platinumButton, preparing: t.previewReport.preparingButton }}
+          variant="light"
         />
 
         <p className="mt-6 text-center text-xs text-neutral-500">
@@ -390,7 +391,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
       </div>
 
       <div className="mt-4 text-center">
-        <button onClick={onRestart} className="text-sm text-neutral-400 underline">
+        <button onClick={onRestart} className="text-sm text-neutral-600 underline">
           {t.previewReport.restartLink}
         </button>
       </div>
@@ -419,16 +420,16 @@ function BlurTeaser({
   }
 
   return (
-    <div className={`relative overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-5 ${marginBottom}`}>
-      <p className="mb-3 font-bold text-neutral-200">{title}</p>
+    <div className={`relative overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50 p-5 ${marginBottom}`}>
+      <p className="mb-3 font-bold text-neutral-800">{title}</p>
       <div aria-hidden="true" className="select-none space-y-2 blur-[3px]">
         {lines.map((line, i) => (
-          <p key={i} className="text-sm text-neutral-400">
+          <p key={i} className="text-sm text-neutral-600">
             {line}
           </p>
         ))}
       </div>
-      <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/85 via-black/50 to-transparent pb-4">
+      <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-white/95 via-white/75 to-transparent pb-4">
         <button
           onClick={scrollToUnlock}
           className="rounded-xl bg-primary px-5 py-2 text-sm font-bold text-black transition-transform hover:-translate-y-0.5"

@@ -13,15 +13,15 @@ function navigateTo(hash: string) {
 }
 
 type NavbarProps = {
-  // Landing page terang, Juli 2026: homepage butuh nav+tombol berbeda dari
-  // sisa aplikasi (anchor Fitur/Cara Kerja/FAQ, dua tombol Login+Coba
-  // Gratis terpisah, warna terang) — TANPA mengubah tampilan/perilaku
-  // Navbar di Workspace/ChatWizard/rute lain yang sudah teruji (default
-  // tetap "dark", tidak ada satupun pemanggil lain yang perlu diubah).
+  // Redesign Juli 2026 (directive PO: "background hitam ketika masuk
+  // workspace saja, lainnya putih") — default SEKARANG "light". Cuma rute
+  // Workspace yang secara eksplisit minta variant="dark" (lihat App.tsx);
+  // semua rute lain (homepage, ChatWizard, halaman legal/tentang-kami/
+  // pembayaran/dst) otomatis terang tanpa perlu diset satu-satu.
   variant?: "dark" | "light";
 };
 
-function Navbar({ variant = "dark" }: NavbarProps) {
+function Navbar({ variant = "light" }: NavbarProps) {
   const currentHash = window.location.hash.replace("#", "");
   const { lang, toggleLang, t } = useLanguage();
   const { user } = useAuth();
@@ -34,14 +34,16 @@ function Navbar({ variant = "dark" }: NavbarProps) {
     { label: t.navbar.tentangKami, hash: "tentang-kami" },
   ];
 
-  // Nav homepage terang: anchor dalam satu halaman (Fitur/Cara
-  // Kerja/FAQ), tidak lagi menaut ke rute #tentang-kami terpisah —
-  // rutenya sendiri TETAP ada (tidak dihapus), cuma tidak ditaut dari sini.
+  // Nav terang (dipakai di semua rute kecuali Workspace): anchor dalam
+  // satu halaman (Fitur/Cara Kerja/FAQ) + Tentang Kami dikembalikan atas
+  // permintaan user (semula sempat diganti FAQ saja, sekarang keduanya
+  // tampil berdampingan).
   const NAV_LINKS_LIGHT = [
     { label: t.navbar.beranda, hash: "" },
     { label: t.navbar.fitur, hash: "fitur" },
     { label: t.navbar.caraKerja, hash: "cara-kerja" },
     { label: t.navbar.faq, hash: "faq" },
+    { label: t.navbar.tentangKami, hash: "tentang-kami" },
   ];
 
   const NAV_LINKS = isLight ? NAV_LINKS_LIGHT : NAV_LINKS_DARK;

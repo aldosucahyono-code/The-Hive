@@ -113,19 +113,19 @@ export default function AuthModal({ onClose, defaultEmail }: AuthModalProps) {
       onClick={handleOverlayClick}
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
     >
-      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-black/95 p-8 backdrop-blur-md">
+      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-8 shadow-xl">
         <button
           onClick={onClose}
           aria-label={t.authModal.closeLabel}
-          className="absolute right-4 top-4 text-neutral-400 hover:text-white"
+          className="absolute right-4 top-4 text-neutral-400 hover:text-neutral-900"
         >
           ✕
         </button>
 
         {state === 'sent' ? (
           <div className="text-center">
-            <h2 className="mb-3 text-xl font-extrabold text-white">{t.authModal.sentTitle}</h2>
-            <p className="leading-relaxed text-neutral-300">
+            <h2 className="mb-3 text-xl font-extrabold text-neutral-900">{t.authModal.sentTitle}</h2>
+            <p className="leading-relaxed text-neutral-600">
               {t.authModal.sentDescPrefix}
               <strong className="text-primary">{email}</strong>
               {t.authModal.sentDescSuffix}
@@ -139,15 +139,15 @@ export default function AuthModal({ onClose, defaultEmail }: AuthModalProps) {
               >
                 {cooldown > 0 ? `${t.authModal.resendButton} (${cooldown}s)` : t.authModal.resendButton}
               </button>
-              <button onClick={handleChangeEmail} className="text-xs text-neutral-500 underline hover:text-neutral-300">
+              <button onClick={handleChangeEmail} className="text-xs text-neutral-500 underline hover:text-neutral-700">
                 {t.authModal.changeEmailButton}
               </button>
             </div>
           </div>
         ) : (
           <>
-            <h2 className="mb-1 text-xl font-extrabold text-white">{t.authModal.title}</h2>
-            <p className="mb-6 text-sm text-neutral-400">
+            <h2 className="mb-1 text-xl font-extrabold text-neutral-900">{t.authModal.title}</h2>
+            <p className="mb-6 text-sm text-neutral-500">
               {t.authModal.subtitle}
             </p>
 
@@ -159,11 +159,11 @@ export default function AuthModal({ onClose, defaultEmail }: AuthModalProps) {
                 placeholder={t.authModal.emailPlaceholder}
                 required
                 disabled={state === 'sending'}
-                className="mb-4 w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-neutral-500 focus:border-primary/50 focus:outline-none"
+                className="mb-4 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-4 py-3 text-neutral-900 placeholder:text-neutral-500 focus:border-primary/50 focus:outline-none"
               />
 
               {state === 'error' && (
-                <p className="mb-4 text-sm text-red-400">{errorMsg}</p>
+                <p className="mb-4 text-sm text-red-600">{errorMsg}</p>
               )}
 
               <button

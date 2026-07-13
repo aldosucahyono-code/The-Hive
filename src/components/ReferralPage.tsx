@@ -22,15 +22,15 @@ function ReferralPage() {
 
       <span className="text-xs font-bold uppercase tracking-widest text-primary">{p.eyebrow}</span>
       <h1 className="mt-2 text-2xl font-extrabold">{p.title}</h1>
-      <p className="mt-3 text-sm text-neutral-400">
+      <p className="mt-3 text-sm text-neutral-600">
         {p.subtitle}
       </p>
 
-      <div className="mt-8 rounded-2xl border border-white/10 bg-surface p-6">
+      <div className="mt-8 rounded-2xl border border-neutral-200 bg-white p-6">
 
-        <p className="mb-4 text-sm text-neutral-300">{shareText}</p>
+        <p className="mb-4 text-sm text-neutral-700">{shareText}</p>
 
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-sm text-neutral-300">
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
           <span>{shareUrl}</span>
           <button onClick={copyLink} className="rounded-full border border-primary/30 px-3 py-1 text-xs text-primary">
             {copied ? p.copiedLabel : p.copyLabel}

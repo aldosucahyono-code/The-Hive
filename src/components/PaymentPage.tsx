@@ -269,19 +269,19 @@ function PaymentPage({ plan }: { plan: PlanId }) {
 
     return (
       <section className="mx-auto max-w-lg px-6 py-20">
-        <div className={`rounded-2xl border ${info.accent} bg-surface p-8 text-center`}>
+        <div className={`rounded-2xl border ${info.accent} bg-white p-8 text-center`}>
           {confirming === "polling" && (
             <>
               <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <p className="text-sm font-semibold text-neutral-200">{confirmMessages[confirmMsgIndex]}</p>
+              <p className="text-sm font-semibold text-neutral-800">{confirmMessages[confirmMsgIndex]}</p>
             </>
           )}
 
           {confirming === "pendingTimeout" && (
             <>
               <div className="mb-3 text-2xl">⏳</div>
-              <h2 className="mb-2 text-lg font-extrabold text-white">{t.paymentPage.confirmingPendingTitle}</h2>
-              <p className="mb-6 text-sm leading-relaxed text-neutral-300">{t.paymentPage.confirmingPendingDesc}</p>
+              <h2 className="mb-2 text-lg font-extrabold text-neutral-900">{t.paymentPage.confirmingPendingTitle}</h2>
+              <p className="mb-6 text-sm leading-relaxed text-neutral-700">{t.paymentPage.confirmingPendingDesc}</p>
               <button
                 onClick={() => hardNavigate("workspace")}
                 className={`w-full rounded-xl ${info.accentBg} py-3 text-sm font-bold text-white hover:opacity-90`}
@@ -294,8 +294,8 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           {confirming === "expired" && (
             <>
               <div className="mb-3 text-2xl">⚠️</div>
-              <h2 className="mb-2 text-lg font-extrabold text-white">{t.paymentPage.confirmingExpiredTitle}</h2>
-              <p className="mb-6 text-sm leading-relaxed text-neutral-300">{t.paymentPage.confirmingExpiredDesc}</p>
+              <h2 className="mb-2 text-lg font-extrabold text-neutral-900">{t.paymentPage.confirmingExpiredTitle}</h2>
+              <p className="mb-6 text-sm leading-relaxed text-neutral-700">{t.paymentPage.confirmingExpiredDesc}</p>
               <button
                 onClick={() => {
                   setConfirming(null);
@@ -311,8 +311,8 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           {confirming === "failed" && (
             <>
               <div className="mb-3 text-2xl">⚠️</div>
-              <h2 className="mb-2 text-lg font-extrabold text-white">{t.paymentPage.confirmingFailedTitle}</h2>
-              <p className="mb-6 text-sm leading-relaxed text-neutral-300">{t.paymentPage.confirmingFailedDesc}</p>
+              <h2 className="mb-2 text-lg font-extrabold text-neutral-900">{t.paymentPage.confirmingFailedTitle}</h2>
+              <p className="mb-6 text-sm leading-relaxed text-neutral-700">{t.paymentPage.confirmingFailedDesc}</p>
               <button
                 onClick={() => {
                   setConfirming(null);
@@ -333,54 +333,54 @@ function PaymentPage({ plan }: { plan: PlanId }) {
     <section className="mx-auto max-w-lg px-6 py-20">
       <button
         onClick={() => hardNavigate("")}
-        className="mb-8 text-sm text-neutral-400 hover:text-white"
+        className="mb-8 text-sm text-neutral-600 hover:text-neutral-900"
       >
         {t.paymentPage.backButton}
       </button>
 
-      <div className={`rounded-2xl border ${info.accent} bg-surface p-8`}>
+      <div className={`rounded-2xl border ${info.accent} bg-white p-8`}>
         <span
           className={`inline-block rounded-full ${info.accentBg} px-3 py-1 text-xs font-bold text-white`}
         >
           {info.label}
         </span>
         <h1 className="mt-4 text-2xl font-extrabold">{t.paymentPage.unlockTitle} {info.label}</h1>
-        <p className="mt-2 text-sm text-neutral-400">
+        <p className="mt-2 text-sm text-neutral-600">
           {t.paymentPage.description}
         </p>
 
-        <div className="mt-6 space-y-3 rounded-xl border border-white/10 bg-black/20 p-5">
+        <div className="mt-6 space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-5">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-neutral-400">{t.paymentPage.bisnisLabel}</span>
+            <span className="text-neutral-600">{t.paymentPage.bisnisLabel}</span>
             <span className="font-semibold">{order?.namaBisnis || "—"}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-neutral-400">{t.paymentPage.namaLabel}</span>
+            <span className="text-neutral-600">{t.paymentPage.namaLabel}</span>
             <span className="font-semibold">{order?.nama || "—"}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-neutral-400">{t.paymentPage.emailLabel}</span>
+            <span className="text-neutral-600">{t.paymentPage.emailLabel}</span>
             <span className="font-semibold">{order?.email || "—"}</span>
           </div>
-          <div className="my-2 border-t border-white/10" />
+          <div className="my-2 border-t border-neutral-200" />
           <div className="flex items-center justify-between">
-            <span className="text-neutral-300">{t.paymentPage.totalLabel}</span>
+            <span className="text-neutral-700">{t.paymentPage.totalLabel}</span>
             <span className={`text-2xl font-black ${info.accentText}`}>{info.price}</span>
           </div>
         </div>
 
         {!order && (
-          <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+          <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800">
             {t.paymentPage.missingDataWarning}
           </p>
         )}
 
         {mismatchedEmail ? (
           <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 text-center">
-            <p className="mb-1 text-sm font-bold text-amber-200">{t.paymentPage.emailMismatchTitle}</p>
-            <p className="mb-3 text-sm text-neutral-200">
+            <p className="mb-1 text-sm font-bold text-amber-800">{t.paymentPage.emailMismatchTitle}</p>
+            <p className="mb-3 text-sm text-neutral-800">
               {t.paymentPage.emailMismatchDescPrefix}
-              <strong className="text-amber-300">{mismatchedEmail}</strong>
+              <strong className="text-amber-700">{mismatchedEmail}</strong>
               {t.paymentPage.emailMismatchDescSuffix}
             </p>
             <button
@@ -392,7 +392,7 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           </div>
         ) : !user ? (
           <div className="mt-6 rounded-xl border border-primary/30 bg-primary/10 p-5 text-center">
-            <p className="mb-3 text-sm text-neutral-200">
+            <p className="mb-3 text-sm text-neutral-800">
               {t.paymentPage.authPromptDesc}
             </p>
             <button
@@ -421,10 +421,10 @@ function PaymentPage({ plan }: { plan: PlanId }) {
         )}
 
         {promoteError && (
-          <p className="mt-3 text-center text-xs text-red-400">{promoteError}</p>
+          <p className="mt-3 text-center text-xs text-red-600">{promoteError}</p>
         )}
         {paymentError && (
-          <p className="mt-3 text-center text-xs text-red-400">{paymentError}</p>
+          <p className="mt-3 text-center text-xs text-red-600">{paymentError}</p>
         )}
         <p className="mt-3 text-center text-xs text-neutral-500">
           {t.paymentPage.footerNote}

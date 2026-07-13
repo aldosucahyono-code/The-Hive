@@ -27,18 +27,16 @@ function Hero({ onStart, animate }: HeroProps) {
   return (
     <section className="py-16 sm:py-20">
       <div className="mx-auto max-w-6xl px-6">
-        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-[1fr_1.15fr]">
+        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-[1.15fr_1fr]">
           <div>
             <span className={"mb-4 inline-block rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-bold text-primary " + fade()}>
               {t.hero.eyebrow}
             </span>
 
-            <h1 className={"text-4xl font-black leading-tight text-neutral-900 sm:text-5xl " + fade()}>
-              {t.hero.titleLine1}
-              <br />
-              {t.hero.titleLine2}
-              <br />
-              <span className="text-primary">{t.hero.titleLine3}</span>
+            <h1 className={"text-3xl font-black leading-tight text-neutral-900 sm:text-4xl lg:text-[2.65rem] xl:text-5xl " + fade()}>
+              <span className="block whitespace-nowrap">{t.hero.titleLine1}</span>
+              <span className="block whitespace-nowrap">{t.hero.titleLine2}</span>
+              <span className="block whitespace-nowrap text-primary">{t.hero.titleLine3}</span>
             </h1>
 
             <p className={"mt-5 max-w-lg text-base leading-relaxed text-neutral-600 " + fade("100ms")}>

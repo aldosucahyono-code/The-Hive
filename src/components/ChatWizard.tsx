@@ -156,13 +156,13 @@ function ChatWizard() {
   if (authLoading) {
     return (
       <section className="mx-auto flex min-h-[40vh] max-w-lg items-center justify-center px-6 py-20 text-center">
-        <p className="text-neutral-400">{t.wizardCapBlocked.checkingLabel}</p>
+        <p className="text-neutral-600">{t.wizardCapBlocked.checkingLabel}</p>
       </section>
     );
   }
 
   if (user && !capCleared) {
-    return <WizardCapBlocked onUnblocked={() => setCapCleared(true)} />;
+    return <WizardCapBlocked onUnblocked={() => setCapCleared(true)} colorScheme="light" />;
   }
 
   if (step === 0) {
@@ -195,7 +195,7 @@ function ChatWizard() {
   // step === 1: seluruh percakapan
   return (
     <section className="mx-auto max-w-2xl px-6 py-10 sm:py-16">
-      <div className="rounded-3xl border border-white/10 bg-surface p-4 sm:p-6">
+      <div className="rounded-3xl border border-neutral-200 bg-white p-4 sm:p-6">
         <ChatFlow
           data={data}
           updateField={updateField}

@@ -28,6 +28,11 @@ type PricingCardsProps = {
   loadingPlan: PlanId | null;
   ctaLabel: { pro: string; platinum: string; preparing: string };
   disabled?: boolean;
+  // Redesign Juli 2026 — komponen ini dipakai di 3 tempat: UpgradeModal
+  // (Workspace, TETAP gelap) serta PreviewReport & WizardCapBlocked (kini
+  // terang). Default "dark" supaya pemakaian di Workspace tidak berubah
+  // sama sekali; pemanggil di halaman terang eksplisit set variant="light".
+  variant?: "dark" | "light";
 };
 
 function PricingCards({
@@ -37,10 +42,17 @@ function PricingCards({
   loadingPlan,
   ctaLabel,
   disabled = false,
+  variant = "dark",
 }: PricingCardsProps) {
   const { t } = useLanguage();
   const showPro = visiblePlans.includes("pro");
   const showPlatinum = visiblePlans.includes("platinum");
+  const isLight = variant === "light";
+  const cardBgEnd = isLight ? "to-white" : "to-surface";
+  const dividerBorder = isLight ? "border-neutral-200" : "border-white/10";
+  const descText = isLight ? "text-neutral-600" : "text-neutral-400";
+  const labelMuted = isLight ? "text-neutral-500" : "text-neutral-500";
+  const checklistText = isLight ? "text-neutral-800" : "text-neutral-200";
 
   return (
     <div className={"grid grid-cols-1 gap-5 " + (showPro && showPlatinum ? "sm:grid-cols-2" : "sm:mx-auto sm:max-w-md")}>
@@ -51,7 +63,7 @@ function PricingCards({
             (recommendedTier === "pro" ? "border-primary/60 ring-1 ring-primary/40" : "border-amber-500/30")
           }
         >
-          <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-b from-amber-500/[0.07] to-surface" />
+          <div className={`absolute inset-0 -z-10 rounded-2xl bg-gradient-to-b from-amber-500/[0.07] ${cardBgEnd}`} />
           <img
             src={beemoPro}
             alt="Beemo"
@@ -69,20 +81,20 @@ function PricingCards({
             <h3 className="mt-5 max-w-[65%] text-left text-lg font-extrabold leading-snug sm:max-w-[60%] sm:text-xl">
               {t.pricing.proTitlePrefix} <span className="text-amber-400">{t.pricing.proTitleHighlight}</span>
             </h3>
-            <p className="mt-2.5 text-left text-sm text-neutral-400">{t.pricing.proDesc}</p>
+            <p className={`mt-2.5 text-left text-sm ${descText}`}>{t.pricing.proDesc}</p>
 
-            <div className="mt-6 border-t border-white/10 pt-5">
-              <p className="text-left text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.pricing.priceOnlyLabel}</p>
+            <div className={`mt-6 border-t ${dividerBorder} pt-5`}>
+              <p className={`text-left text-[11px] font-bold uppercase tracking-wide ${labelMuted}`}>{t.pricing.priceOnlyLabel}</p>
               <p className="mt-1 text-left text-3xl font-black text-amber-400 sm:text-4xl">
                 {t.pricing.proPriceMonthly}
-                <span className="text-base font-normal text-neutral-500">{t.pricing.proPriceMonthlyUnit}</span>
+                <span className={`text-base font-normal ${labelMuted}`}>{t.pricing.proPriceMonthlyUnit}</span>
               </p>
             </div>
 
             <p className="mt-6 text-left text-xs font-bold uppercase tracking-wide text-amber-400">{t.pricing.proWhatYouGetLabel}</p>
             <ul className="mt-4 space-y-3 text-left">
               {t.pricing.proChecklist.map((item, i) => (
-                <li key={item} className="flex items-start justify-between gap-3 text-sm text-neutral-200">
+                <li key={item} className={`flex items-start justify-between gap-3 text-sm ${checklistText}`}>
                   <span className="flex items-start gap-2.5">
                     <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-amber-500 text-[10px] text-black">
                       ✓
@@ -121,7 +133,7 @@ function PricingCards({
             (recommendedTier === "platinum" ? "border-primary/60 ring-1 ring-primary/40" : "border-purple-500/30")
           }
         >
-          <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-b from-purple-500/[0.08] to-surface" />
+          <div className={`absolute inset-0 -z-10 rounded-2xl bg-gradient-to-b from-purple-500/[0.08] ${cardBgEnd}`} />
           <img
             src={beemoPlatinum}
             alt="Beemo"
@@ -141,20 +153,20 @@ function PricingCards({
             <h3 className="mt-5 max-w-[65%] text-left text-lg font-extrabold leading-snug sm:max-w-[60%] sm:text-xl">
               {t.pricing.platinumTitlePrefix} <span className="text-purple-400">{t.pricing.platinumTitleHighlight}</span>
             </h3>
-            <p className="mt-2.5 text-left text-sm text-neutral-400">{t.pricing.platinumDesc}</p>
+            <p className={`mt-2.5 text-left text-sm ${descText}`}>{t.pricing.platinumDesc}</p>
 
-            <div className="mt-6 border-t border-white/10 pt-5">
-              <p className="text-left text-[11px] font-bold uppercase tracking-wide text-neutral-500">{t.pricing.priceOnlyLabel}</p>
+            <div className={`mt-6 border-t ${dividerBorder} pt-5`}>
+              <p className={`text-left text-[11px] font-bold uppercase tracking-wide ${labelMuted}`}>{t.pricing.priceOnlyLabel}</p>
               <p className="mt-1 text-left text-3xl font-black text-purple-400 sm:text-4xl">
                 {t.pricing.platinumPriceMonthly}
-                <span className="text-base font-normal text-neutral-500">{t.pricing.platinumPriceMonthlyUnit}</span>
+                <span className={`text-base font-normal ${labelMuted}`}>{t.pricing.platinumPriceMonthlyUnit}</span>
               </p>
             </div>
 
             <p className="mt-6 text-left text-xs font-bold uppercase tracking-wide text-purple-400">{t.pricing.platinumIncludesNote}</p>
             <ul className="mt-4 space-y-3 text-left">
               {t.pricing.platinumChecklist.map((item, i) => (
-                <li key={item} className="flex items-start justify-between gap-3 text-sm text-neutral-200">
+                <li key={item} className={`flex items-start justify-between gap-3 text-sm ${checklistText}`}>
                   <span className="flex items-start gap-2.5">
                     <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-purple-500 text-[10px] text-white">
                       ✓

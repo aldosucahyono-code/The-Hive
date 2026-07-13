@@ -174,12 +174,18 @@ function App() {
   }
 
   if (rawHash === "workspace") {
+    // Satu-satunya rute yang TETAP gelap (directive PO: "background hitam
+    // ketika masuk workspace saja, lainnya putih") — Navbar/Footer default
+    // sekarang terang, jadi di sini keduanya eksplisit diminta variant
+    // "dark", dan seluruh konten dibungkus .theme-dark (index.css) supaya
+    // elemen di dalam Workspace yang mengandalkan warna teks putih bawaan
+    // body tetap terbaca (body sendiri sekarang defaultnya terang).
     return (
-      <>
-        <Navbar />
+      <div className="theme-dark">
+        <Navbar variant="dark" />
         <Workspace />
-        <Footer />
-      </>
+        <Footer variant="dark" />
+      </div>
     );
   }
 
@@ -211,13 +217,14 @@ function App() {
   }
 
   // Homepage (Beranda) — landing page terang, Juli 2026 (redesign per
-  // instruksi PO: "lebih ringan, profesional, background putih"). Ini
-  // SATU-SATUNYA rute yang memakai variant="light" pada Navbar/Footer;
-  // semua rute lain (Workspace, ChatWizard lewat #mulai, halaman legal,
-  // dst) tetap memakai default "dark" tanpa perubahan apapun. Setelah
-  // user klik CTA (start=true), tampilan kembali ke ChatWizard gelap
-  // seperti sebelumnya — konsisten dengan directive "satu-satunya pintu
-  // untuk analisa bisnis baru... hanya lewat chat wizzard".
+  // instruksi PO: "lebih ringan, profesional, background putih"). variant
+  // "light" di sini eksplisit untuk kejelasan meski sekarang sudah jadi
+  // default Navbar/Footer — satu-satunya rute yang TETAP gelap adalah
+  // Workspace (lihat blok "workspace" di atas). Setelah user klik CTA
+  // (start=true) di bawah, tampilan pindah ke ChatWizard — TETAP terang
+  // (bukan gelap seperti sebelum redesign ini) — konsisten dengan
+  // directive "satu-satunya pintu untuk analisa bisnis baru... hanya
+  // lewat chat wizzard".
   if (!start) {
     return (
       <div className="bg-white text-neutral-900">

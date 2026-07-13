@@ -60,8 +60,8 @@ function NumberedList({ items }: { items: { title: string; text?: string }[] }) 
             {i + 1}
           </span>
           <div>
-            <p className="font-semibold text-neutral-200">{m.title}</p>
-            {m.text && <p className="mt-1 text-neutral-400">{m.text}</p>}
+            <p className="font-semibold text-neutral-800">{m.title}</p>
+            {m.text && <p className="mt-1 text-neutral-600">{m.text}</p>}
           </div>
         </li>
       ))}
@@ -104,7 +104,7 @@ function Accordion() {
         return (
           <div
             key={item.title}
-            className="overflow-hidden rounded-2xl border border-white/10 bg-surface transition-colors hover:border-primary/30"
+            className="overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-colors hover:border-primary/30"
           >
             <button
               aria-expanded={isOpen}
@@ -127,7 +127,7 @@ function Accordion() {
               style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
             >
               <div className="overflow-hidden">
-                <div className="px-5 pb-5 pr-10 text-sm leading-relaxed text-neutral-400 sm:px-6">
+                <div className="px-5 pb-5 pr-10 text-sm leading-relaxed text-neutral-600 sm:px-6">
                   {item.content}
                 </div>
               </div>
@@ -160,7 +160,7 @@ function TentangKami() {
               {p.heroTitlePrefix}{" "}
               <span className="text-primary">{p.heroTitleHighlight}</span>
             </h1>
-            <p className="mt-4 text-neutral-300">
+            <p className="mt-4 text-neutral-700">
               {p.heroDesc}
             </p>
             <a
@@ -196,7 +196,7 @@ function TentangKami() {
 
         {/* ---------- Founder ---------- */}
         <Reveal className="mt-16">
-          <div className="grid grid-cols-1 items-center gap-10 rounded-2xl border border-white/10 bg-surface p-8 md:grid-cols-2 md:p-10">
+          <div className="grid grid-cols-1 items-center gap-10 rounded-2xl border border-neutral-200 bg-white p-8 md:grid-cols-2 md:p-10">
             <div>
               <span className="text-xs font-bold uppercase tracking-widest text-primary">
                 {p.founder.eyebrow}
@@ -205,11 +205,11 @@ function TentangKami() {
                 {p.founder.heading}
               </h2>
               {p.founder.paragraphs.map((text, i) => (
-                <p key={i} className="mt-4 text-sm leading-relaxed text-neutral-400">
+                <p key={i} className="mt-4 text-sm leading-relaxed text-neutral-600">
                   {text}
                 </p>
               ))}
-              <p className="mt-3 text-sm leading-relaxed text-neutral-400">
+              <p className="mt-3 text-sm leading-relaxed text-neutral-600">
                 {p.founder.quote}
               </p>
               <div className="mt-6 flex flex-wrap items-center gap-4">
@@ -242,11 +242,11 @@ function TentangKami() {
             {p.coreValues.map((v) => (
               <div
                 key={v.title}
-                className="rounded-2xl border border-white/10 bg-surface p-6 transition-transform hover:-translate-y-1 hover:border-primary/40"
+                className="rounded-2xl border border-neutral-200 bg-white p-6 transition-transform hover:-translate-y-1 hover:border-primary/40"
               >
                 <span className="text-xl">{v.icon}</span>
                 <h3 className="mt-3 text-[15px] font-bold">{v.title}</h3>
-                <p className="mt-2 text-sm text-neutral-400">{v.desc}</p>
+                <p className="mt-2 text-sm text-neutral-600">{v.desc}</p>
               </div>
             ))}
           </div>
@@ -254,11 +254,11 @@ function TentangKami() {
 
         {/* ---------- Quote ---------- */}
         <Reveal className="mt-16">
-          <blockquote className="rounded-2xl border border-white/10 bg-surface p-10 text-center">
+          <blockquote className="rounded-2xl border border-neutral-200 bg-white p-10 text-center">
             <span className="text-4xl text-primary/50" aria-hidden>
               “
             </span>
-            <p className="mx-auto -mt-2 max-w-2xl text-lg font-medium leading-relaxed text-neutral-200">
+            <p className="mx-auto -mt-2 max-w-2xl text-lg font-medium leading-relaxed text-neutral-800">
               {p.quote.line1}
               <br />
               {p.quote.line2}

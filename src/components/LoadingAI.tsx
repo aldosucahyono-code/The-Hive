@@ -44,13 +44,13 @@ function LoadingAI({ ready, onDone }: LoadingAIProps) {
 
   return (
     <section className="mx-auto flex max-w-md flex-col items-center px-6 py-24 text-center">
-      <div className="mb-6 flex h-16 w-16 animate-pulse items-center justify-center rounded-full border border-primary/30 bg-surface text-2xl">
+      <div className="mb-6 flex h-16 w-16 animate-pulse items-center justify-center rounded-full border border-primary/30 bg-white text-2xl">
         🤖
       </div>
       <h2 className="text-lg font-bold">{t.loadingAI.title}</h2>
-      <p className="mt-2 text-sm text-neutral-400">{steps[index]}</p>
+      <p className="mt-2 text-sm text-neutral-600">{steps[index]}</p>
 
-      <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-white/10">
+      <div className="mt-6 h-2 w-full overflow-hidden rounded-full bg-neutral-200">
         <div
           className="h-full rounded-full bg-primary transition-all duration-500"
           style={{ width: `${progress}%` }}

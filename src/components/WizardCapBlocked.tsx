@@ -38,23 +38,37 @@ type WizardCapBlockedProps = {
   // SUDAH kelebihan slot (mis. langganan kedaluwarsa) — teksnya lebih
   // menekankan "kamu sudah melebihi batas", bukan "tidak bisa menambah lagi".
   variant?: "adding" | "overLimit";
+  // Redesign Juli 2026 — komponen ini dipanggil dari ChatWizard (kini
+  // terang) DAN Workspace.tsx (TETAP gelap). Nama prop sengaja BEDA dari
+  // "variant" di atas (yang sudah dipakai untuk arti lain) — default "dark"
+  // supaya pemakaian di Workspace tidak berubah sama sekali.
+  colorScheme?: "dark" | "light";
 };
 
-// Audit QA Juli 2026 (ditemukan lewat browser test setelah deploy): label
-// tier ini SEBELUMNYA hardcode "GRATIS" walau UI lain sudah beralih ke
-// Bahasa Inggris (t.wizardCapBlocked.tierFree belum ada, cuma ini yang
-// lolos karena PRO/PLATINUM kebetulan sama di kedua bahasa). className tetap
-// statis di sini (bukan bagian dari terjemahan), cuma label "free" yang
-// sekarang diambil dari useLanguage().
-const TIER_BADGE_CLASSNAME: Record<CapTier, string> = {
-  free: "border-white/15 text-neutral-400",
-  pro: "border-amber-500/40 text-amber-300",
-  platinum: "border-purple-500/40 text-purple-300",
-};
+function tierBadgeClassName(tier: CapTier, isLight: boolean): string {
+  // Audit QA Juli 2026 (ditemukan lewat browser test setelah deploy): label
+  // tier ini SEBELUMNYA hardcode "GRATIS" walau UI lain sudah beralih ke
+  // Bahasa Inggris (t.wizardCapBlocked.tierFree belum ada, cuma ini yang
+  // lolos karena PRO/PLATINUM kebetulan sama di kedua bahasa). className
+  // tetap statis di sini (bukan bagian dari terjemahan), cuma label "free"
+  // yang sekarang diambil dari useLanguage().
+  if (tier === "pro") return isLight ? "border-amber-500/40 text-amber-700" : "border-amber-500/40 text-amber-300";
+  if (tier === "platinum") return isLight ? "border-purple-500/40 text-purple-700" : "border-purple-500/40 text-purple-300";
+  return isLight ? "border-neutral-300 text-neutral-600" : "border-white/15 text-neutral-400";
+}
 
-function WizardCapBlocked({ onUnblocked, variant = "adding" }: WizardCapBlockedProps) {
+function WizardCapBlocked({ onUnblocked, variant = "adding", colorScheme = "dark" }: WizardCapBlockedProps) {
   const { t } = useLanguage();
   const { session } = useAuth();
+  const isLight = colorScheme === "light";
+  const cardBg = isLight ? "bg-white" : "bg-surface";
+  const cardBorder = isLight ? "border-neutral-200" : "border-white/10";
+  const innerCardBg = isLight ? "bg-neutral-50" : "bg-black/30";
+  const headingText = isLight ? "text-neutral-900" : "text-white";
+  const bodyMutedText = isLight ? "text-neutral-500" : "text-neutral-400";
+  const labelMutedText = isLight ? "text-neutral-400" : "text-neutral-500";
+  const cancelBorder = isLight ? "border-neutral-300" : "border-white/15";
+  const cancelText = isLight ? "text-neutral-600 hover:text-neutral-900" : "text-neutral-300 hover:text-white";
   const [phase, setPhase] = useState<"checking" | "capped">("checking");
   const [highestTier, setHighestTier] = useState<CapTier>("free");
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
@@ -164,7 +178,7 @@ function WizardCapBlocked({ onUnblocked, variant = "adding" }: WizardCapBlockedP
     return (
       <section className="mx-auto max-w-lg px-6 py-20 text-center">
         <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <p className="text-sm text-neutral-300">{t.wizardCapBlocked.checkingLabel}</p>
+        <p className={"text-sm " + (isLight ? "text-neutral-700" : "text-neutral-300")}>{t.wizardCapBlocked.checkingLabel}</p>
       </section>
     );
   }
@@ -182,35 +196,35 @@ function WizardCapBlocked({ onUnblocked, variant = "adding" }: WizardCapBlockedP
     <section className="mx-auto max-w-3xl px-6 py-16">
       <div className="mb-8 text-center">
         <div className="mb-3 text-3xl">🔒</div>
-        <h1 className="text-xl font-extrabold text-white sm:text-2xl">
+        <h1 className={"text-xl font-extrabold sm:text-2xl " + headingText}>
           {variant === "overLimit" ? t.wizardCapBlocked.overLimitTitle : t.addBusinessModal.capBlockedTitle}
         </h1>
-        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-400">
+        <p className={"mx-auto mt-3 max-w-md text-sm leading-relaxed " + bodyMutedText}>
           {variant === "overLimit" ? t.wizardCapBlocked.overLimitDesc : desc}
         </p>
       </div>
 
-      <div className="mb-8 rounded-2xl border border-white/10 bg-surface p-5 sm:p-6">
-        <h2 className="mb-1 text-sm font-bold text-white">{t.wizardCapBlocked.businessListTitle}</h2>
-        <p className="mb-4 text-xs leading-relaxed text-red-300">{t.wizardCapBlocked.deleteWarning}</p>
-        {deleteError && <p className="mb-3 text-sm text-red-400">{deleteError}</p>}
+      <div className={"mb-8 rounded-2xl border p-5 sm:p-6 " + cardBorder + " " + cardBg}>
+        <h2 className={"mb-1 text-sm font-bold " + headingText}>{t.wizardCapBlocked.businessListTitle}</h2>
+        <p className={"mb-4 text-xs leading-relaxed " + (isLight ? "text-red-700" : "text-red-300")}>{t.wizardCapBlocked.deleteWarning}</p>
+        {deleteError && <p className={"mb-3 text-sm " + (isLight ? "text-red-600" : "text-red-400")}>{deleteError}</p>}
         <div className="space-y-2.5">
           {businesses.map((b) => (
-            <div key={b.id} className="rounded-xl border border-white/10 bg-black/30 px-4 py-3">
+            <div key={b.id} className={"rounded-xl border px-4 py-3 " + cardBorder + " " + innerCardBg}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <div>
-                    <p className="text-sm font-semibold text-white">{b.businessName}</p>
-                    {b.industry && <p className="text-xs text-neutral-500">{b.industry}</p>}
+                    <p className={"text-sm font-semibold " + headingText}>{b.businessName}</p>
+                    {b.industry && <p className={"text-xs " + labelMutedText}>{b.industry}</p>}
                   </div>
-                  <span className={"rounded-full border px-2 py-0.5 text-[10px] font-bold " + TIER_BADGE_CLASSNAME[b.tier]}>
+                  <span className={"rounded-full border px-2 py-0.5 text-[10px] font-bold " + tierBadgeClassName(b.tier, isLight)}>
                     {b.tier === "free" ? t.wizardCapBlocked.tierFree : b.tier.toUpperCase()}
                   </span>
                 </div>
                 {confirmingDeleteId !== b.id && (
                   <button
                     onClick={() => setConfirmingDeleteId(b.id)}
-                    className="rounded-full border border-red-500/30 px-4 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10"
+                    className={"rounded-full border border-red-500/30 px-4 py-1.5 text-xs font-semibold hover:bg-red-500/10 " + (isLight ? "text-red-700" : "text-red-300")}
                   >
                     {t.wizardCapBlocked.deleteButton}
                   </button>
@@ -218,7 +232,7 @@ function WizardCapBlocked({ onUnblocked, variant = "adding" }: WizardCapBlockedP
               </div>
               {confirmingDeleteId === b.id && (
                 <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-                  <p className="text-xs leading-relaxed text-neutral-200">
+                  <p className={"text-xs leading-relaxed " + (isLight ? "text-neutral-800" : "text-neutral-200")}>
                     {t.wizardCapBlocked.deleteConfirmMessage.replace("{name}", b.businessName)}
                   </p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
@@ -232,7 +246,7 @@ function WizardCapBlocked({ onUnblocked, variant = "adding" }: WizardCapBlockedP
                     <button
                       onClick={() => setConfirmingDeleteId(null)}
                       disabled={deletingId === b.id}
-                      className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:text-white"
+                      className={"rounded-full border px-3 py-1.5 text-xs font-semibold " + cancelBorder + " " + cancelText}
                     >
                       {t.wizardCapBlocked.deleteConfirmCancel}
                     </button>
@@ -246,11 +260,12 @@ function WizardCapBlocked({ onUnblocked, variant = "adding" }: WizardCapBlockedP
 
       {highestTier !== "platinum" && (
         <div>
-          <p className="mb-4 text-center text-xs leading-relaxed text-neutral-500">{t.wizardCapBlocked.upgradeNote}</p>
+          <p className={"mb-4 text-center text-xs leading-relaxed " + labelMutedText}>{t.wizardCapBlocked.upgradeNote}</p>
           <PricingCards
             visiblePlans={visiblePlans}
             onSelect={() => hardNavigate("workspace")}
             loadingPlan={null}
+            variant={colorScheme}
             ctaLabel={{
               pro: t.wizardCapBlocked.goWorkspaceButton,
               platinum: t.wizardCapBlocked.goWorkspaceButton,

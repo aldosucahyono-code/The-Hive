@@ -678,8 +678,8 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
   function renderInput(question: Question) {
     const commonClass =
-      "w-full rounded-2xl border bg-black/30 px-4 py-3 text-sm outline-none focus:border-primary " +
-      (showError ? "border-red-500" : "border-white/10");
+      "w-full rounded-2xl border bg-neutral-50 px-4 py-3 text-sm outline-none focus:border-primary " +
+      (showError ? "border-red-500" : "border-neutral-200");
 
     if (question.inputType === "textarea") {
       return (
@@ -704,7 +704,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          className={commonClass + " [color-scheme:dark]"}
+          className={commonClass + " [color-scheme:light]"}
         />
       );
     }
@@ -798,11 +798,11 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       {/* Progress bar persisten — menggantikan teks "Step X dari Y" supaya
           terasa seperti aplikasi AI modern, bukan formulir/wizard. */}
       <div className="mb-3 flex-none">
-        <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-neutral-400">
+        <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-neutral-600">
           <span>{currentPhaseLabel}</span>
           <span>{progressPercent}%</span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200">
           <div
             className="h-full rounded-full bg-primary transition-all duration-500"
             style={{ width: `${progressPercent}%` }}
@@ -840,22 +840,22 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
               <ChatBubble role="bot" text={currentBotFullText.slice(0, revealedLength)} />
             )}
             {typingDone && (
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5">
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 sm:p-5">
                 {groupedSummary.map((g) => (
                   <div key={g.group} className="mb-4 last:mb-0">
                     <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-primary">{g.group}</h4>
                     {g.rows.map((row) => (
                       <div
                         key={row.field as string}
-                        className="flex items-start justify-between gap-3 border-b border-white/5 py-1.5 text-sm last:border-b-0"
+                        className="flex items-start justify-between gap-3 border-b border-neutral-100 py-1.5 text-sm last:border-b-0"
                       >
                         <div className="min-w-0">
-                          <span className="block text-neutral-400">{row.label}</span>
+                          <span className="block text-neutral-600">{row.label}</span>
                           <strong className="break-words">{(data[row.field] as string) || "—"}</strong>
                         </div>
                         <button
                           onClick={() => startEdit(row.field)}
-                          className="flex-none rounded-full border border-white/15 px-3 py-1 text-xs text-neutral-300 hover:border-primary/40 hover:text-white"
+                          className="flex-none rounded-full border border-neutral-300 px-3 py-1 text-xs text-neutral-700 hover:border-primary/40 hover:text-neutral-900"
                         >
                           {t.chatFlow.editLabel}
                         </button>
@@ -887,7 +887,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
         {emailStatus === "recognized" && typingDone && (
           <div className="space-y-3 pt-1">
             {magicLinkState === "sent" ? (
-              <p className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm text-neutral-200">
+              <p className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm text-neutral-800">
                 {t.chatFlow.emailRecognizedSent}
               </p>
             ) : (
@@ -902,11 +902,11 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
                     : t.chatFlow.emailRecognizedSendButton}
                 </button>
                 {magicLinkState === "error" && (
-                  <p className="text-sm text-red-400">{t.chatFlow.emailRecognizedError}</p>
+                  <p className="text-sm text-red-600">{t.chatFlow.emailRecognizedError}</p>
                 )}
                 <button
                   onClick={handleContinueAsNewAnalysis}
-                  className="w-full rounded-xl border border-white/15 py-3 text-sm text-neutral-300 hover:border-primary/40 hover:text-white"
+                  className="w-full rounded-xl border border-neutral-300 py-3 text-sm text-neutral-700 hover:border-primary/40 hover:text-neutral-900"
                 >
                   {t.chatFlow.emailRecognizedContinueButton}
                 </button>
@@ -917,7 +917,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
         {allAnswered && !editingField && typingDone && (
           <div className="pt-1">
-            {botError && <p className="mb-3 text-sm text-red-400">{t.chatFlow.botError}</p>}
+            {botError && <p className="mb-3 text-sm text-red-600">{t.chatFlow.botError}</p>}
             <button
               onClick={handleProses}
               disabled={loading}
@@ -934,7 +934,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
       {/* Composer — selalu menempel di bawah, mirip aplikasi chat pada umumnya */}
       {showComposer && (
-        <div className="mt-3 flex-none border-t border-white/10 pt-3">
+        <div className="mt-3 flex-none border-t border-neutral-200 pt-3">
           <div className="flex items-end gap-2">
             <div className="flex-1">{renderInput(activeQuestion)}</div>
             <button
@@ -946,7 +946,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
             </button>
           </div>
           {showError && (
-            <p className="mt-2 text-sm text-amber-400">⚠ {activeQuestion.invalidNudge}</p>
+            <p className="mt-2 text-sm text-amber-600">⚠ {activeQuestion.invalidNudge}</p>
           )}
         </div>
       )}
@@ -957,10 +957,10 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 function TypingDots() {
   return (
     <div className="flex items-end gap-2">
-      <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-primary/30 bg-surface text-sm">
+      <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-primary/30 bg-neutral-100 text-sm">
         🤖
       </div>
-      <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-surface px-4 py-3.5">
+      <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-neutral-100 px-4 py-3.5">
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:0ms]"></span>
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:150ms]"></span>
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:300ms]"></span>
@@ -974,14 +974,14 @@ function ChatBubble({ role, text }: { role: "bot" | "user"; text: string }) {
   return (
     <div className={"flex items-end gap-2 " + (isBot ? "justify-start" : "justify-end")}>
       {isBot && (
-        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-primary/30 bg-surface text-sm">
+        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-primary/30 bg-neutral-100 text-sm">
           🤖
         </div>
       )}
       <div
         className={
           "max-w-[80%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm leading-relaxed " +
-          (isBot ? "rounded-bl-sm bg-surface text-neutral-200" : "rounded-br-sm bg-primary text-black")
+          (isBot ? "rounded-bl-sm bg-neutral-100 text-neutral-800" : "rounded-br-sm bg-primary text-black")
         }
       >
         {text}
