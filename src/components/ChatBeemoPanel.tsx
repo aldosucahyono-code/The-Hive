@@ -20,6 +20,32 @@ type Tier = "free" | "pro" | "platinum";
 type ChatMessage = { role: "user" | "assistant"; content: string; decisionSaved?: boolean };
 type PendingMemoryFact = { id: string; factKey: string; factValue: unknown; proposedAt: string };
 
+// Fix bug: balasan Beemo (dari Claude) berisi markdown ringan (**bold**,
+// list bernomor "1. ...", baris baru antar-poin) tapi sebelumnya dirender
+// {m.content} polos tanpa parser DAN tanpa whitespace-pre-wrap -- jadi tanda
+// bintang muncul mentah dan semua baris ke-collapse jadi satu paragraf
+// panjang. Ditulis manual (bukan pasang react-markdown) supaya tidak perlu
+// dependency baru -- cukup untuk menangani **bold** + baris baru, yang
+// mencakup hampir semua pola balasan Beemo di prompt saat ini. Kalau nanti
+// AI mulai pakai markdown lebih kompleks (heading, tabel, dsb), pertimbangkan
+// ganti ke react-markdown.
+function renderChatContent(content: string) {
+  const boldSplit = (line: string) =>
+    line.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={i}>{part.slice(2, -2)}</strong>;
+      }
+      return <span key={i}>{part}</span>;
+    });
+
+  return content.split("\n").map((line, i, arr) => (
+    <span key={i}>
+      {boldSplit(line)}
+      {i < arr.length - 1 && <br />}
+    </span>
+  ));
+}
+
 function ChatBeemoPanel({
   businessProfileId,
   tier,
@@ -167,7 +193,7 @@ function ChatBeemoPanel({
                     (m.role === "user" ? "bg-primary text-black" : "border border-white/10 bg-white/5 text-neutral-200")
                   }
                 >
-                  {m.content}
+                  {renderChatContent(m.content)}
                 </div>
                 {/* Decision Engine Auto-Detect (revisi Juli 2026): tidak ada
                     form "Bantuan Keputusan" terpisah lagi — kalau Beemo

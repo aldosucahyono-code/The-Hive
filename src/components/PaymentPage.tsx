@@ -116,6 +116,15 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           setBusinessProfileId(json.businessProfileId);
         } else if (json.emailMismatch) {
           setMismatchedEmail(json.draftEmail || order?.email || null);
+        } else if (json.capExceeded) {
+          // Fix bug: sebelumnya kondisi ini jatuh ke pesan generik "Gagal
+          // menyiapkan data bisnismu" yang tidak menjelaskan APA yang salah
+          // atau APA yang harus dilakukan pengguna -- backend sudah tahu
+          // persis alasannya (lihat services/business/checkBusinessCap.ts)
+          // tapi pesan spesifik itu sebelumnya cuma di-console.error, tidak
+          // pernah sampai ke UI. Sekarang tampilkan pesan yang actionable.
+          console.error("promote-draft gagal (cap exceeded):", json.error);
+          setPromoteError(t.paymentPage.promoteErrorCapped);
         } else {
           console.error("promote-draft gagal:", json.error);
           setPromoteError(t.paymentPage.promoteErrorGeneric);
