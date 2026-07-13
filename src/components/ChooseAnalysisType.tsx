@@ -1,4 +1,5 @@
 import { useLanguage } from "../i18n/LanguageContext";
+import beemoLaptop from "../assets/mascot/beemo-laptop.png";
 
 type ChooseAnalysisTypeProps = {
   onChoose: (type: "baru" | "berjalan") => void;
@@ -11,9 +12,15 @@ function ChooseAnalysisType({ onChoose }: ChooseAnalysisTypeProps) {
     <section className="mx-auto max-w-3xl px-6 py-16">
 
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-primary/30 bg-white text-2xl">
-          🤖
-        </div>
+        {/* Ganti emoji 🤖 generik dengan mascot Beemo asli (Juli 2026, request
+            PO). Tanpa border ring supaya tidak terlihat seperti "badge" biasa
+            — cukup drop-shadow oranye lembut (pola sama dengan Hero.tsx &
+            PricingCards.tsx) supaya kesan eksklusif tanpa outline kaku. */}
+        <img
+          src={beemoLaptop}
+          alt="Beemo AI"
+          className="mx-auto mb-4 h-16 w-16 rounded-full object-cover drop-shadow-[0_6px_18px_rgba(255,152,0,0.45)]"
+        />
         <h2 className="text-xl font-bold">{t.chooseAnalysisType.greeting}</h2>
         <p className="mt-1 text-neutral-600">{t.chooseAnalysisType.subtitle}</p>
       </div>
