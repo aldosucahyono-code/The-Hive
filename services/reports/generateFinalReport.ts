@@ -105,6 +105,87 @@ type FinalReportAiContent = {
   coverSnapshot: string;
 };
 
+// Fix bug (Jul 2026): generateBaselineReport gagal (400) dengan
+// "SyntaxError: Expected ',' or ']' after array element in JSON at
+// position ..." — Claude kadang menghasilkan JSON dengan karakter kontrol
+// mentah (newline/tab literal) di DALAM string value (mis. paragraf
+// executiveSummary yang panjang), yang secara teknis ilegal di JSON ketat
+// dan bikin JSON.parse tersandung di titik itu. sanitizeJsonControlChars()
+// hanya meng-escape newline/tab/CR yang BENAR-BENAR berada di dalam string
+// literal (dilacak lewat quote-state + escape-state per karakter, bukan
+// regex membabi buta) — tidak menyentuh apapun di luar string, jadi aman
+// dari sisi makna konten.
+//
+// Ini menutup kelas bug paling umum (raw newline di dalam string), tapi
+// TIDAK menjamin 100% (kelas lain: tanda kutip ganda yang tidak di-escape
+// di tengah kalimat, jauh lebih sulit dideteksi tanpa ambiguitas). Karena
+// itu tetap dipasangkan FINAL_REPORT_MAX_ATTEMPTS panggilan ulang ke Claude
+// kalau parsing masih gagal setelah sanitasi — output LLM tidak
+// deterministik, jadi percobaan kedua/ketiga punya peluang bagus
+// menghasilkan JSON yang valid tanpa perlu menebak-nebak heuristik
+// perbaikan kutip yang berisiko.
+function sanitizeJsonControlChars(text: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        result += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        result += ch;
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+        result += ch;
+        continue;
+      }
+      if (ch === "\n") {
+        result += "\\n";
+        continue;
+      }
+      if (ch === "\r") {
+        result += "\\r";
+        continue;
+      }
+      if (ch === "\t") {
+        result += "\\t";
+        continue;
+      }
+      result += ch;
+    } else {
+      if (ch === '"') inString = true;
+      result += ch;
+    }
+  }
+  return result;
+}
+
+function parseFinalReportJson(raw: string): FinalReportAiContent {
+  const cleaned = raw.replace(/```json|```/g, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // lanjut ke percobaan berikutnya di bawah
+  }
+  try {
+    return JSON.parse(sanitizeJsonControlChars(cleaned));
+  } catch {
+    // lanjut ke percobaan berikutnya di bawah
+  }
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("Respons Claude tidak mengandung objek JSON.");
+  return JSON.parse(sanitizeJsonControlChars(jsonMatch[0]));
+}
+
+const FINAL_REPORT_MAX_ATTEMPTS = 3;
+
 async function callClaudeForFinalReport(
   memory: BusinessMemoryContext,
   reportType: FinalReportType,
@@ -116,41 +197,44 @@ async function callClaudeForFinalReport(
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY belum diset di Vercel.");
 
   const client = new Anthropic({ apiKey });
-  const response = await client.messages.create({
-    model: "claude-sonnet-5",
-    // Dinaikkan dari 4000 -> 10000 (Rombak Juli 2026): skema sekarang WAJIB
-    // mengisi executiveSummary + 10-14 sections + ceoRecommendation +
-    // appendix supaya PDF konsisten tembus >10 halaman (lihat
-    // finalReportPrompt.ts) — 4000 token sebelumnya nyaris pasti memotong
-    // output JSON di tengah jalan begitu jumlah section bertambah banyak,
-    // yang berisiko menghasilkan JSON tidak valid atau bagian akhir laporan
-    // terpotong. Nilainya disamakan dengan generate-monthly-report.ts (8000)
-    // plus sedikit ruang ekstra karena skema di sini juga memuat appendix.
-    max_tokens: 10000,
-    system: buildFinalReportPrompt(reportType, lang),
-    messages: [{ role: "user", content: buildFinalReportUserPrompt(memory, reportType, macro, social) }],
-    // Riset Sungguhan (pola sama dengan reportPrompt.ts/monthlyReportPrompt.ts):
-    // bagian yang menyentuh legalitas/pajak/regulasi terkini boleh mencari
-    // dulu sebelum ditulis, alih-alih mengandalkan ingatan lama model.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
-    // terpasang lebih tua dari tipe web search tool, sama seperti catatan di
-    // services/beemo/chat.ts dan generate-monthly-report.ts.
-    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }] as any,
-  });
 
-  const raw = response.content
-    .filter((b) => b.type === "text")
-    .map((b) => ("text" in b ? b.text : ""))
-    .join("");
-  let cleaned = raw.replace(/```json|```/g, "").trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch (parseErr) {
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw parseErr;
-    cleaned = jsonMatch[0];
-    return JSON.parse(cleaned);
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= FINAL_REPORT_MAX_ATTEMPTS; attempt++) {
+    const response = await client.messages.create({
+      model: "claude-sonnet-5",
+      // Dinaikkan dari 4000 -> 10000 (Rombak Juli 2026): skema sekarang WAJIB
+      // mengisi executiveSummary + 10-14 sections + ceoRecommendation +
+      // appendix supaya PDF konsisten tembus >10 halaman (lihat
+      // finalReportPrompt.ts) — 4000 token sebelumnya nyaris pasti memotong
+      // output JSON di tengah jalan begitu jumlah section bertambah banyak,
+      // yang berisiko menghasilkan JSON tidak valid atau bagian akhir laporan
+      // terpotong. Nilainya disamakan dengan generate-monthly-report.ts (8000)
+      // plus sedikit ruang ekstra karena skema di sini juga memuat appendix.
+      max_tokens: 10000,
+      system: buildFinalReportPrompt(reportType, lang),
+      messages: [{ role: "user", content: buildFinalReportUserPrompt(memory, reportType, macro, social) }],
+      // Riset Sungguhan (pola sama dengan reportPrompt.ts/monthlyReportPrompt.ts):
+      // bagian yang menyentuh legalitas/pajak/regulasi terkini boleh mencari
+      // dulu sebelum ditulis, alih-alih mengandalkan ingatan lama model.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
+      // terpasang lebih tua dari tipe web search tool, sama seperti catatan di
+      // services/beemo/chat.ts dan generate-monthly-report.ts.
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }] as any,
+    });
+
+    const raw = response.content
+      .filter((b) => b.type === "text")
+      .map((b) => ("text" in b ? b.text : ""))
+      .join("");
+
+    try {
+      return parseFinalReportJson(raw);
+    } catch (parseErr) {
+      lastErr = parseErr;
+      console.error(`callClaudeForFinalReport: JSON tidak valid di percobaan ${attempt}/${FINAL_REPORT_MAX_ATTEMPTS}:`, parseErr);
+    }
   }
+  throw lastErr;
 }
 
 /** Generate + simpan satu Final Report. Idempotent untuk "baseline" DAN
