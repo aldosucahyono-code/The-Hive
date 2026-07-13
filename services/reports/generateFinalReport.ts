@@ -19,9 +19,12 @@ import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { renderReportPdf } from "../../report-engine/renderPdf.js";
 import { buildFinalReportPrompt, buildFinalReportUserPrompt, type FinalReportType } from "../../report-engine/finalReportPrompt.js";
-import type { ReportData, Tier } from "../../report-engine/types.js";
+import type { ReportData } from "../../report-engine/types.js";
 import { getBusinessMemory, type BusinessMemoryContext } from "../memory/getBusinessMemory.js";
 import type { ServiceResult } from "../business/create.js";
+import { getMacroSnapshot, type MacroSnapshot } from "../macro/getMacroSnapshot.js";
+import { getCachedSocialSnapshot } from "../socialMedia/cache.js";
+import type { SocialMediaSnapshot } from "../socialMedia/types.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -34,39 +37,41 @@ export type GenerateFinalReportResult =
 /** Bikin ReportData minimal (skema sama dengan generate-report.ts) dari
  * hasil Claude + Business Memory — cover-nya pakai skor Business Memory
  * langsung (bukan angka karangan Claude) supaya konsisten dengan yang
- * pengguna lihat di Workspace. */
+ * pengguna lihat di Workspace.
+ *
+ * Rombak produk Juli 2026 ("PDF eksklusif PLATINUM, isi rangkuman lengkap
+ * platform >10 halaman"): sejak PDF Final Reports hanya untuk PLATINUM (lihat
+ * guard di generateFinalReport() di bawah), fungsi ini TIDAK PERNAH lagi
+ * dipanggil dengan tier "pro" — parameter tier dihapus, harga & executive
+ * summary/CEO recommendation/appendix SELALU diisi (sebelumnya field-field
+ * itu tidak pernah diisi sama sekali di sini, walau types.ts sudah
+ * menyediakannya untuk Platinum — laporan Final Reports jadi jauh lebih
+ * tipis dari yang seharusnya bisa didapat pelanggan Platinum). */
 function buildReportData(
   memory: BusinessMemoryContext,
   reportType: FinalReportType,
-  tier: Tier,
   lang: "id" | "en",
-  aiContent: {
-    sections: ReportData["sections"];
-    coverBusinessScore: number;
-    coverConfidencePct: number;
-    coverExecutiveRecommendation: string;
-    coverSnapshot: string;
-  }
+  aiContent: FinalReportAiContent
 ): ReportData {
   const today = new Date();
   const coverScore =
     reportType === "expiry" && memory.journey ? memory.journey.currentScore : (memory.baseline?.businessHealthScore ?? aiContent.coverBusinessScore);
   return {
-    tier,
-    price: tier === "pro" ? "Rp99.000" : "Rp349.000",
+    tier: "platinum",
+    price: "Rp349.000",
     tagline:
       reportType === "baseline"
         ? lang === "en"
-          ? "Initial Report — your business analysis baseline"
-          : "Laporan Awal — titik acuan analisa bisnismu"
+          ? "Initial Report — your complete THE HIVE platform baseline"
+          : "Laporan Awal — rangkuman lengkap titik acuan bisnismu di THE HIVE"
         : lang === "en"
-          ? "Period Comparison Report — what changed, and what's next"
-          : "Laporan Perbandingan Periode — apa yang berubah, dan langkah berikutnya",
+          ? "Period Comparison Report — everything that happened this cycle, and what's next"
+          : "Laporan Perbandingan Periode — semua yang terjadi sepanjang periode ini, dan langkah berikutnya",
     profile: {
-      ownerName: "-",
+      ownerName: memory.profile.userRole || "-",
       businessName: memory.profile.businessName,
       businessType: memory.profile.industry || "-",
-      profession: "-",
+      profession: memory.profile.userRole || "-",
       location: memory.profile.location || "-",
       status: memory.profile.businessType === "start" ? "Bisnis Baru" : "Bisnis Berjalan",
       initialCapital: "-",
@@ -82,12 +87,18 @@ function buildReportData(
       executiveRecommendation: aiContent.coverExecutiveRecommendation,
       snapshot: aiContent.coverSnapshot,
     },
+    executiveSummary: aiContent.executiveSummary,
     sections: aiContent.sections,
+    ceoRecommendation: aiContent.ceoRecommendation,
+    appendix: aiContent.appendix,
   };
 }
 
 type FinalReportAiContent = {
   sections: ReportData["sections"];
+  executiveSummary: ReportData["executiveSummary"];
+  ceoRecommendation: ReportData["ceoRecommendation"];
+  appendix: ReportData["appendix"];
   coverBusinessScore: number;
   coverConfidencePct: number;
   coverExecutiveRecommendation: string;
@@ -97,8 +108,9 @@ type FinalReportAiContent = {
 async function callClaudeForFinalReport(
   memory: BusinessMemoryContext,
   reportType: FinalReportType,
-  tier: Tier,
-  lang: "id" | "en"
+  lang: "id" | "en",
+  macro: MacroSnapshot | null,
+  social: SocialMediaSnapshot | null
 ): Promise<FinalReportAiContent> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY belum diset di Vercel.");
@@ -106,9 +118,24 @@ async function callClaudeForFinalReport(
   const client = new Anthropic({ apiKey });
   const response = await client.messages.create({
     model: "claude-sonnet-5",
-    max_tokens: tier === "platinum" ? 4000 : 2500,
-    system: buildFinalReportPrompt(reportType, tier, lang),
-    messages: [{ role: "user", content: buildFinalReportUserPrompt(memory, reportType) }],
+    // Dinaikkan dari 4000 -> 10000 (Rombak Juli 2026): skema sekarang WAJIB
+    // mengisi executiveSummary + 10-14 sections + ceoRecommendation +
+    // appendix supaya PDF konsisten tembus >10 halaman (lihat
+    // finalReportPrompt.ts) — 4000 token sebelumnya nyaris pasti memotong
+    // output JSON di tengah jalan begitu jumlah section bertambah banyak,
+    // yang berisiko menghasilkan JSON tidak valid atau bagian akhir laporan
+    // terpotong. Nilainya disamakan dengan generate-monthly-report.ts (8000)
+    // plus sedikit ruang ekstra karena skema di sini juga memuat appendix.
+    max_tokens: 10000,
+    system: buildFinalReportPrompt(reportType, lang),
+    messages: [{ role: "user", content: buildFinalReportUserPrompt(memory, reportType, macro, social) }],
+    // Riset Sungguhan (pola sama dengan reportPrompt.ts/monthlyReportPrompt.ts):
+    // bagian yang menyentuh legalitas/pajak/regulasi terkini boleh mencari
+    // dulu sebelum ditulis, alih-alih mengandalkan ingatan lama model.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
+    // terpasang lebih tua dari tipe web search tool, sama seperti catatan di
+    // services/beemo/chat.ts dan generate-monthly-report.ts.
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }] as any,
   });
 
   const raw = response.content
@@ -157,14 +184,37 @@ export async function generateFinalReport(
 
   const memory = await getBusinessMemory(businessProfileId);
   if (!memory) return { ok: false, error: "Gagal memuat konteks bisnis." };
-  if (memory.membership.tier === "free") {
-    return { ok: false, error: "Final Reports tersedia untuk pelanggan PRO/PLATINUM." };
+  // Bugfix produk Juli 2026 ("PDF eksklusif PLATINUM, kurangi biaya generate
+  // untuk PRO"): sebelumnya PRO ikut lolos di sini (hanya "free" yang
+  // diblokir) — PRO bisa generate/lihat/download PDF Final Reports persis
+  // seperti PLATINUM. Sekarang PDF generate/view/download HANYA untuk
+  // PLATINUM; diblokir juga di sini (bukan cuma di UI Workspace.tsx) supaya
+  // endpoint ini tidak bisa dipanggil langsung untuk PRO/Gratis dan tetap
+  // konsisten kalau ada jalur pemanggilan lain di masa depan (defense in
+  // depth — pola yang sama dipakai guard tier lain di codebase ini).
+  if (memory.membership.tier !== "platinum") {
+    return { ok: false, error: "Final Reports (PDF) tersedia khusus untuk pelanggan PLATINUM." };
   }
-  const tier: Tier = memory.membership.tier === "platinum" ? "platinum" : "pro";
+
+  // Rombak Juli 2026 ("rangkuman global isi platform THE HIVE secara
+  // lengkap"): Business Memory sudah punya ringkasan kompetitor, tapi TIDAK
+  // punya Kondisi Ekonomi (Makro) atau Medsos Kompetitor — dua pilar
+  // Workspace yang sebelumnya tidak pernah masuk PDF sama sekali. Diambil di
+  // sini secara terpisah, BUKAN lewat live trigger yang mahal:
+  // - getMacroSnapshot: data umum (bukan per-bisnis), murah — kurs live +
+  //   inflasi/BI rate statis terkurasi, sama seperti yang dibaca Workspace.
+  // - getCachedSocialSnapshot: HANYA baca cache yang sudah ada (kalau
+  //   pengguna belum pernah membuka tab Medsos Kompetitor, cache-nya kosong
+  //   dan itu jujur ditulis "belum ada data" di laporan — TIDAK memicu
+  //   pipeline Apify baru di sini, supaya generate PDF tetap cepat/murah).
+  const [macro, social] = await Promise.all([
+    getMacroSnapshot("", { lang }).then((r) => (r.status === 200 ? ((r.body as { macro: MacroSnapshot }).macro ?? null) : null)),
+    getCachedSocialSnapshot(businessProfileId),
+  ]);
 
   try {
-    const aiContent = await callClaudeForFinalReport(memory, reportType, tier, lang);
-    const reportData = buildReportData(memory, reportType, tier, lang, aiContent);
+    const aiContent = await callClaudeForFinalReport(memory, reportType, lang, macro, social);
+    const reportData = buildReportData(memory, reportType, lang, aiContent);
     const pdfBuffer = await renderReportPdf(reportData);
 
     const timestamp = Date.now();

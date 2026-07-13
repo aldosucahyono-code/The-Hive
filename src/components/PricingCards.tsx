@@ -13,7 +13,11 @@ const mascotMaskStyle: CSSProperties = {
   WebkitMaskImage: "radial-gradient(circle at 50% 42%, black 58%, transparent 78%)",
   maskImage: "radial-gradient(circle at 50% 42%, black 58%, transparent 78%)",
 };
-const PRO_ICONS = ["📄", "🥧", "🎯", "📋", "📢", "💬"];
+// Rombak Juli 2026 ("PDF eksklusif PLATINUM"): item pertama proChecklist
+// tidak lagi soal PDF (diganti akses Workspace & Dashboard) — ikon pertama
+// disesuaikan dari 📄 (dokumen) jadi 🖥️ (dashboard) supaya tetap cocok
+// dengan teksnya. Urutan ikon lain tidak berubah.
+const PRO_ICONS = ["🖥️", "🥧", "🎯", "📋", "📢", "💬"];
 const PLATINUM_ICONS = ["🗂️", "🔍", "📈", "📝", "👥", "📄", "💬"];
 
 export type PlanId = "pro" | "platinum";

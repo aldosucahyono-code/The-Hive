@@ -240,13 +240,21 @@ function FinalReportsList({
   generateError: string | null;
   onGenerateBaseline: () => void;
 }) {
-  if (tier === "free") {
+  // Bugfix produk Juli 2026 ("PDF eksklusif PLATINUM, kurangi biaya generate
+  // untuk PRO"): sebelumnya hanya tier "free" yang dikunci di sini — PRO
+  // sudah bisa generate/lihat/download PDF Final Reports langsung. Sekarang
+  // PRO ikut dikunci sama seperti Gratis: menu ini tetap TERLIHAT (bukan
+  // disembunyikan dari sidebar), tapi begitu diklik langsung diarahkan ke
+  // upgrade PLATINUM — satu-satunya tier yang boleh generate/lihat/download
+  // PDF. onUpgradeClick di sini SELALU dipanggil dengan target platinum-only
+  // (lihat pemanggil di bawah, openUpgradeModal(true)).
+  if (tier === "free" || tier === "pro") {
     return (
       <WorkspaceSection>
         <SectionHeader title={t.workspace.menuHistory} description={t.workspace.historySectionDesc} />
         <UpgradeLockCard
           description={t.workspace.finalReportsLockedDesc}
-          buttonLabel={t.workspace.competitorUpgradeButton}
+          buttonLabel={t.workspace.finalReportsUpgradeButton}
           onUpgradeClick={onUpgradeClick}
         />
       </WorkspaceSection>
@@ -2485,7 +2493,7 @@ function SettingsPanel({
           state `reports` yang SAMA dipakai panel Final Reports
           (loadReports() satu sumber, dipicu useEffect activeMenu ===
           "history" || "settings") — bukan fetch kedua. */}
-      {tier !== "free" && (
+      {tier === "platinum" && (
         <WorkspaceCard>
           <h3 className="mb-1 text-sm font-bold text-neutral-200">{t.workspace.settingsArchiveTitle}</h3>
           <p className="mb-4 text-xs text-neutral-500">{t.workspace.settingsArchiveDesc}</p>
@@ -3943,6 +3951,13 @@ function Workspace() {
   const [overLimitBlocked, setOverLimitBlocked] = useState<boolean | null>(null);
   const [showBusinessUpdate, setShowBusinessUpdate] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  // Bugfix produk Juli 2026 ("PDF eksklusif PLATINUM"): kalau modal ini
+  // dibuka dari fitur yang HANYA terbuka di PLATINUM (Final Reports/PDF),
+  // kartu PRO harus disembunyikan sama sekali — lihat UpgradeModal.tsx
+  // `platinumOnly`. Direset ke false tiap kali modal ditutup supaya
+  // pemanggilan generik openUpgradeModal() dari fitur lain (Kompetitor,
+  // Medsos, dst — yang tetap boleh ditawari PRO) tidak ikut kena batasan ini.
+  const [upgradePlatinumOnly, setUpgradePlatinumOnly] = useState(false);
   const [checkingUpgrade, setCheckingUpgrade] = useState(false);
   const [upgradeOutcome, setUpgradeOutcome] = useState<"expired" | "pending" | "failed" | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -4383,8 +4398,9 @@ function Workspace() {
     }
   }
 
-  function openUpgradeModal() {
+  function openUpgradeModal(platinumOnly = false) {
     setUpgradeOutcome(null);
+    setUpgradePlatinumOnly(platinumOnly);
     setShowUpgradeModal(true);
   }
 
@@ -5513,7 +5529,7 @@ function Workspace() {
               loading={reportsLoading}
               error={reportsError}
               onRetry={loadReports}
-              onUpgradeClick={openUpgradeModal}
+              onUpgradeClick={() => openUpgradeModal(true)}
               generating={reportsGenerating}
               generateError={reportsGenerateError}
               onGenerateBaseline={handleGenerateBaselineReport}
@@ -5824,7 +5840,11 @@ function Workspace() {
           businessProfileId={activeBusinessId}
           businessName={activeBusiness?.business_name || ""}
           currentTier={membership && membership.status === "active" ? membership.tier : "free"}
-          onClose={() => setShowUpgradeModal(false)}
+          platinumOnly={upgradePlatinumOnly}
+          onClose={() => {
+            setShowUpgradeModal(false);
+            setUpgradePlatinumOnly(false);
+          }}
           onUpgraded={handleUpgraded}
         />
       )}

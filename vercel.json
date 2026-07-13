@@ -12,6 +12,9 @@
     "api/workspace.ts": {
       "maxDuration": 180
     },
+    "api/notification-handler.ts": {
+      "maxDuration": 180
+    },
     "api/cron/generate-expiry-reports.ts": {
       "maxDuration": 300
     }

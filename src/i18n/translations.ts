@@ -397,12 +397,21 @@ const id = {
     proDesc: "Solusi cerdas untuk UMKM, toko, kuliner, jasa, online shop, freelancer, dan bisnis mikro.",
     priceOnlyLabel: "HANYA",
     proWhatYouGetLabel: "Apa yang Anda Dapatkan?",
-    proHighlightTagline: "Cocok untuk kamu yang ingin cepat paham, cepat jalan, dan mulai lihat hasil.",
+    // Rombak Juli 2026 ("fakta keunggulan fitur per paket, PDF eksklusif
+    // PLATINUM"): checklist PRO sebelumnya item pertamanya menjanjikan
+    // "Laporan analisa bisnis lengkap (PDF)" — begitu PDF dicabut dari PRO
+    // (lihat services/reports/generateFinalReport.ts, sekarang platinum-only),
+    // klaim itu jadi tidak benar. Diganti dengan fitur yang PRO SUNGGUHAN
+    // dapat (akses Workspace & Dashboard harian), dan proHighlightTagline di
+    // bawah menyebut eksplisit bahwa PDF resmi khusus PLATINUM — supaya jelas
+    // SEBELUM bayar, bukan kejutan sesudahnya.
+    proHighlightTagline:
+      "Cocok untuk kamu yang ingin cepat paham, cepat jalan, dan mulai lihat hasil. Laporan PDF resmi tersedia khusus di paket PLATINUM.",
     proChecklist: [
-      "Laporan analisa bisnis lengkap (PDF)",
-      "Kekuatan-kelemahan bisnis, kondisi pasar & pesaing di sekitarmu",
-      "Target harian, target omzet & titik balik modal",
-      "SOP & daftar tugas operasional",
+      "Akses penuh Business Workspace & Dashboard — pantau kondisi bisnismu kapan saja, bukan laporan sekali baca",
+      "Kekuatan-kelemahan bisnis, kondisi pasar & analisa kompetitor di sekitarmu",
+      "Target harian, target omzet & titik balik modal, dilacak otomatis di Target & Progres",
+      "SOP & daftar tugas operasional yang bisa langsung dijalankan",
       "Strategi marketing yang bisa langsung diterapkan",
       "Konsultasi Chat Beemo selama 30 hari",
     ],
@@ -413,11 +422,11 @@ const id = {
     platinumIncludesNote: "Semua di Pro, ditambah keunggulan eksklusif:",
     platinumHighlightTagline: "Untuk kamu yang ingin unggul, bertumbuh konsisten, dan memimpin pasar.",
     platinumChecklist: [
-      "Laporan analisa bisnis lengkap (PDF), plus Business Workspace & Dashboard — mentor pendamping harian, bukan cuma laporan sekali jadi",
+      "Laporan PDF resmi lengkap (Laporan Awal & Laporan Perbandingan Periode tiap 30 hari), dibuat otomatis begitu PLATINUM aktif — eksklusif, tidak tersedia di paket PRO — plus akses penuh Business Workspace & Dashboard",
       "Kekuatan-kelemahan bisnis, kondisi pasar & pesaing — dikupas lebih dalam lewat riset langsung Beemo AI multi-peran (HRD, Akuntan, Marketing, Legal), bukan cuma satu sudut pandang",
       "Target harian, target omzet & titik balik modal, plus Target & Progres bisnis dipantau lebih detail tiap bulan",
       "SOP & daftar tugas operasional, yang ikut diperbarui seiring bisnis kamu berkembang",
-      "Strategi marketing yang bisa langsung diterapkan, plus Competitor Workspace & Roadmap biar kamu selalu selangkah di depan",
+      "Strategi marketing yang bisa langsung diterapkan, plus Competitor Workspace & Decision Journal untuk mendokumentasikan tiap keputusan besar",
       "Laporan Perkembangan Bulanan (PDF), kapan pun kamu minta — bukan cuma sekali di awal",
       "Konsultasi Chat Beemo selama 30 hari, dengan kuota tanya-jawab & analisis keputusan jauh lebih banyak dari PRO",
     ],
@@ -823,13 +832,18 @@ const id = {
     menuHistory: "Final Reports",
     menuChat: "Beemo AI",
     menuSettings: "Pengaturan",
-    historySectionDesc: "Laporan PDF resmi bisnismu: Laporan Awal saat pertama bergabung, dan Laporan Perbandingan Periode saat masa aksesmu akan berakhir. Keduanya bisa didownload kapan saja.",
+    historySectionDesc: "Laporan PDF resmi bisnismu: Laporan Awal saat pertama bergabung, dan Laporan Perbandingan Periode saat masa aksesmu akan berakhir. Keduanya bisa didownload kapan saja — eksklusif untuk pelanggan PLATINUM.",
     historyEmptyTitle: "Belum Ada Riwayat",
     historyEmpty: "Belum ada riwayat analisis untuk bisnis ini.",
     historyBaselineBadge: "Analisa Awal",
     historyCtaDesc: "Perbarui kondisi bisnismu secara rutin supaya riwayatmu terus lengkap dan akurat.",
     historyUnnamedBusiness: "Tanpa Nama Bisnis",
-    finalReportsLockedDesc: "Final Reports (PDF laporan resmi bisnismu) tersedia untuk pelanggan PRO/PLATINUM.",
+    // Bugfix produk Juli 2026: sebelumnya teks ini bilang "tersedia untuk
+    // pelanggan PRO/PLATINUM" — sekarang PDF Final Reports eksklusif
+    // PLATINUM (PRO tidak lagi termasuk), jadi teksnya diperbaiki supaya
+    // tidak menjanjikan sesuatu yang PRO sebenarnya tidak dapat.
+    finalReportsLockedDesc: "Final Reports (PDF laporan resmi bisnismu) eksklusif untuk pelanggan PLATINUM. Upgrade untuk membuat, melihat, dan mengunduh laporannya.",
+    finalReportsUpgradeButton: "Upgrade ke PLATINUM",
     finalReportsBaselineTitle: "Laporan Awal",
     finalReportsBaselineDesc: "Ringkasan lengkap analisa pertama bisnismu — jadi patokan buat lihat kemajuanmu ke depan.",
     finalReportsBaselineEmptyDesc: "Belum ada Laporan Awal. Buat sekarang untuk mulai mengukur progres bisnismu dari titik ini.",
@@ -1842,12 +1856,13 @@ const en: Translations = {
     proDesc: "A smart solution for SMEs, shops, F&B, services, online shops, freelancers, and micro businesses.",
     priceOnlyLabel: "ONLY",
     proWhatYouGetLabel: "What Do You Get?",
-    proHighlightTagline: "Perfect if you want to understand fast, move fast, and start seeing results.",
+    proHighlightTagline:
+      "Perfect if you want to understand fast, move fast, and start seeing results. Official PDF reports are exclusive to the PLATINUM plan.",
     proChecklist: [
-      "Full business analysis report (PDF)",
-      "Strengths & weaknesses, market conditions & nearby competitors",
-      "Daily target, revenue target & break-even point",
-      "SOP & operational To-Do List",
+      "Full access to your Business Workspace & Dashboard — check your business anytime, not just a one-time report",
+      "Strengths & weaknesses, market conditions & competitor analysis nearby",
+      "Daily target, revenue target & break-even point, tracked automatically in Target & Progress",
+      "SOP & operational to-do list you can act on right away",
       "Marketing strategy you can apply right away",
       "30 days of Beemo AI chat consultation",
     ],
@@ -1858,11 +1873,11 @@ const en: Translations = {
     platinumIncludesNote: "Everything in Pro, plus exclusive perks:",
     platinumHighlightTagline: "For those who want to excel, grow consistently, and lead the market.",
     platinumChecklist: [
-      "Full business analysis report (PDF), plus Business Workspace & Dashboard — a daily companion mentor, not just a one-time report",
+      "Full official PDF reports (Initial Report & Period Comparison Report every 30 days), generated automatically once PLATINUM is active — exclusive, not available on PRO — plus full access to your Business Workspace & Dashboard",
       "Strengths & weaknesses, market conditions & competitors — dug deeper with live research from multi-role Beemo AI (HR, Accountant, Marketing, Legal), not just one point of view",
       "Daily target, revenue target & break-even point, plus more detailed Target & Progress tracking every month",
       "SOP & operational to-do list, kept updated as your business grows",
-      "Marketing strategy you can apply right away, plus Competitor Workspace & Roadmap to stay a step ahead",
+      "Marketing strategy you can apply right away, plus Competitor Workspace & Decision Journal to document every major decision",
       "Monthly Progress Report (PDF), whenever you ask for it — not just once at the start",
       "30 days of Beemo AI chat consultation, with a much bigger quota for chat & decision analysis than PRO",
     ],
@@ -2268,13 +2283,14 @@ const en: Translations = {
     menuHistory: "Final Reports",
     menuChat: "Beemo AI",
     menuSettings: "Settings",
-    historySectionDesc: "Your business's official PDF reports: an Initial Report from when you first joined, and a Period Comparison Report when your access period is about to end. Both downloadable anytime.",
+    historySectionDesc: "Your business's official PDF reports: an Initial Report from when you first joined, and a Period Comparison Report when your access period is about to end. Both downloadable anytime — exclusive to PLATINUM customers.",
     historyEmptyTitle: "No History Yet",
     historyEmpty: "No analysis history yet for this business.",
     historyBaselineBadge: "Initial Analysis",
     historyCtaDesc: "Update your business condition regularly so your history stays complete and accurate.",
     historyUnnamedBusiness: "Unnamed Business",
-    finalReportsLockedDesc: "Final Reports (your business's official PDF reports) are available for PRO/PLATINUM customers.",
+    finalReportsLockedDesc: "Final Reports (your business's official PDF reports) are exclusive to PLATINUM customers. Upgrade to generate, view, and download them.",
+    finalReportsUpgradeButton: "Upgrade to PLATINUM",
     finalReportsBaselineTitle: "Initial Report",
     finalReportsBaselineDesc: "A full summary of your business's very first analysis — your starting point for tracking progress from here.",
     finalReportsBaselineEmptyDesc: "No Initial Report yet. Create one now to start measuring your business's progress from this point.",

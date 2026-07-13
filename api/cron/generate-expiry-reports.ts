@@ -38,10 +38,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0)).toISOString();
   const endOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59)).toISOString();
 
+  // Bugfix produk Juli 2026 ("PDF eksklusif PLATINUM, kurangi biaya generate
+  // untuk PRO"): sebelumnya baris ini mengambil SEMUA subscription aktif
+  // yang expired hari ini (PRO ikut), jadi PRO tetap dapat "Laporan
+  // Perbandingan Periode" otomatis walau paketnya tidak lagi mencakup PDF.
+  // Sekarang disaring hanya tier "platinum" — generateFinalReport.ts sendiri
+  // juga sudah menolak tier selain platinum (defense in depth), tapi
+  // filter di sini penting supaya PRO yang expired hari ini tidak
+  // memanggil Claude+Playwright sama sekali (biaya nyata per baris).
   const { data: expiringRows, error } = await supabase
     .from("subscriptions")
     .select("id, business_profile_id, started_at, expires_at")
     .eq("status", "active")
+    .eq("tier", "platinum")
     .gte("expires_at", startOfDay)
     .lte("expires_at", endOfDay);
 

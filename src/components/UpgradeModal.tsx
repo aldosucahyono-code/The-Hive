@@ -19,14 +19,22 @@ type UpgradeModalProps = {
   currentTier: "free" | "pro" | "platinum";
   onClose: () => void;
   onUpgraded: () => void;
+  // Bugfix produk Juli 2026 ("PDF eksklusif PLATINUM"): beberapa fitur (mis.
+  // Final Reports/PDF) HANYA terbuka di PLATINUM, jadi PRO bukan pilihan yang
+  // relevan begitu modal dibuka dari sana — menampilkan kartu PRO di situ
+  // menyesatkan (seolah upgrade ke PRO saja cukup). Kalau true, sembunyikan
+  // kartu PRO sama sekali walau currentTier masih "free", supaya satu-satunya
+  // pilihan yang ditampilkan adalah PLATINUM.
+  platinumOnly?: boolean;
 };
 
-function UpgradeModal({ businessProfileId, businessName, currentTier, onClose, onUpgraded }: UpgradeModalProps) {
+function UpgradeModal({ businessProfileId, businessName, currentTier, onClose, onUpgraded, platinumOnly = false }: UpgradeModalProps) {
   const { t } = useLanguage();
   const { session, user } = useAuth();
   const [processingPlan, setProcessingPlan] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const visiblePlans: PlanId[] = currentTier === "platinum" ? [] : currentTier === "pro" ? ["platinum"] : ["pro", "platinum"];
+  const visiblePlans: PlanId[] =
+    currentTier === "platinum" ? [] : currentTier === "pro" || platinumOnly ? ["platinum"] : ["pro", "platinum"];
 
   async function handleSelectPlan(plan: PlanId) {
     if (!session?.access_token || !user?.email) return;

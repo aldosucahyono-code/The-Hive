@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import { generateFinalReport } from '../services/reports/generateFinalReport.js';
 
 const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY!;
 
@@ -102,6 +103,32 @@ export default async function handler(req: any, res: any) {
 
       if (subError) {
         console.error('subscriptions insert error:', subError);
+      }
+
+      // Fitur baru Juli 2026 ("setelah pembayaran berhasil dan terverifikasi
+      // baru THE HIVE bisa mengeluarkan PDF"): begitu subscription PLATINUM
+      // aktif, langsung buat Laporan Awal (baseline) otomatis di sini —
+      // pelanggan tidak perlu ingat untuk klik tombol manual di Workspace
+      // lagi setelah bayar. Sengaja TIDAK untuk tier "pro" (PDF sekarang
+      // eksklusif PLATINUM — lihat services/reports/generateFinalReport.ts).
+      // Idempotent (generateFinalReport mengecek baris "baseline" yang sudah
+      // ada dulu), jadi aman kalau notifikasi Midtrans ini terkirim ulang.
+      // Dibungkus try/catch supaya kegagalan generate PDF (mis. Claude API
+      // sesaat bermasalah) TIDAK menggagalkan respons ke Midtrans — request
+      // yang sama (subscription sudah tercatat aktif) tidak boleh dianggap
+      // gagal hanya karena PDF-nya belum jadi. Kalau auto-generate ini gagal,
+      // pelanggan tetap punya jalan manual: tombol "Buat PDF Awal" di panel
+      // Final Reports Workspace (generateFinalReport juga dipanggil dari
+      // sana, aman dipanggil ulang).
+      if (!subError && payment.tier === 'platinum') {
+        try {
+          const result = await generateFinalReport(payment.business_profile_id, 'baseline', 'id');
+          if (!result.ok) {
+            console.error(`notification-handler: gagal auto-generate baseline report untuk ${payment.business_profile_id}:`, result.error);
+          }
+        } catch (reportErr) {
+          console.error(`notification-handler: exception saat auto-generate baseline report untuk ${payment.business_profile_id}:`, reportErr);
+        }
       }
     } else if (transaction_status === 'pending') {
       await supabase.from('payments').update({ status: 'pending' }).eq('id', payment.id);
