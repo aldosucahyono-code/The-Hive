@@ -59,14 +59,6 @@ function App() {
     }
   }, [isAuthCallback, loading]);
 
-  if (isAuthCallback && loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        <p className="text-neutral-400">Mengaktifkan Workspace kamu...</p>
-      </div>
-    );
-  }
-
   const animateHero = rawHash === "";
 
   useEffect(() => {
@@ -130,6 +122,23 @@ function App() {
       if (failsafeTimeoutId) window.clearTimeout(failsafeTimeoutId);
     };
   }, [start, rawHash]);
+
+  // PENTING (bugfix Juli 2026): pengecekan "loading" ini HARUS berada di
+  // sini, SETELAH semua hook (useState/useEffect) di atas sudah dipanggil,
+  // bukan disisipkan di antara dua useEffect seperti sebelumnya. Versi lama
+  // membuat jumlah hook yang dipanggil berbeda antar render begitu "loading"
+  // berubah dari true->false di tengah proses tukar token magic link
+  // (Rules of Hooks violation) — React meng-crash-kan seluruh App menjadi
+  // layar putih kosong yang cuma bisa dipulihkan dengan refresh manual.
+  // Early return SETELAH hook (seperti blok rawHash di bawah) aman karena
+  // tidak ada hook lagi sesudahnya.
+  if (isAuthCallback && loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+        <p className="text-neutral-400">Mengaktifkan Workspace kamu...</p>
+      </div>
+    );
+  }
 
   // Halaman khusus (legal, ulasan internal, referensi) tampil MENGGANTIKAN
   // seluruh landing page/wizard — bukan cuma section di dalam Beranda.

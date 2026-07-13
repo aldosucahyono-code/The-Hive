@@ -1842,6 +1842,14 @@ function CompetitorPanel({
                 <div>
                   <p className="text-sm font-semibold text-white">{c.name}</p>
                   {c.address && <p className="text-xs text-neutral-500">{c.address}</p>}
+                  <a
+                    href={googleMapsSearchUrl(c.name, c.address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                  >
+                    📍 {t.workspace.competitorMapsLinkLabel}
+                  </a>
                 </div>
                 <div className="text-right text-xs text-neutral-400">
                   {c.rating != null ? `${c.rating}★` : t.workspace.competitorNoRatingData}
@@ -1948,6 +1956,38 @@ const PLATFORM_ICON: Record<SocialMediaRecordData["platform"], string> = {
   facebook: "👍",
 };
 
+const PLATFORM_DISPLAY_NAME: Record<SocialMediaRecordData["platform"], string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  facebook: "Facebook",
+};
+
+/** Link "cari di [platform]" — TIDAK butuh API key apapun, cuma URL search
+ * bawaan tiap platform. Dipakai untuk kompetitor dari data contoh/simulasi
+ * (nama bukan akun asli, jadi tidak bisa link langsung ke profil), supaya
+ * pengguna tetap punya sesuatu yang bisa diklik alih-alih teks statis. Untuk
+ * data ASLI (Apify, live_api) dipakai link profil langsung, lihat
+ * instagramProfileUrl() di bawah. */
+function socialSearchUrl(platform: SocialMediaRecordData["platform"], competitorName: string): string {
+  const q = encodeURIComponent(competitorName);
+  if (platform === "instagram") return `https://www.instagram.com/explore/search/keyword/?q=${q}`;
+  if (platform === "tiktok") return `https://www.tiktok.com/search?q=${q}`;
+  return `https://www.facebook.com/search/top?q=${q}`;
+}
+
+function instagramProfileUrl(username: string): string {
+  return `https://www.instagram.com/${encodeURIComponent(username)}/`;
+}
+
+/** Link "buka di Google Maps" — juga cuma URL search publik, tidak butuh
+ * GOOGLE_PLACES_API_KEY. Berlaku sama untuk kompetitor dari provider mana
+ * pun (Google Places, OpenStreetMap, atau contoh/simulasi) karena hanya
+ * memakai nama + alamat sebagai kata kunci pencarian. */
+function googleMapsSearchUrl(name: string, address: string | null): string {
+  const query = address ? `${name} ${address}` : name;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
 function SocialMediaSection({
   t,
   lang,
@@ -2010,6 +2050,14 @@ function SocialMediaSection({
                           {PLATFORM_ICON[r.platform]} {r.competitorName}
                         </p>
                         <p className="text-xs text-neutral-500">@{r.username}</p>
+                        <a
+                          href={instagramProfileUrl(r.username)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                        >
+                          {t.workspace.socialMediaViewProfileLabel}
+                        </a>
                       </div>
                       <div className="text-right text-xs text-neutral-400">
                         {fillTemplate(t.workspace.socialMediaFollowersLabel, { count: r.followers.toLocaleString(lang === "id" ? "id-ID" : "en-US") })}
@@ -2023,6 +2071,14 @@ function SocialMediaSection({
                           {PLATFORM_ICON[r.platform]} {r.competitorName}
                         </p>
                         <p className="text-xs text-neutral-500">{fillTemplate(t.workspace.socialMediaFollowersLabel, { count: r.followers.toLocaleString(lang === "id" ? "id-ID" : "en-US") })}</p>
+                        <a
+                          href={socialSearchUrl(r.platform, r.competitorName)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                        >
+                          {fillTemplate(t.workspace.socialMediaSearchLinkLabel, { platform: PLATFORM_DISPLAY_NAME[r.platform] })}
+                        </a>
                       </div>
                       <div className="text-right text-xs text-neutral-400">{fillTemplate(t.workspace.socialMediaEngagementLabel, { pct: String(r.engagementRatePct) })}</div>
                     </div>
@@ -5150,7 +5206,14 @@ function Workspace() {
               )}
             </button>
             {showNotifications && (
-              <div className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-lg">
+              // Anchor kiri (bukan kanan) — bugfix Juli 2026: tombol lonceng
+              // ini SELALU jadi kontrol paling kiri di barisnya, jadi
+              // "right-0" (buka melebar ke KIRI dari tombol) sering kehabisan
+              // ruang dan panel w-80 (320px) terpotong keluar tepi kiri layar
+              // — teks jadi tidak terbaca sebagian (dilaporkan pengguna).
+              // "left-0" (buka melebar ke KANAN, searah sisa toolbar) selalu
+              // ada cukup ruang karena area konten jauh lebih lebar di sana.
+              <div className="absolute left-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-lg">
                 <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                   <p className="text-sm font-bold text-white">{t.workspace.notificationsTitle}</p>
                   <button
