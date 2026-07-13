@@ -172,17 +172,18 @@ function TentangKami() {
           </Reveal>
 
           {/* Logo dipercantik (permintaan user): ring border ganda dihapus,
-              cuma logo + glow warna di belakangnya. Diperbesar ~1.75x —
-              tetap terkontainer rapi di mobile (grid satu kolom), baru
-              "bleed" melebihi kolomnya sendiri mulai md (pola sama seperti
-              mascot Hero) supaya tetap responsif di semua perangkat. */}
+              cuma logo + glow warna di belakangnya. Dikecilkan sedikit dari
+              versi sebelumnya (1.75x terasa terlalu besar) — tetap
+              terkontainer rapi di mobile (grid satu kolom), baru "bleed"
+              melebihi kolomnya sendiri mulai md (pola sama seperti mascot
+              Hero) supaya tetap responsif di semua perangkat. */}
           <Reveal className="flex justify-center md:justify-end">
             <div className="relative flex min-w-0 items-center justify-center">
-              <div className="absolute h-[26rem] w-[26rem] animate-float-y rounded-full bg-primary/25 blur-3xl" />
+              <div className="absolute h-[24rem] w-[24rem] animate-float-y rounded-full bg-primary/25 blur-3xl" />
               <img
                 src={hiveLogo}
                 alt="THE HIVE"
-                className="relative mx-auto h-auto w-full max-w-xs object-contain drop-shadow-[0_0_25px_rgba(255,152,0,0.55)] sm:max-w-sm md:mx-0 md:w-[175%] md:max-w-none"
+                className="relative mx-auto h-auto w-full max-w-[15rem] object-contain drop-shadow-[0_0_25px_rgba(255,152,0,0.55)] sm:max-w-xs md:mx-0 md:w-[130%] md:max-w-none"
               />
             </div>
           </Reveal>

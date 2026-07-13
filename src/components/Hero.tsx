@@ -69,18 +69,12 @@ function Hero({ onStart, animate }: HeroProps) {
             </div>
           </div>
 
-          {/* Mascot diperbesar ~1.5x dari sebelumnya (permintaan user) — di
-              mobile tetap terkontainer rapi (grid satu kolom), baru "bleed"
-              melebihi lebar kolomnya sendiri mulai breakpoint md ke atas
-              (justify-end + lebar dalam % dari kolom) supaya tetap
-              responsif di semua perangkat tanpa memicu scroll horizontal
-              (body sudah overflow-x:hidden). */}
-          <div className="relative flex min-w-0 items-center justify-center md:justify-end">
-            <div className="absolute h-[30rem] w-[40rem] rounded-full bg-primary/10 blur-3xl"></div>
+          <div className="relative flex items-center justify-center">
+            <div className="absolute h-[26rem] w-[34rem] rounded-full bg-primary/10 blur-3xl"></div>
             <img
               src={mascot}
               alt="Beemo AI"
-              className={"relative mx-auto w-full max-w-md sm:max-w-lg md:mx-0 md:max-w-none md:w-[150%] drop-shadow-[0_10px_40px_rgba(255,152,0,0.25)] " + (animate ? "animate-float-y" : "")}
+              className={"relative w-full max-w-2xl drop-shadow-[0_10px_40px_rgba(255,152,0,0.25)] " + (animate ? "animate-float-y" : "")}
             />
           </div>
         </div>
@@ -89,22 +83,23 @@ function Hero({ onStart, animate }: HeroProps) {
             biasa) mengikuti gaya baris "trust logo" di mockup, tapi isinya
             tetap kategori industri generik (BUKAN nama bisnis fiktif —
             keputusan sebelumnya: "Ganti jadi daftar industri yang
-            didukung"). */}
+            didukung"). Diperbesar sedikit (permintaan user) supaya lebih
+            menonjol dibanding versi awal. */}
         <div className={"mt-14 border-t border-neutral-100 pt-10 text-center sm:mt-16 sm:pt-12 " + fade("250ms")}>
-          <p className="mb-7 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          <p className="mb-8 text-sm font-semibold uppercase tracking-wide text-neutral-500">
             {t.hero.industriesLabel}
           </p>
-          <div className="mx-auto grid max-w-3xl grid-cols-3 gap-x-4 gap-y-8 sm:grid-cols-6">
+          <div className="mx-auto grid max-w-4xl grid-cols-3 gap-x-6 gap-y-10 sm:grid-cols-6">
             {t.hero.industries.map((industry, i) => (
-              <div key={industry} className="flex flex-col items-center gap-2.5">
+              <div key={industry} className="flex flex-col items-center gap-3">
                 <div
-                  className="flex h-12 w-12 flex-none items-center justify-center bg-primary/10 text-xl"
+                  className="flex h-16 w-16 flex-none items-center justify-center bg-primary/10 text-2xl"
                   style={{ clipPath: HEX_CLIP }}
                   aria-hidden="true"
                 >
                   {INDUSTRY_ICONS[i] ?? "🏢"}
                 </div>
-                <span className="text-xs font-medium leading-tight text-neutral-600">{industry}</span>
+                <span className="text-sm font-medium leading-tight text-neutral-600">{industry}</span>
               </div>
             ))}
           </div>
