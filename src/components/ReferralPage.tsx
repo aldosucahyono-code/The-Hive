@@ -6,7 +6,7 @@ function ReferralPage() {
   const p = t.referral;
   const [copied, setCopied] = useState(false);
 
-  const shareUrl = "https://thehive.id";
+  const shareUrl = "https://thehive-bisnis.com";
   const shareText = p.shareText;
 
   function copyLink() {

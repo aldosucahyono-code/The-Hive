@@ -19,7 +19,7 @@ function FeedbackPage() {
     const body = encodeURIComponent(
       `Nama: ${nama || t.feedbackPage.notFilled}\nKontak: ${kontak || t.feedbackPage.notFilled}\nRating: ${rating || "-"}/5\n\nPesan:\n${pesan}`
     );
-    window.location.href = `mailto:masukan@thehive.id?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:masukan@thehive-bisnis.com?subject=${subject}&body=${body}`;
     setSent(true);
   }
 
