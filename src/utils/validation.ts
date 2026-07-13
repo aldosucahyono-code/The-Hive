@@ -69,7 +69,14 @@ export function isValidLocation(value: string, minLength = 10): boolean {
   return true;
 }
 
-const freeTextPattern = /^[A-Za-zÀ-ÿ0-9\s,.\-!?()%'"/]+$/;
+// BUGFIX Juli 2026: pattern lama tidak mengizinkan "&", padahal karakter ini
+// sangat umum muncul di jawaban bisnis wajar (mis. "tambang & perikanan",
+// "R&D", "P&L"). Akibatnya jawaban panjang & detail tetap ditolak dengan
+// pesan menyesatkan "jawabannya masih terlalu singkat" — ditemukan saat uji
+// coba end-to-end mengisi pertanyaan "tantangan terbesar" dengan jawaban
+// realistis yang mengandung "&". Pola bug yang sama seperti isValidProfesi
+// sebelumnya: pesan error tidak mencerminkan sebab penolakan sesungguhnya.
+const freeTextPattern = /^[A-Za-zÀ-ÿ0-9\s,.\-!?()%'"/&]+$/;
 
 export function isValidFreeText(value: string, minLength = 7, minWords = 2): boolean {
   const trimmed = value.trim();

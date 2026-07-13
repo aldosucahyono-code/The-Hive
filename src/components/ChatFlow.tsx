@@ -469,7 +469,11 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       return q ? q.prompt(data) : null;
     }
     if (emailStatus === "recognized") return t.chatFlow.emailRecognizedMessage;
-    if (allAnswered) return t.chatFlow.summaryIntro;
+    // BUGFIX Juli 2026: sebelumnya baris ini mengembalikan summaryIntro
+    // mentah tanpa lewat fill(), jadi placeholder "{nama}" di template
+    // ("Terima kasih banyak, {nama}...") tampil literal ke pengguna alih-alih
+    // nama asli mereka. Ditemukan saat uji coba end-to-end wizard.
+    if (allAnswered) return fill(t.chatFlow.summaryIntro, data);
     if (activeQuestion && semanticRetryField === activeQuestion.field) {
       return activeQuestion.field === "lokasi"
         ? t.chatFlow.semanticNudgeLocation

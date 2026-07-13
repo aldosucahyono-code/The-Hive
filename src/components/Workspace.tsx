@@ -1768,7 +1768,7 @@ function CompetitorPanel({
       <WorkspaceSection>
         <SectionHeader title={t.workspace.menuCompetitor} description={t.workspace.competitorSectionDesc} />
         <ErrorCard
-          title={t.workspace.workspaceSectionErrorTitle}
+          title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.menuCompetitor })}
           description={t.workspace.workspaceSectionErrorDesc}
           retryLabel={t.workspace.workspaceRetryButton}
           onRetry={onRetry}
@@ -2019,7 +2019,7 @@ function SocialMediaSection({
         <SkeletonCard variant="compact" />
       ) : error ? (
         <ErrorCard
-          title={t.workspace.workspaceSectionErrorTitle}
+          title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.socialMediaSectionTitle })}
           description={t.workspace.workspaceSectionErrorDesc}
           retryLabel={t.workspace.workspaceRetryButton}
           onRetry={onRetry}
@@ -3482,7 +3482,7 @@ function TodayPanel({
               </div>
             ) : macroError || !macro ? (
               <ErrorCard
-                title={t.workspace.workspaceSectionErrorTitle}
+                title={fillTemplate(t.workspace.workspaceSectionErrorTitle, { page: t.workspace.todayMacroTitle })}
                 description={t.workspace.workspaceSectionErrorDesc}
                 retryLabel={t.workspace.workspaceRetryButton}
                 onRetry={onRetryMacro}
