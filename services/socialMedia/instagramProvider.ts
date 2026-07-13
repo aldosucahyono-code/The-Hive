@@ -12,13 +12,23 @@
 //    maxDuration 60 detik untuk SELURUH request api/workspace.ts, bukan
 //    cuma bagian ini) — lihat SOCIAL_LIVE_BUDGET_MS di getSocialMediaAnalysis.ts.
 //
-// PENCARIAN username: query dibangun dari {nama kompetitor} + {industri
-// bisnis pengguna} + {produk/jasa pengguna} + {lokasi} — bukan cuma nama
-// kompetitor mentah, supaya hasil pencarian lebih presisi untuk nama umum
-// (mis. "Warung Makmur" saja terlalu generik; ditambah "kuliner nasi
-// goreng Jakarta Selatan" jauh lebih presisi). Field produkJasa memang
-// ditambahkan ke wizard KHUSUS untuk kebutuhan ini (lihat
-// src/components/ChatWizard.tsx, WizardData.produkJasa).
+// PENCARIAN username (jalur 1, "by name"): query dibangun dari {nama
+// kompetitor} + {industri bisnis pengguna} + {produk/jasa pengguna} +
+// {lokasi} — bukan cuma nama kompetitor mentah, supaya hasil pencarian
+// lebih presisi untuk nama umum (mis. "Warung Makmur" saja terlalu
+// generik; ditambah "kuliner nasi goreng Jakarta Selatan" jauh lebih
+// presisi). Field produkJasa memang ditambahkan ke wizard KHUSUS untuk
+// kebutuhan ini (lihat src/components/ChatWizard.tsx, WizardData.produkJasa).
+//
+// PENCARIAN kategori+lokasi (jalur 2, "by category" — instruksi PO Juli
+// 2026): dipakai sebagai FALLBACK saat Competitor Engine (OpenStreetMap/
+// Google Places) tidak menemukan kompetitor bernama sama sekali (umum
+// terjadi di kota kecil yang cakupan datanya tipis, mis. Probolinggo).
+// Alih-alih menyerah ke mock, cari LANGSUNG di Apify pakai {kategori/jenis
+// usaha} + {lokasi} sebagai satu query umum (mis. "Salon Day and Day Spa
+// Probolinggo") dan ambil beberapa akun sekaligus dari SATU pencarian —
+// sama seperti cara pemilik produk mendeskripsikannya: "jenis usaha salon
+// and day spa, cari salon dan spa di Apify".
 
 import { runApifyActor } from "./apifyClient.js";
 import type { SocialMediaLiveRecord } from "./types.js";
@@ -39,6 +49,7 @@ export type BusinessSearchContext = {
 type InstagramSearchItem = {
   username?: string;
   ownerUsername?: string;
+  fullName?: string;
   url?: string;
 };
 
@@ -50,6 +61,53 @@ type InstagramProfileItem = {
 
 function buildSearchQuery(competitorName: string, context: BusinessSearchContext): string {
   return [competitorName, context.industry, context.produkJasa, context.location].filter(Boolean).join(" ").trim();
+}
+
+/** Query jalur 2 (by category): {industri/jenis usaha} + {lokasi} saja —
+ * TANPA nama kompetitor (karena memang belum ada nama yang ditemukan).
+ * Sengaja tidak menyertakan produkJasa di sini supaya query tetap umum
+ * ("Salon Day and Day Spa Probolinggo", bukan "Salon Day and Day Spa
+ * facial treatment creambath Probolinggo") — searchType "user" di Apify
+ * mencari AKUN, bukan post/hashtag, jadi query yang terlalu spesifik
+ * malah mengurangi kemungkinan ketemu akun bisnis sejenis di sekitar. */
+function buildCategoryQuery(context: BusinessSearchContext): string {
+  return [context.industry, context.location].filter(Boolean).join(" ").trim();
+}
+
+/** Cari BEBERAPA akun Instagram sekaligus lewat SATU query kategori+lokasi
+ * (bukan satu query per nama kompetitor seperti searchInstagramUsername).
+ * Dipakai sebagai fallback saat Competitor Engine tidak menemukan nama
+ * kompetitor sama sekali — lihat komentar jalur 2 di atas. */
+async function searchInstagramByCategory(
+  context: BusinessSearchContext,
+  token: string,
+  limit: number
+): Promise<Array<{ username: string; label: string }>> {
+  const query = buildCategoryQuery(context);
+  if (!query) return [];
+
+  try {
+    const items = await runApifyActor<InstagramSearchItem>({
+      actorId: SEARCH_ACTOR_ID,
+      token,
+      timeoutMs: SEARCH_TIMEOUT_MS,
+      input: { search: query, searchType: "user", searchLimit: limit },
+    });
+
+    const seen = new Set<string>();
+    const results: Array<{ username: string; label: string }> = [];
+    for (const item of items) {
+      const username = (item.username || item.ownerUsername || "").replace(/^@/, "");
+      if (!username || seen.has(username)) continue;
+      seen.add(username);
+      results.push({ username, label: item.fullName || username });
+      if (results.length >= limit) break;
+    }
+    return results;
+  } catch (err) {
+    console.error(`[socialMedia] pencarian kategori+lokasi gagal untuk "${query}":`, err);
+    return [];
+  }
 }
 
 /** Cari SATU username Instagram paling mungkin untuk satu kompetitor.
@@ -122,6 +180,33 @@ export async function fetchInstagramLiveRecords(
     if (followers === null) continue;
 
     results.push({ competitorName: name, platform: "instagram", username, followers });
+  }
+
+  return results;
+}
+
+/** Entry point jalur 2 (by category) — dipanggil getSocialMediaAnalysis.ts
+ * HANYA saat Competitor Engine tidak menemukan nama kompetitor sama sekali
+ * (mis. OpenStreetMap tidak punya data untuk kota tersebut). SATU pencarian
+ * kategori+lokasi mengembalikan beberapa kandidat sekaligus, lalu follower
+ * count tiap kandidat diambil satu-satu (sama pola budget/deadline dengan
+ * fetchInstagramLiveRecords di atas — berhenti kalau waktu habis). */
+export async function fetchInstagramLiveRecordsByCategory(
+  context: BusinessSearchContext,
+  token: string,
+  budgetMs: number
+): Promise<SocialMediaLiveRecord[]> {
+  const deadline = Date.now() + budgetMs;
+  const candidates = await searchInstagramByCategory(context, token, MAX_COMPETITORS);
+
+  const results: SocialMediaLiveRecord[] = [];
+  for (const candidate of candidates) {
+    if (Date.now() >= deadline) break;
+
+    const followers = await fetchFollowerCount(candidate.username, token);
+    if (followers === null) continue;
+
+    results.push({ competitorName: candidate.label, platform: "instagram", username: candidate.username, followers });
   }
 
   return results;

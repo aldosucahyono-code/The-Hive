@@ -30,7 +30,7 @@ import type { ServiceResult } from "../business/create.js";
 import { getActiveMembership } from "../membership/getActiveMembership.js";
 import type { SocialMediaCompetitorRecord, SocialMediaSnapshot, SocialPlatform } from "./types.js";
 import { getCachedSocialSnapshot, saveSocialSnapshot } from "./cache.js";
-import { fetchInstagramLiveRecords } from "./instagramProvider.js";
+import { fetchInstagramLiveRecords, fetchInstagramLiveRecordsByCategory } from "./instagramProvider.js";
 import { generateLiveSummary } from "./summaryGenerator.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -207,10 +207,14 @@ async function tryLiveSnapshot(
     // Nama kompetitor dari Competitor Engine yang SUDAH ADA (cache sendiri,
     // TIDAK query ulang provider di sini) — supaya Medsos Kompetitor
     // membicarakan kompetitor yang sama persis dengan yang tampil di atas
-    // section ini pada tab Kompetitor yang sama.
+    // section ini pada tab Kompetitor yang sama. HANYA gagal total (return
+    // null -> mock) kalau Engine-nya sendiri ERROR — kalau cuma 0
+    // kompetitor DITEMUKAN (bukan error, cakupan OpenStreetMap memang tipis
+    // di kota kecil), tetap lanjut ke jalur 2 (by category) di bawah,
+    // BUKAN langsung menyerah ke mock (instruksi PO Juli 2026).
     const { runCompetitorEngine } = await import("../competitor/engine/index.js");
     const engineResult = await runCompetitorEngine(businessProfileId);
-    if ("error" in engineResult || engineResult.competitors.length === 0) return null;
+    if ("error" in engineResult) return null;
 
     const { data: analysisRows } = await supabase
       .from("analyses")
@@ -225,13 +229,15 @@ async function tryLiveSnapshot(
     const rowWithLocation = rows.find((r) => (r.raw_input as Record<string, unknown> | null)?.lokasi);
     const location = ((rowWithLocation?.raw_input as Record<string, unknown> | undefined)?.lokasi as string) || "";
 
+    const searchContext = { industry: business.industry || "", produkJasa, location };
     const competitorNames = engineResult.competitors.map((c) => c.name);
-    const liveRecords = await fetchInstagramLiveRecords(
-      competitorNames,
-      { industry: business.industry || "", produkJasa, location },
-      token,
-      SOCIAL_LIVE_BUDGET_MS
-    );
+    // Jalur 1 (by name) kalau Competitor Engine punya nama; jalur 2 (by
+    // category, langsung {industri}+{lokasi}) kalau tidak — lihat komentar
+    // panjang di instagramProvider.ts soal alasan dua jalur ini.
+    const liveRecords =
+      competitorNames.length > 0
+        ? await fetchInstagramLiveRecords(competitorNames, searchContext, token, SOCIAL_LIVE_BUDGET_MS)
+        : await fetchInstagramLiveRecordsByCategory(searchContext, token, SOCIAL_LIVE_BUDGET_MS);
 
     // Tetap dikembalikan sebagai live_api walau liveRecords kosong — "belum
     // ketemu akun medsos kompetitor" itu sendiri adalah hasil yang jujur,
