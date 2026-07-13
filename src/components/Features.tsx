@@ -1,4 +1,5 @@
 import { useLanguage } from "../i18n/LanguageContext";
+import Reveal from "./Reveal";
 
 type FeaturesProps = {
   animate: boolean;
@@ -6,13 +7,19 @@ type FeaturesProps = {
 
 const delays = ["0ms", "80ms", "160ms", "240ms"];
 
+// Transisi antar-section landing page (Juli 2026, directive PO: "transisi
+// ringan saat perpindahan dari beranda ke fitur/cara kerja/faq, sama
+// seperti transisi Tentang Kami"). <Reveal> membungkus SELURUH konten
+// section — fade + slide-up ringan begitu section masuk viewport saat
+// scroll, terpisah dari "animate" (flourish saat mount pertama di atas
+// halaman) yang sudah ada.
 function Features({ animate }: FeaturesProps) {
   const { t } = useLanguage();
   const fade = (delay: string) => (animate ? `animate-fade-up [animation-delay:${delay}]` : "");
 
   return (
     <section className="scroll-mt-[130px] py-16 md:scroll-mt-[96px]" id="fitur">
-      <div className="mx-auto max-w-6xl px-6">
+      <Reveal className="mx-auto max-w-6xl px-6">
 
         <div className={"mx-auto mb-10 max-w-xl text-center " + fade("0ms")}>
           <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-widest text-primary
@@ -43,7 +50,7 @@ function Features({ animate }: FeaturesProps) {
           ))}
         </div>
 
-      </div>
+      </Reveal>
     </section>
   );
 }

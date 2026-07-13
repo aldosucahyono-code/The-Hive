@@ -1,16 +1,19 @@
 import { useLanguage } from "../i18n/LanguageContext";
+import Reveal from "./Reveal";
 
 const delays = ["0ms", "120ms", "240ms"];
 
 /** Section "Cara Kerja" — landing page terang, Juli 2026. 3 langkah
- * sederhana, tanpa klaim/janji hasil, cuma menjelaskan alur produk. */
+ * sederhana, tanpa klaim/janji hasil, cuma menjelaskan alur produk.
+ * <Reveal> = transisi ringan saat section masuk viewport (lihat
+ * Reveal.tsx), sama seperti transisi Tentang Kami. */
 function HowItWorks({ animate }: { animate: boolean }) {
   const { t } = useLanguage();
   const fade = (delay: string) => (animate ? `animate-fade-up [animation-delay:${delay}]` : "");
 
   return (
     <section className="scroll-mt-[130px] bg-neutral-50 py-16 md:scroll-mt-[96px]" id="cara-kerja">
-      <div className="mx-auto max-w-6xl px-6">
+      <Reveal className="mx-auto max-w-6xl px-6">
         <div className={"mx-auto mb-10 max-w-xl text-center " + fade("0ms")}>
           <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-widest text-primary
             before:h-px before:w-5 before:bg-gradient-to-r before:from-transparent before:to-primary before:content-['']
@@ -34,7 +37,7 @@ function HowItWorks({ animate }: { animate: boolean }) {
             </div>
           ))}
         </div>
-      </div>
+      </Reveal>
     </section>
   );
 }

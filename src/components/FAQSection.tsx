@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import Reveal from "./Reveal";
 
 /** Section FAQ — landing page terang, Juli 2026. Menggantikan posisi nav
  * "Tentang Kami" (rute #tentang-kami lama TETAP ada, cuma tidak lagi
@@ -13,7 +14,7 @@ function FAQSection({ animate }: { animate: boolean }) {
 
   return (
     <section className="scroll-mt-[130px] bg-neutral-50 py-16 md:scroll-mt-[96px]" id="faq">
-      <div className="mx-auto max-w-3xl px-6">
+      <Reveal className="mx-auto max-w-3xl px-6">
         <div className={"mx-auto mb-10 max-w-xl text-center " + fade}>
           <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-widest text-primary
             before:h-px before:w-5 before:bg-gradient-to-r before:from-transparent before:to-primary before:content-['']
@@ -44,7 +45,7 @@ function FAQSection({ animate }: { animate: boolean }) {
             );
           })}
         </div>
-      </div>
+      </Reveal>
     </section>
   );
 }

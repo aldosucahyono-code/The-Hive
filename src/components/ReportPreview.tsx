@@ -1,4 +1,5 @@
 import { useLanguage } from "../i18n/LanguageContext";
+import Reveal from "./Reveal";
 
 type ReportPreviewProps = {
   onStart: () => void;
@@ -25,7 +26,7 @@ function ReportPreview({ onStart, animate }: ReportPreviewProps) {
 
   return (
     <section className="scroll-mt-[130px] py-16 md:scroll-mt-[96px]" id="contoh-laporan">
-      <div className="mx-auto max-w-6xl px-6">
+      <Reveal className="mx-auto max-w-6xl px-6">
         <div className={"mx-auto mb-10 max-w-xl text-center " + fade()}>
           <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-widest text-primary
             before:h-px before:w-5 before:bg-gradient-to-r before:from-transparent before:to-primary before:content-['']
@@ -79,7 +80,7 @@ function ReportPreview({ onStart, animate }: ReportPreviewProps) {
             </button>
           </div>
         </div>
-      </div>
+      </Reveal>
     </section>
   );
 }

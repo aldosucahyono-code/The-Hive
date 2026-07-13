@@ -1,48 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import founderPhoto from "../assets/founder/founder-mascot.png";
 import hiveLogo from "../assets/logo/hive-logo.png";
 import { useLanguage } from "../i18n/LanguageContext";
-
-/** Minimal scroll-reveal via IntersectionObserver — no animation library,
- * matches the guidance's "CSS Transition/Animation + Intersection Observer,
- * jangan library animasi berat". */
-function useInView<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
-  const [inView, setInView] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setInView(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.15 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  return { ref, inView };
-}
-
-function Reveal({ children, className = "" }: { children: ReactNode; className?: string }) {
-  const { ref, inView } = useInView<HTMLDivElement>();
-  return (
-    <div
-      ref={ref}
-      className={`transition-all duration-700 ease-out ${
-        inView ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
-      } ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
+import Reveal from "./Reveal";
 
 /** Shared list style for every "numbered insight" accordion (Misi, Mengapa
  * Harus, Nilai) so they all read as one consistent design language instead
