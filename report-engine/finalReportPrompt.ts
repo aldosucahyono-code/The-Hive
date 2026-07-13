@@ -52,6 +52,15 @@ function languageRule(lang: "id" | "en"): string {
 const DATA_HONESTY_RULE_ID = `ATURAN DATA HONESTY (WAJIB): HANYA gunakan data yang benar-benar ada di Ringkasan Bisnis di bawah. Kalau satu aspek belum punya data (mis. belum pernah kirim Business Update), tulis jujur "belum ada data untuk ini" pada bagian itu — JANGAN mengarang angka atau cerita.`;
 const DATA_HONESTY_RULE_EN = `DATA HONESTY RULE (REQUIRED): ONLY use data that is actually present in the Business Summary below. If an aspect has no data yet (e.g. no Business Update submitted), honestly write "no data available yet" for that part — DO NOT invent numbers or stories.`;
 
+// Role-Aware Advice (arahan pemilik produk, Juli 2026 — sama seperti
+// roleAwareAdviceLine() di services/beemo/chat.ts, dipakai bersama supaya
+// Final Report tidak punya sudut pandang berbeda dari Chat Beemo untuk
+// pelanggan yang sama). Kalau "Peran pengguna" di Ringkasan Bisnis BUKAN
+// pemilik, field "recommendation" tiap section harus jelas membedakan mana
+// yang bisa dieksekusi sendiri vs mana yang perlu diusulkan ke Owner.
+const ROLE_AWARE_RULE_ID = `ATURAN SUDUT PANDANG PERAN (WAJIB kalau "Peran pengguna" ada di Ringkasan Bisnis): JANGAN berasumsi pembaca laporan ini otomatis pemilik usaha. Kalau perannya BUKAN pemilik/pengambil keputusan utama (mis. Manager, Supervisor, staf, admin — bukan Owner/Founder/CEO/Direktur Utama), tulis field "recommendation" tiap bagian dengan membedakan mana yang bisa langsung dia lakukan dalam wewenangnya sendiri, dan mana yang perlu dia usulkan/sampaikan ke Owner-nya (beserta data pendukung yang perlu dibawa).`;
+const ROLE_AWARE_RULE_EN = `ROLE PERSPECTIVE RULE (REQUIRED if "User's role" is present in the Business Summary): Do NOT assume the reader of this report is automatically the business owner. If their role is NOT the owner/main decision-maker (e.g. Manager, Supervisor, staff, admin — not Owner/Founder/CEO/Managing Director), write each section's "recommendation" field distinguishing what they can act on within their own authority versus what they need to escalate/propose to their Owner (including what supporting data to bring).`;
+
 /** PDF awal — dibuat sekali (idempotent) saat pertama kali business_profile
  * punya baseline analysis, isinya rangkuman total semua analisa sejauh ini
  * (baseline + progres yang sudah tercatat sampai saat PDF ini dibuat). */
@@ -65,6 +74,8 @@ function buildBaselinePrompt(tier: Tier, lang: "id" | "en"): string {
 ${languageRule(lang)}
 
 ${lang === "en" ? DATA_HONESTY_RULE_EN : DATA_HONESTY_RULE_ID}
+
+${lang === "en" ? ROLE_AWARE_RULE_EN : ROLE_AWARE_RULE_ID}
 
 Susun laporan paket ${tier.toUpperCase()} berdasarkan Ringkasan Bisnis yang diberikan (dikirim di pesan berikutnya, termasuk skema JSON yang harus diisi). 2-4 bagian (sections) cukup: kondisi awal bisnis (skor kesehatan, kekuatan, area perbaikan), peluang yang teridentifikasi, dan rekomendasi langkah awal.`;
 }
@@ -85,6 +96,8 @@ ${languageRule(lang)}
 
 ${lang === "en" ? DATA_HONESTY_RULE_EN : DATA_HONESTY_RULE_ID}
 
+${lang === "en" ? ROLE_AWARE_RULE_EN : ROLE_AWARE_RULE_ID}
+
 Susun laporan paket ${tier.toUpperCase()} berdasarkan Ringkasan Bisnis yang diberikan (dikirim di pesan berikutnya, termasuk skema JSON yang harus diisi). 2-4 bagian (sections) cukup: perbandingan skor awal vs sekarang (journey/period di Ringkasan Bisnis), progres nyata yang tercatat (Business Update/Achievement/Decision), dan kesimpulan + rekomendasi untuk periode berikutnya. Section terakhir WAJIB berjudul kesimpulan (eyebrow "KESIMPULAN & LANGKAH BERIKUTNYA" atau terjemahannya) dan field "recommendation"-nya jadi acuan target periode berikutnya.`;
 }
 
@@ -103,6 +116,7 @@ export function buildFinalReportUserPrompt(memory: BusinessMemoryContext, report
   if (memory.profile.industry) lines.push(`- Industri: ${memory.profile.industry}`);
   lines.push(`- Jenis: ${memory.profile.businessType === "start" ? "Bisnis baru (belum/baru buka)" : "Bisnis sudah berjalan"}`);
   if (memory.profile.location) lines.push(`- Lokasi: ${memory.profile.location}`);
+  if (memory.profile.userRole) lines.push(`- Peran pengguna di bisnis ini: ${memory.profile.userRole}`);
   if (memory.goals) lines.push(`- Target: ${memory.goals}`);
   if (memory.mainChallenges) lines.push(`- Tantangan utama: ${memory.mainChallenges}`);
 

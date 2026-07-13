@@ -52,6 +52,17 @@ export type BusinessMemoryContext = {
     businessStage: string;
     businessType: "start" | "grow";
     location: string | null;
+    // Peran pengguna di bisnisnya sendiri (field "profesi" dari Chat Wizard,
+    // mis. "Owner", "Manager Operasional", "Supervisor Toko") — diambil dari
+    // analyses.raw_input persis seperti `location` di atas. Arahan pemilik
+    // produk Juli 2026: field ini SEBELUMNYA dikumpulkan tapi tidak pernah
+    // dipakai. Sekarang dibaca di sini (SATU sumber, dipakai bersama oleh
+    // Chat Beemo/Decision Engine/Final Report) supaya saran yang diberikan
+    // disesuaikan dengan wewenang sebenarnya dari orang yang chat — kalau
+    // dia Manager/Supervisor (bukan pemilik), saran perlu dibingkai sebagai
+    // "sampaikan ke Owner-mu begini..." bukan seolah dia sendiri yang
+    // memutuskan. Lihat roleAwareAdviceLine() di services/beemo/chat.ts.
+    userRole: string | null;
   };
   goals: string | null;
   mainChallenges: string | null;
@@ -177,6 +188,10 @@ export async function getBusinessMemory(businessProfileId: string): Promise<Busi
   const analysisRows = analyses || [];
   const rowWithLocation = analysisRows.find((a) => (a.raw_input as Record<string, unknown> | null)?.lokasi);
   const location = ((rowWithLocation?.raw_input as Record<string, unknown> | undefined)?.lokasi as string) || null;
+  // userRole ("profesi" di Chat Wizard) — pola pengambilan sama seperti
+  // location tepat di atas. Lihat komentar lengkap di BusinessMemoryContext.
+  const rowWithProfesi = analysisRows.find((a) => (a.raw_input as Record<string, unknown> | null)?.profesi);
+  const userRole = ((rowWithProfesi?.raw_input as Record<string, unknown> | undefined)?.profesi as string) || null;
   // Harapan/kekhawatiran dari Business Discovery (raw_input.target/tantangan)
   // — dipakai sebagai FALLBACK. Sumber utama tetap Business Update terbaru
   // (lihat blok business_updates di bawah), karena harapan/kekhawatiran bisa
@@ -370,6 +385,7 @@ export async function getBusinessMemory(businessProfileId: string): Promise<Busi
       businessStage: business.business_stage,
       businessType,
       location,
+      userRole,
     },
     goals,
     mainChallenges,

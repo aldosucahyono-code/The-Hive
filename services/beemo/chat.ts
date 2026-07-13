@@ -184,6 +184,24 @@ function mentorRoleLine(businessType: "start" | "grow", lang: "id" | "en"): stri
     : "Pelanggan ini sudah punya usaha yang berjalan — kamu adalah mentornya untuk MENGEMBANGKAN usaha itu (performa, target, kompetitor, peluang, keputusan sehari-hari).";
 }
 
+// Role-Aware Advice (arahan pemilik produk, Juli 2026): field "profesi" dari
+// Chat Wizard (peran pengguna di bisnisnya SENDIRI, mis. "Owner", "Manager
+// Operasional", "Supervisor Toko") sebelumnya dikumpulkan tapi tidak pernah
+// dipakai sama sekali di mana pun. Sekarang dipakai untuk membingkai SUDUT
+// PANDANG saran Beemo sesuai wewenang sebenarnya orang yang sedang chat —
+// bukan berasumsi semua yang chat adalah pemilik/pengambil keputusan penuh.
+// Kalau perannya Manager/Supervisor/staf, saran harus jelas membedakan mana
+// yang bisa dia lakukan sendiri vs mana yang perlu diusulkan/disampaikan ke
+// Owner-nya (dan bagaimana cara menyampaikannya) — supaya hasilnya relevan
+// dengan posisi pengguna, bukan generik seolah dia yang punya usaha.
+function roleAwareAdviceLine(userRole: string | null, lang: "id" | "en"): string {
+  if (!userRole) return "";
+  if (lang === "en") {
+    return `USER'S ROLE (MUST USE): The person chatting with you holds the role "${userRole}" at this business — do NOT assume they are automatically the owner. If this role IS the owner/main decision-maker (e.g. Owner, Founder, CEO, Managing Director), give advice as a direct decision they can execute themselves. If this role is NOT the owner (e.g. Manager, Supervisor, staff, admin), clearly split your advice into: (1) what they can act on within their OWN authority right now, and (2) what needs to be escalated/proposed to their Owner/superior — including what supporting data or argument to bring when proposing it. Never assume they can unilaterally decide something outside their role's authority.`;
+  }
+  return `PERAN PENGGUNA (WAJIB DIPAKAI): Orang yang sedang chat denganmu berperan sebagai "${userRole}" di bisnis ini — JANGAN berasumsi dia otomatis pemiliknya. Kalau peran ini ADALAH pemilik/pengambil keputusan utama (mis. Owner, Founder, CEO, Direktur Utama), beri saran sebagai keputusan langsung yang bisa dia eksekusi sendiri. Kalau peran ini BUKAN pemilik (mis. Manager, Supervisor, staf, admin), pisahkan saranmu dengan jelas jadi: (1) apa yang bisa langsung dia lakukan dalam wewenangnya SENDIRI, dan (2) apa yang perlu disampaikan/diusulkan ke Owner/atasannya — termasuk data pendukung atau argumen apa yang perlu dibawa saat mengusulkannya. Jangan pernah berasumsi dia bisa memutuskan sendiri hal yang ada di luar wewenang perannya.`;
+}
+
 const MEMORY_MARKER_REGEX = /\n?\[(?:INGAT|REMEMBER):\s*([a-zA-Z0-9_]+)\s*=\s*(.+?)\]\s*$/;
 
 /** Menarik baris "[INGAT: key = value]"/"[REMEMBER: key = value]" dari
@@ -261,6 +279,7 @@ export function buildContextBlock(memory: BusinessMemoryContext, lang: "id" | "e
   lines.push(`${L ? "Nama bisnis" : "Business name"}: ${memory.profile.businessName}`);
   if (memory.profile.industry) lines.push(`${L ? "Jenis bisnis" : "Industry"}: ${memory.profile.industry}`);
   if (memory.profile.location) lines.push(`${L ? "Lokasi" : "Location"}: ${memory.profile.location}`);
+  if (memory.profile.userRole) lines.push(`${L ? "Peran pengguna di bisnis ini" : "User's role at this business"}: ${memory.profile.userRole}`);
   lines.push(`${L ? "Tahap bisnis" : "Business stage"}: ${memory.profile.businessStage}`);
   if (memory.stageDetail) lines.push(`${L ? "Tahap rinci saat ini" : "Current detailed stage"}: ${memory.stageDetail}`);
   lines.push(
@@ -434,8 +453,9 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
 
   const contextBlock = buildContextBlock(memory, lang);
   const roleLine = mentorRoleLine(memory.profile.businessType, lang);
+  const userRoleLine = roleAwareAdviceLine(memory.profile.userRole, lang);
   const basePrompt = lang === "en" ? systemPromptEn(tier, canDetectDecision) : systemPromptId(tier, canDetectDecision);
-  const systemPrompt = `${basePrompt}\n\n${roleLine}\n\n${contextBlock}`;
+  const systemPrompt = `${basePrompt}\n\n${roleLine}${userRoleLine ? `\n\n${userRoleLine}` : ""}\n\n${contextBlock}`;
 
   // Batasi histori yang dikirim (20 pesan terakhir, tiap pesan maks 4000
   // karakter) supaya tidak membengkak tanpa kendali.
