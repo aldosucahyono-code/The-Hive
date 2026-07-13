@@ -15,11 +15,22 @@ function FeedbackPage() {
     // CATATAN TEKNIS: karena belum ada backend/database, kirim lewat email
     // client bawaan (mailto) untuk sementara. Begitu backend siap, ganti
     // ini dengan panggilan API yang menyimpan ke database.
+    //
+    // Bugfix (QA Juli 2026): sebelumnya pakai `window.location.href =
+    // "mailto:..."`, yang NAVIGASI TAB SAAT INI ke URI mailto. Kalau browser
+    // TIDAK punya handler mailto terdaftar (umum di banyak mesin/browser
+    // profile baru tanpa email client default dikonfigurasi), browser
+    // mencoba navigasi lalu gagal & me-reload halaman ini -- me-reset semua
+    // state React (nama/kontak/rating/pesan yang sudah diisi user HILANG
+    // total, dan pesan konfirmasi "sent" tidak sempat tampil sama sekali)
+    // tanpa pesan error apapun. Diganti window.open(..., "_blank") supaya
+    // percobaan buka mailto terjadi di context terpisah -- kalau gagal pun,
+    // tab/halaman feedback ini tidak ikut ter-reload dan state tetap utuh.
     const subject = encodeURIComponent(t.feedbackPage.emailSubject);
     const body = encodeURIComponent(
       `Nama: ${nama || t.feedbackPage.notFilled}\nKontak: ${kontak || t.feedbackPage.notFilled}\nRating: ${rating || "-"}/5\n\nPesan:\n${pesan}`
     );
-    window.location.href = `mailto:masukan@thehive-bisnis.com?subject=${subject}&body=${body}`;
+    window.open(`mailto:masukan@thehive-bisnis.com?subject=${subject}&body=${body}`, "_blank");
     setSent(true);
   }
 
