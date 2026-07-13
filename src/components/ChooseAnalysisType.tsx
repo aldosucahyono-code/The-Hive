@@ -19,7 +19,7 @@ function ChooseAnalysisType({ onChoose }: ChooseAnalysisTypeProps) {
         <img
           src={beemoLaptop}
           alt="Beemo AI"
-          className="mx-auto mb-4 h-16 w-16 rounded-full object-cover drop-shadow-[0_6px_18px_rgba(255,152,0,0.45)]"
+          className="mx-auto mb-4 h-20 w-20 rounded-full object-cover drop-shadow-[0_6px_18px_rgba(255,152,0,0.45)]"
         />
         <h2 className="text-xl font-bold">{t.chooseAnalysisType.greeting}</h2>
         <p className="mt-1 text-neutral-600">{t.chooseAnalysisType.subtitle}</p>
