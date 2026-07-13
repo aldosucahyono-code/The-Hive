@@ -1,4 +1,10 @@
 import mascot from "../assets/mascot/beemo-laptop-v2.png";
+import industryKuliner from "../assets/mascot/industry-kuliner-fnb.jpg";
+import industryRetail from "../assets/mascot/industry-retail-fashion.jpg";
+import industryJasa from "../assets/mascot/industry-jasa-konsultasi.jpg";
+import industryKesehatan from "../assets/mascot/industry-kesehatan-kecantikan.jpg";
+import industryOtomotif from "../assets/mascot/industry-otomotif.jpg";
+import industryPendidikan from "../assets/mascot/industry-pendidikan.jpg";
 import { useLanguage } from "../i18n/LanguageContext";
 
 type HeroProps = {
@@ -7,12 +13,12 @@ type HeroProps = {
 };
 
 // Ikon per industri — urutan HARUS sejajar dengan t.hero.industries (lihat
-// translations.ts, id & en). Emoji dipilih (bukan SVG/gambar) supaya tetap
-// ringan (directive PO: "harus ringan") — nol asset tambahan, jalan sama
-// cepatnya di semua perangkat. Bentuk wadah hexagon (clip-path CSS murni,
-// bukan gambar) mengikuti gaya mockup + identitas hex THE HIVE sendiri.
-const INDUSTRY_ICONS = ["🍽️", "👗", "💼", "💆", "🚗", "🎓"];
-const HEX_CLIP = "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)";
+// translations.ts, id & en). Redesign Juli 2026: emoji generik diganti
+// gambar produk asli buatan user (dikompres dari ~2.5MB/gambar jadi
+// ~20-30KB/gambar via resize+JPEG q82 supaya tetap ringan). Wadah jadi
+// kartu rounded-square (bukan hexagon) supaya detail foto tidak terlalu
+// dipepetkan ke bentuk hex yang sempit.
+const INDUSTRY_IMAGES = [industryKuliner, industryRetail, industryJasa, industryKesehatan, industryOtomotif, industryPendidikan];
 
 /** Hero landing page (redesign Juli 2026) — versi terang, dua kolom,
  * tanpa janji/klaim (bukan testimoni, bukan angka pertumbuhan fiktif).
@@ -79,12 +85,13 @@ function Hero({ onStart, animate }: HeroProps) {
           </div>
         </div>
 
-        {/* Daftar industri — full-width, grid ikon hexagon (bukan pil teks
-            biasa) mengikuti gaya baris "trust logo" di mockup, tapi isinya
-            tetap kategori industri generik (BUKAN nama bisnis fiktif —
-            keputusan sebelumnya: "Ganti jadi daftar industri yang
-            didukung"). Diperbesar sedikit (permintaan user) supaya lebih
-            menonjol dibanding versi awal. */}
+        {/* Daftar industri — full-width, grid kartu foto produk (bukan pil
+            teks biasa) mengikuti gaya baris "trust logo" di mockup, tapi
+            isinya tetap kategori industri generik (BUKAN nama bisnis fiktif
+            — keputusan sebelumnya: "Ganti jadi daftar industri yang
+            didukung"). Sempat pakai badge hexagon + emoji, diganti kartu
+            rounded-square + foto produk asli (Juli 2026, lihat
+            INDUSTRY_IMAGES di atas). */}
         <div className={"mt-14 border-t border-neutral-100 pt-10 text-center sm:mt-16 sm:pt-12 " + fade("250ms")}>
           <p className="mb-8 text-sm font-semibold uppercase tracking-wide text-neutral-500">
             {t.hero.industriesLabel}
@@ -92,12 +99,12 @@ function Hero({ onStart, animate }: HeroProps) {
           <div className="mx-auto grid max-w-4xl grid-cols-3 gap-x-6 gap-y-10 sm:grid-cols-6">
             {t.hero.industries.map((industry, i) => (
               <div key={industry} className="flex flex-col items-center gap-3">
-                <div
-                  className="flex h-16 w-16 flex-none items-center justify-center bg-primary/10 text-2xl"
-                  style={{ clipPath: HEX_CLIP }}
-                  aria-hidden="true"
-                >
-                  {INDUSTRY_ICONS[i] ?? "🏢"}
+                <div className="flex h-20 w-20 flex-none items-center justify-center overflow-hidden rounded-2xl border border-neutral-200 bg-white p-2 shadow-sm sm:h-24 sm:w-24">
+                  <img
+                    src={INDUSTRY_IMAGES[i]}
+                    alt={industry}
+                    className="h-full w-full object-contain"
+                  />
                 </div>
                 <span className="text-sm font-medium leading-tight text-neutral-600">{industry}</span>
               </div>
