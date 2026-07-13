@@ -28,25 +28,20 @@ function Navbar({ variant = "light" }: NavbarProps) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const isLight = variant === "light";
 
-  const NAV_LINKS_DARK = [
-    { label: t.navbar.beranda, hash: "" },
-    { label: t.navbar.fiturAI, hash: "fitur" },
-    { label: t.navbar.tentangKami, hash: "tentang-kami" },
-  ];
-
-  // Nav terang (dipakai di semua rute kecuali Workspace): anchor dalam
-  // satu halaman (Fitur/Cara Kerja/FAQ) + Tentang Kami dikembalikan atas
-  // permintaan user (semula sempat diganti FAQ saja, sekarang keduanya
-  // tampil berdampingan).
-  const NAV_LINKS_LIGHT = [
+  // Isi navbar (link + tombol) SAMA di semua rute termasuk Workspace
+  // (audit Juli 2026, directive PO: "isi navbar di workspace sama dengan
+  // landing page, background tetap gelap") — dulu variant="dark" (Workspace)
+  // punya daftar link lebih pendek (cuma Beranda/Fitur AI/Tentang Kami).
+  // Sekarang link & tombol identik untuk kedua variant; HANYA warna
+  // (lihat isLight di bawah) yang masih dibedakan supaya latar gelap
+  // Workspace tidak berubah.
+  const NAV_LINKS = [
     { label: t.navbar.beranda, hash: "" },
     { label: t.navbar.fitur, hash: "fitur" },
     { label: t.navbar.caraKerja, hash: "cara-kerja" },
     { label: t.navbar.faq, hash: "faq" },
     { label: t.navbar.tentangKami, hash: "tentang-kami" },
   ];
-
-  const NAV_LINKS = isLight ? NAV_LINKS_LIGHT : NAV_LINKS_DARK;
 
   function handleWorkspaceButtonClick() {
     if (user) {
@@ -119,29 +114,26 @@ function Navbar({ variant = "light" }: NavbarProps) {
               <span>{lang === "id" ? "EN" : "ID"}</span>
             </button>
 
-            {isLight ? (
-              <>
-                <button
-                  onClick={handleWorkspaceButtonClick}
-                  className="whitespace-nowrap rounded-full border border-neutral-300 px-3 py-2 text-xs font-bold text-neutral-800 hover:border-neutral-400 sm:px-4 sm:text-sm"
-                >
-                  {user ? t.navbar.workspaceButton : t.navbar.loginButton}
-                </button>
-                <button
-                  onClick={() => hardNavigate("mulai")}
-                  className="whitespace-nowrap rounded-full bg-primary px-3 py-2 text-xs font-bold text-black hover:opacity-90 sm:px-4 sm:text-sm"
-                >
-                  {t.hero.ctaPrimary}
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={handleWorkspaceButtonClick}
-                className="whitespace-nowrap rounded-full bg-primary px-3 py-2 text-xs font-bold text-black hover:opacity-90 sm:px-4 sm:text-sm"
-              >
-                {user ? t.navbar.workspaceButton : t.navbar.activateWorkspaceButton}
-              </button>
-            )}
+            {/* Tombol SAMA di kedua variant sekarang — cuma warna border/teks
+                tombol outline yang disesuaikan supaya kebaca di latar
+                gelap Workspace. */}
+            <button
+              onClick={handleWorkspaceButtonClick}
+              className={
+                "whitespace-nowrap rounded-full border px-3 py-2 text-xs font-bold sm:px-4 sm:text-sm " +
+                (isLight
+                  ? "border-neutral-300 text-neutral-800 hover:border-neutral-400"
+                  : "border-white/25 text-white hover:border-white/50")
+              }
+            >
+              {user ? t.navbar.workspaceButton : t.navbar.loginButton}
+            </button>
+            <button
+              onClick={() => hardNavigate("mulai")}
+              className="whitespace-nowrap rounded-full bg-primary px-3 py-2 text-xs font-bold text-black hover:opacity-90 sm:px-4 sm:text-sm"
+            >
+              {t.hero.ctaPrimary}
+            </button>
           </div>
         </div>
 
