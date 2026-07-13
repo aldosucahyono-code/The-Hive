@@ -4,6 +4,7 @@ import { useLanguage } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import {
   isValidNameLike,
+  isValidRoleOrCategory,
   isValidBrandName,
   isValidProfesi,
   isValidEmail,
@@ -289,11 +290,15 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       phase: "kenal",
     },
     {
+      // BUGFIX Juli 2026: dulu pakai isValidNameLike (huruf & spasi saja),
+      // jadi kategori usaha wajar yang ada tanda baca (mis. "Konsultan
+      // IT/AI", "F&B", "Jasa Outsourcing, IT, dan Pertambangan") selalu
+      // ditolak. Lihat komentar isValidRoleOrCategory di utils/validation.ts.
       field: "jenisBisnis",
       prompt: (d) => fill(t.chatFlow.askJenisBisnis, d),
       inputType: "text",
       placeholder: t.stepOne.jenisBisnisPlaceholder,
-      validate: isValidNameLike,
+      validate: isValidRoleOrCategory,
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "kenal",
     },

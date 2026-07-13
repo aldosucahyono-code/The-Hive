@@ -37,6 +37,27 @@ export function isValidNameLike(value: string, minLength = 3): boolean {
   return true;
 }
 
+// BUGFIX Juli 2026: "profesi" (peran di bisnis) dan "jenisBisnis" (kategori
+// usaha) SEBELUMNYA memakai isValidNameLike (lettersOnlyPattern di atas —
+// HANYA huruf & spasi, tanpa angka/koma/titik/tanda apa pun). Akibatnya
+// jawaban wajar seperti "Direktur Utama / Founder", "F&B", "Konsultan IT/AI",
+// atau bahkan CONTOH yang diberikan bot sendiri di pertanyaannya
+// ("misalnya Founder, Owner, Manager" — ada koma!) SELALU ditolak dengan
+// pesan "jawabannya masih terlalu singkat", walau jawabannya sudah panjang
+// dan jelas — user tidak pernah bisa lolos dari pertanyaan ini sama sekali.
+// Ditemukan saat uji coba end-to-end sebagai pelanggan baru. Pattern baru
+// ini tetap menolak karakter aneh/simbol acak, tapi mengizinkan tanda baca
+// & angka wajar yang muncul di jawaban peran/kategori bisnis sehari-hari.
+const roleOrCategoryPattern = /^[A-Za-zÀ-ÿ0-9\s,.\-&/()]+$/;
+
+export function isValidRoleOrCategory(value: string, minLength = 3): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length < minLength) return false;
+  if (!roleOrCategoryPattern.test(trimmed)) return false;
+  if (isSpammy(trimmed)) return false;
+  return true;
+}
+
 const locationPattern = /^[A-Za-zÀ-ÿ0-9\s,.\-/]+$/;
 
 export function isValidLocation(value: string, minLength = 10): boolean {
@@ -116,7 +137,7 @@ export function isProhibitedProfession(value: string): boolean {
 }
 
 export function isValidProfesi(value: string, minLength = 3): boolean {
-  if (!isValidNameLike(value, minLength)) return false;
+  if (!isValidRoleOrCategory(value, minLength)) return false;
   if (isProhibitedProfession(value)) return false;
   return true;
 }
