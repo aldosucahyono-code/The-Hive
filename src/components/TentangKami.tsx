@@ -171,18 +171,19 @@ function TentangKami() {
             </a>
           </Reveal>
 
-          <Reveal className="flex justify-center">
-            <div className="relative mx-auto flex aspect-square w-full max-w-[860px] items-center justify-center">
-              <div className="absolute inset-0 animate-float-y rounded-full bg-primary/25 blur-3xl" />
-              <div className="relative rounded-full border border-primary/40 p-5">
-                <div className="rounded-full border border-primary/20 p-3">
-                  <img
-                    src={hiveLogo}
-                    alt="THE HIVE"
-                    className="h-auto w-[93%] max-w-[800px] object-contain drop-shadow-[0_0_25px_rgba(255,152,0,0.55)]"
-                  />
-                </div>
-              </div>
+          {/* Logo dipercantik (permintaan user): ring border ganda dihapus,
+              cuma logo + glow warna di belakangnya. Diperbesar ~1.75x —
+              tetap terkontainer rapi di mobile (grid satu kolom), baru
+              "bleed" melebihi kolomnya sendiri mulai md (pola sama seperti
+              mascot Hero) supaya tetap responsif di semua perangkat. */}
+          <Reveal className="flex justify-center md:justify-end">
+            <div className="relative flex min-w-0 items-center justify-center">
+              <div className="absolute h-[26rem] w-[26rem] animate-float-y rounded-full bg-primary/25 blur-3xl" />
+              <img
+                src={hiveLogo}
+                alt="THE HIVE"
+                className="relative mx-auto h-auto w-full max-w-xs object-contain drop-shadow-[0_0_25px_rgba(255,152,0,0.55)] sm:max-w-sm md:mx-0 md:w-[175%] md:max-w-none"
+              />
             </div>
           </Reveal>
         </div>

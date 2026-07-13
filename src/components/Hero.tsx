@@ -69,12 +69,18 @@ function Hero({ onStart, animate }: HeroProps) {
             </div>
           </div>
 
-          <div className="relative flex items-center justify-center">
-            <div className="absolute h-[26rem] w-[34rem] rounded-full bg-primary/10 blur-3xl"></div>
+          {/* Mascot diperbesar ~1.5x dari sebelumnya (permintaan user) — di
+              mobile tetap terkontainer rapi (grid satu kolom), baru "bleed"
+              melebihi lebar kolomnya sendiri mulai breakpoint md ke atas
+              (justify-end + lebar dalam % dari kolom) supaya tetap
+              responsif di semua perangkat tanpa memicu scroll horizontal
+              (body sudah overflow-x:hidden). */}
+          <div className="relative flex min-w-0 items-center justify-center md:justify-end">
+            <div className="absolute h-[30rem] w-[40rem] rounded-full bg-primary/10 blur-3xl"></div>
             <img
               src={mascot}
               alt="Beemo AI"
-              className={"relative w-full max-w-2xl drop-shadow-[0_10px_40px_rgba(255,152,0,0.25)] " + (animate ? "animate-float-y" : "")}
+              className={"relative mx-auto w-full max-w-md sm:max-w-lg md:mx-0 md:max-w-none md:w-[150%] drop-shadow-[0_10px_40px_rgba(255,152,0,0.25)] " + (animate ? "animate-float-y" : "")}
             />
           </div>
         </div>
