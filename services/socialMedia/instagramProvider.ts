@@ -37,17 +37,21 @@ const SEARCH_ACTOR_ID = process.env.APIFY_INSTAGRAM_SEARCH_ACTOR_ID || "apify/in
 const PROFILE_ACTOR_ID = process.env.APIFY_INSTAGRAM_PROFILE_ACTOR_ID || "apify/instagram-profile-scraper";
 
 const MAX_COMPETITORS = 3;
-// Audit Juli 2026 (laporan pemilik produk: "dari medsos juga tidak keluar"):
-// SEBELUMNYA 8000ms -- terlalu pendek untuk run-sync-get-dataset-items pada
-// actor pihak ketiga (cold start container + scraping sungguhan biasanya
-// 10-30 detik), jadi AbortController hampir selalu memutus panggilan
-// SEBELUM actor selesai -> selalu jatuh ke data contoh walau
-// APIFY_API_TOKEN valid dan actor berjalan normal. maxDuration
-// api/workspace.ts sebenarnya 180 detik (lihat vercel.json), jauh lebih
-// longgar dari catatan lama "60 detik" di file ini -- 20 detik per
-// panggilan masih realistis dan sisa waktu tetap banyak untuk request lain.
-const SEARCH_TIMEOUT_MS = 20000;
-const PROFILE_TIMEOUT_MS = 20000;
+// Audit Juli 2026 (laporan pemilik produk: "dari medsos juga tidak keluar"),
+// DIKONFIRMASI lewat log Apify sungguhan (console.apify.com/actors/runs):
+// 2 run Instagram Search Scraper terakhir masing-masing butuh 38 detik dan
+// 27 detik untuk SUKSES (8/8 request berhasil) -- SEBELUMNYA timeout di sini
+// cuma 8000ms, jadi AbortController KAMI SENDIRI selalu memutus koneksi
+// sebelum Apify sempat menjawab, walau actor-nya jalan normal & sukses di
+// sisi Apify (biaya tetap kepotong walau responsnya tidak pernah kami
+// terima). Ini juga menjelaskan kenapa actor KEDUA (instagram-profile-scraper,
+// pengambil follower count) belum pernah punya satu run pun -- waktu habis
+// duluan di langkah pencarian. Dinaikkan jauh lebih longgar dari percobaan
+// pertama (20s, masih kurang) ke 45s (search, di atas rekor terlama 38s
+// dengan margin) dan 25s (profile, actor lebih sederhana). maxDuration
+// api/workspace.ts sebenarnya 180 detik (vercel.json), jauh dari cukup.
+const SEARCH_TIMEOUT_MS = 45000;
+const PROFILE_TIMEOUT_MS = 25000;
 
 export type BusinessSearchContext = {
   industry: string;

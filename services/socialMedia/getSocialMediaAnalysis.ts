@@ -43,10 +43,13 @@ const ALL_PLATFORMS: SocialPlatform[] = ["instagram", "tiktok", "facebook"];
 // — batas keras sebenarnya 180 detik (vercel.json maxDuration api/workspace.ts,
 // bukan 60 detik seperti catatan lama), sisanya dipakai untuk Competitor
 // Engine (biasanya cache-hit, cepat), ringkasan AI, dan overhead request
-// lain. Dinaikkan dari 30000 (Juli 2026, sejalan dengan kenaikan timeout
-// per panggilan di instagramProvider.ts dari 8s ke 20s -- budget lama
-// terlalu sempit untuk bahkan SATU panggilan penuh dengan timeout baru).
-const SOCIAL_LIVE_BUDGET_MS = 45000;
+// lain. Dinaikkan ke 120000 (Juli 2026, dikonfirmasi lewat log Apify
+// sungguhan: SATU pencarian saja sudah butuh sampai 38 detik -- lihat
+// catatan SEARCH_TIMEOUT_MS/PROFILE_TIMEOUT_MS di instagramProvider.ts).
+// 120s = cukup untuk 1 pencarian (maks 45s) + beberapa pengambilan
+// follower count (maks 25s/panggilan), masih sisa 60s dari batas 180s
+// untuk sisa request.
+const SOCIAL_LIVE_BUDGET_MS = 120000;
 
 /** Data CONTOH (bukan data pasar nyata) — nama disusun dari industri bisnis
  * supaya terasa relevan ke pengguna, sama pola dengan
