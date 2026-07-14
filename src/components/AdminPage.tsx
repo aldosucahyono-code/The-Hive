@@ -59,6 +59,21 @@ type BusinessNote = {
   created_at: string;
 };
 
+// Referensi Pelanggan Baru (Juli 2026) — lihat
+// services/workspace/leads/generateLeadReferrals.ts. Baca-saja di admin
+// (permintaan pemilik produk: "referensi pelanggan pun harus masuk dan
+// terkorelasi di halaman super admin").
+type LeadReferral = {
+  id: string;
+  batch_id: string;
+  lead_type: "company" | "individual";
+  name: string;
+  description: string | null;
+  address: string | null;
+  source_url: string | null;
+  generated_at: string;
+};
+
 type Business = {
   id: string;
   business_name: string;
@@ -73,6 +88,7 @@ type Business = {
   analyses: { id: string; raw_input: Record<string, unknown>; ai_output: string | null; is_baseline: boolean; created_at: string }[];
   updates: { id: string; content: string | null; pencapaian: string | null; tantangan: string | null; category: string | null; created_at: string }[];
   notes: BusinessNote[];
+  leadReferrals: LeadReferral[];
 };
 
 type WizardDraft = {
@@ -109,6 +125,7 @@ type CustomerDetail = {
     totalChatMessages: number;
     totalDecisions: number;
     totalAnalyses: number;
+    totalLeadBatches: number;
     estimatedApiCostIdr: number;
     isEstimate: true;
   };
@@ -905,7 +922,7 @@ function AdminPage() {
                   <p className="text-lg font-bold">{formatIdr(detail.usageEstimate.estimatedApiCostIdr)}</p>
                   <p className="text-xs text-neutral-500">
                     {detail.usageEstimate.totalChatMessages} pesan chat &middot; {detail.usageEstimate.totalDecisions} keputusan &middot;{" "}
-                    {detail.usageEstimate.totalAnalyses} analisa
+                    {detail.usageEstimate.totalAnalyses} analisa &middot; {detail.usageEstimate.totalLeadBatches} pencarian referensi pelanggan
                   </p>
                 </div>
 
@@ -993,6 +1010,37 @@ function AdminPage() {
                         <p key={u.id} className="text-xs text-neutral-600">
                           {formatDate(u.created_at)} &middot; {u.category || "update"}: {u.content || u.pencapaian || u.tantangan || "-"}
                         </p>
+                      ))}
+                    </div>
+
+                    <div className="mt-3">
+                      <h4 className="mb-1 text-xs font-bold uppercase text-neutral-400">
+                        Referensi Pelanggan Baru {b.leadReferrals.length > 0 && `(${b.leadReferrals.length})`}
+                      </h4>
+                      {b.leadReferrals.length === 0 && <p className="text-xs text-neutral-400">Belum pernah mencari referensi.</p>}
+                      {b.leadReferrals.length > 0 &&
+                        (() => {
+                          const batchCount = new Set(b.leadReferrals.map((l) => l.batch_id)).size;
+                          return (
+                            <p className="mb-2 text-[10px] text-neutral-400">
+                              {batchCount} kali pencarian &middot; {b.leadReferrals.length} total lead ditemukan
+                            </p>
+                          );
+                        })()}
+                      {b.leadReferrals.map((l) => (
+                        <div key={l.id} className="mb-2 rounded-lg bg-neutral-50 p-2 text-xs text-neutral-600">
+                          <p className="mb-1 text-[10px] text-neutral-400">
+                            {l.lead_type === "company" ? "Perusahaan" : "Segmen Perorangan"} &middot; {formatDate(l.generated_at)}
+                          </p>
+                          <p className="font-semibold text-neutral-800">{l.name}</p>
+                          {l.description && <p className="mt-0.5">{l.description}</p>}
+                          {l.address && <p className="mt-0.5 text-neutral-500">📍 {l.address}</p>}
+                          {l.source_url && (
+                            <a href={l.source_url} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-block text-primary underline">
+                              {l.source_url}
+                            </a>
+                          )}
+                        </div>
                       ))}
                     </div>
 

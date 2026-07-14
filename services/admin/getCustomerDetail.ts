@@ -33,6 +33,12 @@ const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
 const ASSUMED_COST_PER_CHAT_MESSAGE_IDR = 150;
 const ASSUMED_COST_PER_DECISION_IDR = 300;
 const ASSUMED_COST_PER_ANALYSIS_IDR = 1000;
+// Referensi Pelanggan Baru (Juli 2026) — Claude + web_search per klik
+// "Cari Referensi Baru", lebih berat dari chat biasa (sampai 8x panggilan
+// web search per batch) tapi lebih ringan dari analisa baseline penuh.
+// Dihitung PER BATCH (bukan per baris lead) — lihat catatan batch_id di
+// migrations/2026-07-15g_lead_referrals.sql soal kenapa.
+const ASSUMED_COST_PER_LEAD_BATCH_IDR = 600;
 
 export async function adminGetCustomerDetail(adminToken: string | undefined, payload: Record<string, unknown>): Promise<ServiceResult> {
   const session = await requireAdminSession(adminToken);
@@ -77,6 +83,7 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
     { data: drafts, error: draftsError },
     { data: contactMessages, error: contactError },
     { data: notes, error: notesError },
+    { data: leads, error: leadsError },
   ] = await Promise.all([
     businessIds.length
       ? supabase
@@ -139,12 +146,22 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
           .in("business_profile_id", businessIds)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+    // Referensi Pelanggan Baru (Juli 2026) — "referensi pelanggan pun harus
+    // masuk dan terkorelasi di halaman super admin ya" (permintaan pemilik
+    // produk). Baca-saja, sama seperti seluruh endpoint ini.
+    businessIds.length
+      ? supabase
+          .from("business_lead_recommendations")
+          .select("id, business_profile_id, batch_id, lead_type, name, description, address, source_url, generated_at")
+          .in("business_profile_id", businessIds)
+          .order("generated_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
-  if (subsError || paymentsError || analysesError || updatesError || draftsError || contactError || notesError) {
+  if (subsError || paymentsError || analysesError || updatesError || draftsError || contactError || notesError || leadsError) {
     console.error(
       "adminGetCustomerDetail error:",
-      subsError || paymentsError || analysesError || updatesError || draftsError || contactError || notesError
+      subsError || paymentsError || analysesError || updatesError || draftsError || contactError || notesError || leadsError
     );
     return { status: 500, body: { error: "Gagal memuat detail pelanggan." } };
   }
@@ -161,6 +178,7 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
     analyses: (analyses || []).filter((a) => a.business_profile_id === b.id),
     updates: (updates || []).filter((u) => u.business_profile_id === b.id),
     notes: (notes || []).filter((n) => n.business_profile_id === b.id),
+    leadReferrals: (leads || []).filter((l) => l.business_profile_id === b.id),
   }));
 
   const normalizedEmail = emailKey.toLowerCase();
@@ -176,10 +194,15 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
   const totalChatMessages = (subs || []).reduce((sum, s) => sum + (s.chat_message_count || 0), 0);
   const totalDecisions = (subs || []).reduce((sum, s) => sum + (s.decision_count || 0), 0);
   const totalAnalyses = (analyses || []).length;
+  // Dihitung per BATCH (satu klik "Cari Referensi Baru" = satu batch_id),
+  // bukan per baris lead -- satu batch bisa berisi beberapa lead dari satu
+  // panggilan Claude+web_search yang sama.
+  const totalLeadBatches = new Set((leads || []).map((l) => l.batch_id)).size;
   const estimatedApiCostIdr =
     totalChatMessages * ASSUMED_COST_PER_CHAT_MESSAGE_IDR +
     totalDecisions * ASSUMED_COST_PER_DECISION_IDR +
-    totalAnalyses * ASSUMED_COST_PER_ANALYSIS_IDR;
+    totalAnalyses * ASSUMED_COST_PER_ANALYSIS_IDR +
+    totalLeadBatches * ASSUMED_COST_PER_LEAD_BATCH_IDR;
 
   const isOnline = !!profile.last_seen_at && Date.now() - new Date(profile.last_seen_at).getTime() < ONLINE_THRESHOLD_MS;
 
@@ -200,6 +223,7 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
         totalChatMessages,
         totalDecisions,
         totalAnalyses,
+        totalLeadBatches,
         estimatedApiCostIdr,
         isEstimate: true,
       },

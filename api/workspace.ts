@@ -44,6 +44,8 @@ import { getSocialMediaAnalysis } from "../services/socialMedia/getSocialMediaAn
 import { getMacroSnapshot } from "../services/macro/getMacroSnapshot.js";
 import { getNotifications } from "../services/notifications/getNotifications.js";
 import { markNotificationsSeen } from "../services/notifications/markNotificationsSeen.js";
+import { generateLeadReferrals } from "../services/workspace/leads/generateLeadReferrals.js";
+import { listLeadReferrals } from "../services/workspace/leads/listLeadReferrals.js";
 import { recordPresence, extractVercelGeo } from "../services/admin/recordPresence.js";
 import { adminRequestChallenge } from "../services/admin/auth/requestChallenge.js";
 import { adminVerifyEmailToken } from "../services/admin/auth/verifyEmailToken.js";
@@ -259,6 +261,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "markNotificationsSeen":
       result = await markNotificationsSeen(userId, payload);
+      break;
+    case "generateLeadReferrals":
+      result = await generateLeadReferrals(userId, payload);
+      break;
+    case "listLeadReferrals":
+      result = await listLeadReferrals(userId, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });

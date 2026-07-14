@@ -30,6 +30,7 @@ type MenuKey =
   | "report"
   | "target"
   | "competitor"
+  | "leads"
   | "chat"
   | "settings"
   | "businessUpdates"
@@ -1750,6 +1751,23 @@ type NotificationItemData = {
   menuKey: MenuKey | null;
 };
 
+/** Referensi Pelanggan Baru (Juli 2026) — lihat
+ * services/workspace/leads/generateLeadReferrals.ts. "company" wajib hasil
+ * pencarian web sungguhan (sourceUrl WAJIB ada), "individual" adalah
+ * profil/segmen (bukan nama orang asli) jadi sourceUrl/address boleh
+ * kosong. Sengaja HARDCODE bahasa Indonesia di panel ini (tidak lewat
+ * translations.ts) — lihat catatan di LeadReferralsPanel di bawah. */
+type LeadReferralItem = {
+  id: string;
+  batch_id: string;
+  lead_type: "company" | "individual";
+  name: string;
+  description: string | null;
+  address: string | null;
+  source_url: string | null;
+  generated_at: string;
+};
+
 function CompetitorPanel({
   tier,
   t,
@@ -2012,6 +2030,137 @@ function instagramProfileUrl(username: string): string {
 function googleMapsSearchUrl(name: string, address: string | null): string {
   const query = address ? `${name} ${address}` : name;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+/** Referensi Pelanggan Baru (Juli 2026) — string HARDCODE bahasa Indonesia
+ * (lihat catatan di ALL_MENU_ITEMS.leads soal kenapa tidak lewat
+ * translations.ts). Struktur mengikuti pola CompetitorPanel di atas
+ * (loading/error/empty/data), ditambah satu tombol aksi "Cari Referensi
+ * Baru" yang memicu batch generate baru (bukan sekadar retry riwayat). */
+function LeadReferralsPanel({
+  tier,
+  leads,
+  loading,
+  error,
+  onRetry,
+  generating,
+  generateError,
+  onGenerate,
+  leadQuota,
+}: {
+  tier: Tier;
+  leads: LeadReferralItem[];
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+  generating: boolean;
+  generateError: string | null;
+  onGenerate: () => void;
+  leadQuota: number | null;
+}) {
+  const quotaLabel: Record<Tier, number> = { free: 1, pro: 2, platinum: 5 };
+  const displayQuota = leadQuota ?? quotaLabel[tier] ?? 1;
+
+  // Kelompokkan riwayat per batch_id supaya jelas mana "1x klik Cari
+  // Referensi Baru" — batch terbaru duluan (leads sudah datang urut
+  // generated_at desc dari backend/state).
+  const batches: { batchId: string; items: LeadReferralItem[] }[] = [];
+  for (const lead of leads) {
+    const last = batches[batches.length - 1];
+    if (last && last.batchId === lead.batch_id) {
+      last.items.push(lead);
+    } else {
+      batches.push({ batchId: lead.batch_id, items: [lead] });
+    }
+  }
+
+  return (
+    <WorkspaceSection>
+      <SectionHeader
+        title="Referensi Pelanggan Baru"
+        description="Calon pelanggan (perusahaan/perorangan) yang relevan dengan produk atau jasamu, dicari lewat pencarian web sungguhan — bukan karangan."
+      />
+
+      <WorkspaceCard>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-white">Kuota paketmu: {displayQuota} referensi per pencarian</p>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-400">
+              Setiap klik "Cari Referensi Baru" menghasilkan calon pelanggan baru (maksimal {displayQuota}) — hasil
+              lama tetap tersimpan di bawah.
+            </p>
+          </div>
+          <button
+            onClick={onGenerate}
+            disabled={generating}
+            className="rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-black hover:opacity-90 disabled:opacity-50"
+          >
+            {generating ? "Mencari..." : "Cari Referensi Baru"}
+          </button>
+        </div>
+        {generateError && <p className="mt-3 text-xs font-semibold text-amber-300">{generateError}</p>}
+      </WorkspaceCard>
+
+      {loading ? (
+        <>
+          <SkeletonCard />
+          <SkeletonCard />
+        </>
+      ) : error ? (
+        <ErrorCard
+          title="Gagal memuat riwayat referensi"
+          description="Terjadi kendala saat memuat data. Coba lagi."
+          retryLabel="Coba Lagi"
+          onRetry={onRetry}
+        />
+      ) : batches.length === 0 ? (
+        <EmptyState
+          variant="default"
+          icon="🎯"
+          title="Belum ada referensi"
+          description='Klik "Cari Referensi Baru" di atas untuk mendapatkan calon pelanggan pertamamu.'
+        />
+      ) : (
+        batches.map((batch, idx) => (
+          <WorkspaceCard key={batch.batchId}>
+            <h3 className="mb-3 text-sm font-bold text-white">
+              {idx === 0 ? "Pencarian Terbaru" : `Pencarian ${new Date(batch.items[0].generated_at).toLocaleDateString("id-ID")}`}
+            </h3>
+            <div className="space-y-3">
+              {batch.items.map((lead) => (
+                <div key={lead.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{lead.name}</p>
+                      <span
+                        className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                          lead.lead_type === "company" ? "bg-primary/20 text-primary" : "bg-white/10 text-neutral-300"
+                        }`}
+                      >
+                        {lead.lead_type === "company" ? "Perusahaan/Bisnis" : "Segmen Perorangan"}
+                      </span>
+                    </div>
+                  </div>
+                  {lead.description && <p className="mt-2 text-xs leading-relaxed text-neutral-400">{lead.description}</p>}
+                  {lead.address && <p className="mt-1 text-xs text-neutral-500">📍 {lead.address}</p>}
+                  {lead.source_url && (
+                    <a
+                      href={lead.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                    >
+                      🔗 Lihat sumber
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </WorkspaceCard>
+        ))
+      )}
+    </WorkspaceSection>
+  );
 }
 
 function SocialMediaSection({
@@ -3815,6 +3964,15 @@ function MenuIcon({ name }: { name: MenuKey }) {
           <path d="m14.5 9.5-2 5-5 2 2-5Z" />
         </svg>
       );
+    case "leads":
+      return (
+        <svg {...props}>
+          <circle cx="9" cy="8" r="3" />
+          <path d="M3 20a6 6 0 0 1 12 0" />
+          <path d="M16 5.5a3 3 0 0 1 0 5.8" />
+          <path d="M20 20a5.5 5.5 0 0 0-4.5-5.4" />
+        </svg>
+      );
     case "history":
       return (
         <svg {...props}>
@@ -3935,6 +4093,18 @@ function Workspace() {
   const [socialMediaAnalysis, setSocialMediaAnalysis] = useState<SocialMediaAnalysisData | null>(null);
   const [socialMediaLoading, setSocialMediaLoading] = useState(false);
   const [socialMediaError, setSocialMediaError] = useState(false);
+  // Referensi Pelanggan Baru (Juli 2026) — riwayat dimuat sekali saat tab
+  // dibuka (leadReferralsLoading), lalu "Cari Referensi Baru" memicu batch
+  // BARU lewat generateLeadReferrals (leadReferralsGenerating terpisah
+  // supaya tombol generate tidak menampilkan skeleton seolah riwayat kosong
+  // sedang dimuat ulang). leadQuota null = belum pernah tahu kuota tier ini
+  // (baru terisi setelah generate pertama berhasil/gagal karena rate limit).
+  const [leadReferrals, setLeadReferrals] = useState<LeadReferralItem[]>([]);
+  const [leadReferralsLoading, setLeadReferralsLoading] = useState(false);
+  const [leadReferralsError, setLeadReferralsError] = useState(false);
+  const [leadReferralsGenerating, setLeadReferralsGenerating] = useState(false);
+  const [leadReferralsGenerateError, setLeadReferralsGenerateError] = useState<string | null>(null);
+  const [leadQuota, setLeadQuota] = useState<number | null>(null);
   // Ekonomi Makro (Task 14c) — tab sendiri, tidak per-bisnis (sama untuk
   // semua pengguna) jadi TIDAK direset di resetPerBusinessCaches().
   const [macroSnapshot, setMacroSnapshot] = useState<MacroSnapshotData | null>(null);
@@ -4469,6 +4639,10 @@ function Workspace() {
     setCompetitorNotReadyMessage(null);
     setSocialMediaAnalysis(null);
     setSocialMediaError(false);
+    setLeadReferrals([]);
+    setLeadReferralsError(false);
+    setLeadReferralsGenerateError(null);
+    setLeadQuota(null);
     setUpdateHistory([]);
     setUpdateHistoryError(false);
     setDecisions([]);
@@ -4863,6 +5037,69 @@ function Workspace() {
     setSocialMediaLoading(false);
   }
 
+  // Referensi Pelanggan Baru (Juli 2026) — riwayat (bukan generate baru),
+  // dimuat saat tab dibuka supaya hasil pencarian sebelumnya tidak hilang
+  // begitu halaman di-refresh. Lihat services/workspace/leads/listLeadReferrals.ts.
+  async function loadLeadReferrals() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setLeadReferralsLoading(true);
+    setLeadReferralsError(false);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "listLeadReferrals", businessProfileId: activeBusinessId }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setLeadReferrals(Array.isArray(json.leads) ? json.leads : []);
+      } else {
+        console.error("listLeadReferrals error:", json.error);
+        setLeadReferralsError(true);
+      }
+    } catch (err) {
+      console.error("listLeadReferrals error:", err);
+      setLeadReferralsError(true);
+    }
+    setLeadReferralsLoading(false);
+  }
+
+  // Tombol "Cari Referensi Baru" — memicu batch BARU (biaya nyata: Claude +
+  // web search), dibatasi kuota per tier (gratis 1, pro 2, platinum 5) dan
+  // rate limit 10x/hari per bisnis di backend. Hasil baru ditaruh di DEPAN
+  // riwayat yang sudah ada (bukan menggantikan) — lihat
+  // services/workspace/leads/generateLeadReferrals.ts.
+  async function generateNewLeadReferrals() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setLeadReferralsGenerating(true);
+    setLeadReferralsGenerateError(null);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "generateLeadReferrals", businessProfileId: activeBusinessId }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setLeadQuota(typeof json.leadQuota === "number" ? json.leadQuota : null);
+        const newLeads = Array.isArray(json.leads) ? (json.leads as LeadReferralItem[]) : [];
+        if (newLeads.length === 0) {
+          setLeadReferralsGenerateError(
+            "Belum menemukan calon pelanggan baru yang benar-benar terverifikasi untuk saat ini. Coba lagi nanti.",
+          );
+        } else {
+          setLeadReferrals((prev) => [...newLeads, ...prev]);
+        }
+      } else {
+        setLeadReferralsGenerateError(json.error || "Gagal mencari referensi pelanggan. Coba lagi.");
+      }
+    } catch (err) {
+      console.error("generateLeadReferrals error:", err);
+      setLeadReferralsGenerateError("Gagal mencari referensi pelanggan. Coba lagi.");
+    }
+    setLeadReferralsGenerating(false);
+  }
+
   // Ekonomi Makro (Task 14c) — tidak butuh businessProfileId (data sama
   // untuk semua pengguna), cukup login.
   async function loadMacroSnapshot() {
@@ -5028,6 +5265,9 @@ function Workspace() {
     if (activeMenu === "competitor" && !socialMediaAnalysis && !socialMediaLoading) {
       loadSocialMediaAnalysis();
     }
+    if (activeMenu === "leads" && leadReferrals.length === 0 && !leadReferralsLoading) {
+      loadLeadReferrals();
+    }
     if (activeMenu === "today" && !macroSnapshot && !macroLoading) {
       loadMacroSnapshot();
     }
@@ -5118,6 +5358,12 @@ function Workspace() {
     report: { key: "report", label: t.workspace.menuReport, subtitle: t.workspace.todayNavSubtitleReport },
     score: { key: "score", label: t.workspace.menuScore, subtitle: t.workspace.todayNavSubtitleScore },
     competitor: { key: "competitor", label: t.workspace.menuCompetitor, subtitle: t.workspace.todayNavSubtitleCompetitor },
+    // Referensi Pelanggan Baru (Juli 2026) — string HARDCODE bahasa
+    // Indonesia (bukan lewat t.workspace.*), pola yang sama dengan
+    // AdminPage.tsx: menghindari risiko korupsi pada translations.ts (file
+    // besar bilingual) untuk satu fitur baru yang memang dari awal
+    // Indonesia-saja di produk ini.
+    leads: { key: "leads", label: "Referensi Pelanggan", subtitle: "Calon pelanggan baru yang relevan untukmu" },
     // Ekonomi Makro (revisi Juli 2026): halaman/menu berdiri sendiri dihapus,
     // digabung ke dalam Today — lihat kartu "Kondisi Ekonomi Hari Ini".
     // Digabung dengan Journey (audit Juli 2026) — label/subtitle diperbarui
@@ -5140,8 +5386,12 @@ function Workspace() {
       ? [
           // 1. Kelayakan — "benar/tidak saya mau buka bisnis ini" + PDF baseline.
           { stageLabel: t.workspace.stageStartFeasibility, items: [ALL_MENU_ITEMS.report] },
-          // 2. Riset Pasar — laku/tidak, lokasi, peta kompetitor.
-          { stageLabel: t.workspace.stageStartMarketFit, items: [ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.competitor] },
+          // 2. Riset Pasar — laku/tidak, lokasi, peta kompetitor, referensi
+          // calon pelanggan pertama begitu tahu produk/lokasinya.
+          {
+            stageLabel: t.workspace.stageStartMarketFit,
+            items: [ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.competitor, ALL_MENU_ITEMS.leads],
+          },
           // 3. Persiapan & Pendampingan — 0 sampai launching, dari data PDF.
           {
             stageLabel: t.workspace.stageStartPreparation,
@@ -5158,8 +5408,12 @@ function Workspace() {
             stageLabel: t.workspace.stageGrowDailySupport,
             items: [ALL_MENU_ITEMS.today, ALL_MENU_ITEMS.score, ALL_MENU_ITEMS.businessUpdates, ALL_MENU_ITEMS.chat],
           },
-          // 3. Pendukung keputusan — solusi relevan berbasis data+AI untuk setiap masalah.
-          { stageLabel: t.workspace.stageGrowDecisionSupport, items: [ALL_MENU_ITEMS.decisionJournal, ALL_MENU_ITEMS.competitor] },
+          // 3. Pendukung keputusan — solusi relevan berbasis data+AI untuk
+          // setiap masalah, termasuk referensi calon pelanggan baru.
+          {
+            stageLabel: t.workspace.stageGrowDecisionSupport,
+            items: [ALL_MENU_ITEMS.decisionJournal, ALL_MENU_ITEMS.competitor, ALL_MENU_ITEMS.leads],
+          },
           // 4. Laporan & progres — kemajuan bisnis + apa saja yang sudah dilakukan (Journey digabung ke Target).
           { stageLabel: t.workspace.stageGrowReview, items: [ALL_MENU_ITEMS.target, ALL_MENU_ITEMS.history] },
         ];
@@ -5632,6 +5886,18 @@ function Workspace() {
               socialMediaLoading={socialMediaLoading}
               socialMediaError={socialMediaError}
               onRetrySocialMedia={loadSocialMediaAnalysis}
+            />
+          ) : activeMenu === "leads" ? (
+            <LeadReferralsPanel
+              tier={tier}
+              leads={leadReferrals}
+              loading={leadReferralsLoading}
+              error={leadReferralsError}
+              onRetry={loadLeadReferrals}
+              generating={leadReferralsGenerating}
+              generateError={leadReferralsGenerateError}
+              onGenerate={generateNewLeadReferrals}
+              leadQuota={leadQuota}
             />
           ) : activeMenu === "chat" ? (
             activeBusinessId && (
