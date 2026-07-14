@@ -58,6 +58,7 @@ import { adminListPayments } from "../services/admin/listPayments.js";
 import { adminListAuditLog } from "../services/admin/listAuditLog.js";
 import { adminListAdmins, adminSetRole } from "../services/admin/manageAdmins.js";
 import { adminAddBusinessNote } from "../services/admin/addBusinessNote.js";
+import { nurtureUnsubscribe } from "../services/nurture/unsubscribe.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -78,12 +79,29 @@ const ADMIN_FLOW_ACTIONS = new Set([
   "adminAddBusinessNote",
 ]);
 
+// Aksi PUBLIK -- tidak butuh sesi admin ATAUPUN login Supabase. Sengaja
+// dipisah dari ADMIN_FLOW_ACTIONS (bukan diam-diam ditambah ke situ) supaya
+// jelas di kode ini benar-benar aksi terbuka untuk siapa saja, bukan bagian
+// dari gerbang admin. Baru ada satu: link "berhenti langganan" di email
+// dorongan personal (services/nurture/) -- harus bisa diklik siapapun dari
+// email tanpa login, divalidasi lewat token unik per email, bukan lewat
+// sesi apapun.
+const PUBLIC_ACTIONS = new Set(["nurtureUnsubscribe"]);
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   const { action, ...payload } = req.body || {};
+
+  // --- Aksi publik (lihat catatan PUBLIC_ACTIONS di atas). ---
+  if (PUBLIC_ACTIONS.has(action)) {
+    if (action === "nurtureUnsubscribe") {
+      const publicResult = await nurtureUnsubscribe(payload, getClientIp(req));
+      return res.status(publicResult.status).json(publicResult.body);
+    }
+  }
 
   // --- Jalur admin: sesi TERPISAH TOTAL dari Supabase Auth, lihat catatan
   // di atas file ini. Ditangani SEBELUM gerbang "Bearer <token>" di bawah,

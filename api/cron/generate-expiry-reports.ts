@@ -18,10 +18,20 @@
 // sebelumnya soal maxDuration 10s Hobby vs 60s+ Pro, karena endpoint ini
 // memanggil Claude+Playwright per baris, bisa lama kalau banyak subscription
 // expired di hari yang sama).
+//
+// Audit Juli 2026 ("email dorongan personal bulanan"): job KEDUA (kirim
+// email nurture) DITUMPANGKAN di endpoint yang sama lewat query
+// ?job=nurture (lihat vercel.json "crons" -- entri kedua menunjuk path yang
+// sama dengan query string berbeda) -- SEMATA-MATA karena limit jumlah
+// Vercel Cron/Serverless Function di plan Hobby sudah nyaris/pas batas,
+// pola yang sama seperti kenapa action admin* menumpang di api/workspace.ts.
+// Kalau query job tidak dikenali/kosong, perilaku default TETAP job expiry
+// report (tidak mengubah cron yang sudah berjalan).
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { generateFinalReport } from "../../services/reports/generateFinalReport.js";
+import { sendNurtureBatch } from "../../services/nurture/sendNurtureBatch.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -30,6 +40,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const authHeader = req.headers.authorization;
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  if (req.query.job === "nurture") {
+    const result = await sendNurtureBatch();
+    return res.status(200).json(result);
   }
 
   // Rentang "hari ini" (UTC — cukup untuk penanda hari, tidak perlu presisi

@@ -18,6 +18,7 @@ import ReferralPage from "./components/ReferralPage";
 import TentangKami from "./components/TentangKami";
 import PaymentPage from "./components/PaymentPage";
 import Workspace from "./components/Workspace";
+import NurtureUnsubscribePage from "./components/NurtureUnsubscribePage";
 
 function App() {
 
@@ -171,6 +172,22 @@ function App() {
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
         <p className="text-neutral-400">Mengaktifkan Workspace kamu...</p>
       </div>
+    );
+  }
+
+  // Audit Juli 2026 ("email dorongan personal bulanan... link berhenti
+  // langganan"): halaman PUBLIK, dicek lewat query string (bukan hash)
+  // supaya bisa langsung diklik dari email tanpa perlu App ini sempat
+  // memuat state lain dulu. Tidak butuh login apapun -- lihat
+  // services/nurture/unsubscribe.ts untuk validasi tokennya.
+  const unsubscribeToken = urlParams.get("unsub");
+  if (unsubscribeToken) {
+    return (
+      <>
+        <Navbar />
+        <NurtureUnsubscribePage token={unsubscribeToken} />
+        <Footer />
+      </>
     );
   }
 
