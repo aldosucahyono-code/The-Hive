@@ -28,7 +28,7 @@
 // (tanpa library chart/UI berat) supaya halaman tetap ringan & cepat dibuka
 // dari perangkat apapun (HP termasuk -- semua grid pakai breakpoint responsif).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ClipboardEvent } from "react";
 
 type Role = "admin" | "super_admin";
 type Tab = "dashboard" | "customers" | "payments" | "messages" | "audit" | "admins";
@@ -40,12 +40,23 @@ type Customer = {
   role: string;
   businessCount: number;
   latestBusinessName: string | null;
+  latestIndustry: string | null;
+  latestBusinessStage: string | null;
+  latestBusinessType: string | null;
   highestTier: string;
   contactMessageCount: number;
   isOnline: boolean;
   lastSeenAt: string | null;
   lastLocation: string | null;
   lastDevice: string;
+};
+
+type BusinessNote = {
+  id: string;
+  note: string | null;
+  image_data_url: string | null;
+  created_by_email: string;
+  created_at: string;
 };
 
 type Business = {
@@ -61,6 +72,7 @@ type Business = {
   payments: { tier: string; status: string; created_at: string }[];
   analyses: { id: string; raw_input: Record<string, unknown>; ai_output: string | null; is_baseline: boolean; created_at: string }[];
   updates: { id: string; content: string | null; pencapaian: string | null; tantangan: string | null; category: string | null; created_at: string }[];
+  notes: BusinessNote[];
 };
 
 type WizardDraft = {
@@ -168,6 +180,17 @@ function formatIdr(value: number): string {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
 }
 
+// Audit Juli 2026 ("saya ingin tau betul, kira2 relevan tidak pertanyaan
+// pelanggan dengan jawaban atau solusi darimu"): raw_input wizard disimpan
+// sebagai JSONB bebas bentuk -- helper ini menarik field yang SUDAH DIKENAL
+// (lihat api/save-submission.ts untuk daftar field wajib wizard) supaya bisa
+// ditampilkan terbaca berdampingan dengan rekomendasi AI, bukan cuma dump
+// JSON mentah.
+function wizardText(raw: Record<string, unknown> | null | undefined, key: string): string {
+  const v = raw?.[key];
+  return typeof v === "string" && v.trim() ? v : "-";
+}
+
 function tierBadgeClass(tier: string): string {
   if (tier === "platinum") return "bg-neutral-900 text-white";
   if (tier === "pro") return "bg-primary text-black";
@@ -229,6 +252,8 @@ function AdminPage() {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [stageFilter, setStageFilter] = useState<"all" | "idea" | "running">("all");
+  const [industryFilter, setIndustryFilter] = useState<string>("all");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
@@ -250,6 +275,9 @@ function AdminPage() {
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [addAdminBusy, setAddAdminBusy] = useState(false);
   const [roleBusyEmail, setRoleBusyEmail] = useState<string | null>(null);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [noteImages, setNoteImages] = useState<Record<string, string | null>>({});
+  const [noteBusyId, setNoteBusyId] = useState<string | null>(null);
 
   // Langkah 2 (klik link di email): kalau URL punya ?verify=token, verifikasi
   // otomatis lalu lanjut ke langkah PIN -- sekali saja saat mount.
@@ -468,6 +496,26 @@ function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.adminToken, tab, loadDashboard, loadCustomers, loadMessages, loadAuditLog, loadAdmins]);
 
+  // Audit Juli 2026 ("bisa dikelompokan dari masing2 jenis usaha... usaha
+  // baru/eksisting, rumah makan, coffee shop dll"): filter dilakukan di
+  // client (daftar pelanggan sudah dimuat penuh, maks 500 baris) supaya
+  // ganti filter terasa instan tanpa panggilan API baru.
+  const industryOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of customers) {
+      if (c.latestIndustry) set.add(c.latestIndustry);
+    }
+    return Array.from(set).sort();
+  }, [customers]);
+
+  const filteredCustomers = useMemo(() => {
+    return customers.filter((c) => {
+      if (stageFilter !== "all" && c.latestBusinessStage !== stageFilter) return false;
+      if (industryFilter !== "all" && c.latestIndustry !== industryFilter) return false;
+      return true;
+    });
+  }, [customers, stageFilter, industryFilter]);
+
   async function openCustomer(id: string) {
     setSelectedId(id);
     setDetail(null);
@@ -519,6 +567,53 @@ function AdminPage() {
       setAccessError(err instanceof Error ? err.message : "Gagal mencabut akses admin.");
     } finally {
       setRoleBusyEmail(null);
+    }
+  }
+
+  // Audit Juli 2026 ("saya bisa screenshot pelanggan, lalu paste disini agar
+  // kita bisa menyelesaikannya secara manual"): tangkap gambar dari
+  // clipboard saat admin paste (Ctrl+V) di kotak catatan, ubah jadi data URI
+  // base64 -- tidak perlu upload file terpisah.
+  function handleNotePaste(e: ClipboardEvent<HTMLTextAreaElement>, businessId: string) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (!file) continue;
+        const reader = new FileReader();
+        reader.onload = () => {
+          setNoteImages((prev) => ({ ...prev, [businessId]: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
+        e.preventDefault();
+        break;
+      }
+    }
+  }
+
+  async function submitNote(businessId: string) {
+    const text = (noteDrafts[businessId] || "").trim();
+    const image = noteImages[businessId] || "";
+    if (!text && !image) return;
+    setNoteBusyId(businessId);
+    setAccessError(null);
+    try {
+      const json = await callAdmin("adminAddBusinessNote", { businessProfileId: businessId, note: text, imageDataUrl: image });
+      setDetail((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          businesses: prev.businesses.map((b) => (b.id === businessId ? { ...b, notes: [json.note, ...b.notes] } : b)),
+        };
+      });
+      setNoteDrafts((prev) => ({ ...prev, [businessId]: "" }));
+      setNoteImages((prev) => ({ ...prev, [businessId]: null }));
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal menyimpan catatan.");
+    } finally {
+      setNoteBusyId(null);
     }
   }
 
@@ -696,6 +791,32 @@ function AdminPage() {
       {tab === "customers" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
           <div className="lg:col-span-2">
+            <div className="mb-3 flex flex-wrap gap-2">
+              <select
+                value={stageFilter}
+                onChange={(e) => setStageFilter(e.target.value as "all" | "idea" | "running")}
+                className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs"
+              >
+                <option value="all">Semua tahap</option>
+                <option value="idea">Usaha Baru</option>
+                <option value="running">Usaha Berjalan</option>
+              </select>
+              <select
+                value={industryFilter}
+                onChange={(e) => setIndustryFilter(e.target.value)}
+                className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs"
+              >
+                <option value="all">Semua jenis usaha</option>
+                {industryOptions.map((ind) => (
+                  <option key={ind} value={ind}>
+                    {ind}
+                  </option>
+                ))}
+              </select>
+              {(stageFilter !== "all" || industryFilter !== "all") && (
+                <span className="self-center text-xs text-neutral-400">{filteredCustomers.length} dari {customers.length} pelanggan</span>
+              )}
+            </div>
             <div className="overflow-hidden rounded-2xl border border-neutral-200">
               <table className="w-full text-left text-sm">
                 <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
@@ -713,14 +834,14 @@ function AdminPage() {
                       </td>
                     </tr>
                   )}
-                  {!customersLoading && customers.length === 0 && !accessError && (
+                  {!customersLoading && filteredCustomers.length === 0 && !accessError && (
                     <tr>
                       <td colSpan={3} className="px-4 py-6 text-center text-neutral-400">
-                        Belum ada pelanggan.
+                        Tidak ada pelanggan yang cocok dengan filter ini.
                       </td>
                     </tr>
                   )}
-                  {customers.map((c) => (
+                  {filteredCustomers.map((c) => (
                     <tr
                       key={c.id}
                       onClick={() => openCustomer(c.id)}
@@ -738,6 +859,7 @@ function AdminPage() {
                         <div className="mt-1 text-xs text-neutral-400">
                           {c.businessCount} bisnis{c.latestBusinessName ? ` · ${c.latestBusinessName}` : ""}
                         </div>
+                        {c.latestIndustry && <div className="mt-0.5 text-xs text-neutral-400">{c.latestIndustry}</div>}
                       </td>
                       <td className="px-4 py-3 text-xs text-neutral-500">
                         <div>{c.lastLocation || "Lokasi tidak diketahui"}</div>
@@ -826,14 +948,41 @@ function AdminPage() {
                       <h4 className="mb-1 text-xs font-bold uppercase text-neutral-400">Hasil Wizard / Analisa</h4>
                       {b.analyses.length === 0 && <p className="text-xs text-neutral-400">Tidak ada.</p>}
                       {b.analyses.map((a) => (
-                        <details key={a.id} className="mb-1 text-xs text-neutral-600">
-                          <summary className="cursor-pointer">
+                        <div key={a.id} className="mb-3 rounded-xl border border-neutral-100 p-3 last:mb-0">
+                          <p className="mb-2 text-xs font-semibold text-neutral-500">
                             {a.is_baseline ? "Baseline" : "Update"} &middot; {formatDate(a.created_at)}
-                          </summary>
-                          <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-neutral-50 p-2 text-[11px]">
-                            {JSON.stringify(a.raw_input, null, 2)}
-                          </pre>
-                        </details>
+                          </p>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div className="rounded-lg bg-neutral-50 p-3">
+                              <p className="mb-1 text-[10px] font-bold uppercase text-neutral-400">Kondisi &amp; Pertanyaan Pelanggan</p>
+                              <p className="text-xs text-neutral-700">
+                                <span className="font-semibold">Profesi:</span> {wizardText(a.raw_input, "profesi")}
+                              </p>
+                              <p className="text-xs text-neutral-700">
+                                <span className="font-semibold">Produk/Jasa:</span> {wizardText(a.raw_input, "produkJasa")}
+                              </p>
+                              <p className="text-xs text-neutral-700">
+                                <span className="font-semibold">Lokasi:</span> {wizardText(a.raw_input, "lokasi")}
+                              </p>
+                              <p className="mt-2 text-xs text-neutral-700">
+                                <span className="font-semibold">Tantangan:</span> {wizardText(a.raw_input, "tantangan")}
+                              </p>
+                              <p className="mt-1 text-xs text-neutral-700">
+                                <span className="font-semibold">Harapan/Target:</span> {wizardText(a.raw_input, "target")}
+                              </p>
+                            </div>
+                            <div className="rounded-lg bg-amber-50 p-3">
+                              <p className="mb-1 text-[10px] font-bold uppercase text-amber-700">Rekomendasi Beemo (AI)</p>
+                              <p className="whitespace-pre-wrap text-xs text-neutral-700">{a.ai_output || "(belum ada output tersimpan)"}</p>
+                            </div>
+                          </div>
+                          <details className="mt-2 text-xs text-neutral-500">
+                            <summary className="cursor-pointer">Data mentah wizard (JSON lengkap)</summary>
+                            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-neutral-50 p-2 text-[11px]">
+                              {JSON.stringify(a.raw_input, null, 2)}
+                            </pre>
+                          </details>
+                        </div>
                       ))}
                     </div>
 
@@ -845,6 +994,52 @@ function AdminPage() {
                           {formatDate(u.created_at)} &middot; {u.category || "update"}: {u.content || u.pencapaian || u.tantangan || "-"}
                         </p>
                       ))}
+                    </div>
+
+                    <div className="mt-3">
+                      <h4 className="mb-1 text-xs font-bold uppercase text-neutral-400">Catatan Admin</h4>
+                      {b.notes.length === 0 && <p className="text-xs text-neutral-400">Belum ada catatan.</p>}
+                      {b.notes.map((n) => (
+                        <div key={n.id} className="mb-2 rounded-lg bg-neutral-50 p-2 text-xs text-neutral-600">
+                          <p className="mb-1 text-[10px] text-neutral-400">
+                            {n.created_by_email} &middot; {formatDate(n.created_at)}
+                          </p>
+                          {n.note && <p className="whitespace-pre-wrap">{n.note}</p>}
+                          {n.image_data_url && (
+                            <img src={n.image_data_url} alt="Screenshot catatan" className="mt-1 max-h-48 rounded-lg border border-neutral-200" />
+                          )}
+                        </div>
+                      ))}
+                      {session.role === "super_admin" && (
+                        <div className="mt-2 rounded-lg border border-dashed border-neutral-200 p-2">
+                          <textarea
+                            value={noteDrafts[b.id] || ""}
+                            onChange={(e) => setNoteDrafts((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                            onPaste={(e) => handleNotePaste(e, b.id)}
+                            placeholder="Tulis catatan, atau tempel (Ctrl+V) screenshot percakapan pelanggan di sini..."
+                            rows={2}
+                            className="w-full resize-none rounded-lg border border-neutral-200 px-2 py-1.5 text-xs outline-none focus:border-primary"
+                          />
+                          {noteImages[b.id] && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <img src={noteImages[b.id]!} alt="Preview screenshot" className="max-h-24 rounded-lg border border-neutral-200" />
+                              <button
+                                onClick={() => setNoteImages((prev) => ({ ...prev, [b.id]: null }))}
+                                className="text-xs text-red-600"
+                              >
+                                Hapus gambar
+                              </button>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => submitNote(b.id)}
+                            disabled={noteBusyId === b.id || (!noteDrafts[b.id]?.trim() && !noteImages[b.id])}
+                            className="mt-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-black disabled:opacity-50"
+                          >
+                            {noteBusyId === b.id ? "Menyimpan..." : "Simpan Catatan"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

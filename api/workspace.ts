@@ -44,7 +44,7 @@ import { getSocialMediaAnalysis } from "../services/socialMedia/getSocialMediaAn
 import { getMacroSnapshot } from "../services/macro/getMacroSnapshot.js";
 import { getNotifications } from "../services/notifications/getNotifications.js";
 import { markNotificationsSeen } from "../services/notifications/markNotificationsSeen.js";
-import { recordPresence } from "../services/admin/recordPresence.js";
+import { recordPresence, extractVercelGeo } from "../services/admin/recordPresence.js";
 import { adminRequestChallenge } from "../services/admin/auth/requestChallenge.js";
 import { adminVerifyEmailToken } from "../services/admin/auth/verifyEmailToken.js";
 import { adminVerifyPin } from "../services/admin/auth/verifyPin.js";
@@ -57,6 +57,7 @@ import { adminGetDashboardSummary } from "../services/admin/getDashboardSummary.
 import { adminListPayments } from "../services/admin/listPayments.js";
 import { adminListAuditLog } from "../services/admin/listAuditLog.js";
 import { adminListAdmins, adminSetRole } from "../services/admin/manageAdmins.js";
+import { adminAddBusinessNote } from "../services/admin/addBusinessNote.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -74,6 +75,7 @@ const ADMIN_FLOW_ACTIONS = new Set([
   "adminListAuditLog",
   "adminListAdmins",
   "adminSetRole",
+  "adminAddBusinessNote",
 ]);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -133,6 +135,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case "adminSetRole":
         adminResult = await adminSetRole(adminToken, payload, ip, userAgent);
         break;
+      case "adminAddBusinessNote":
+        adminResult = await adminAddBusinessNote(adminToken, payload, ip, userAgent);
+        break;
     }
 
     return res.status(adminResult!.status).json(adminResult!.body);
@@ -155,8 +160,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // SEMUA action pelanggan di bawah (bukan endpoint terpisah) supaya
   // memanfaatkan traffic yang sudah ada -- lihat services/admin/recordPresence.ts
   // untuk throttle-nya (maksimal sekali/menit per pelanggan) dan kenapa ini
-  // tidak pernah menggagalkan permintaan aslinya.
-  await recordPresence(userId, getClientIp(req), (req.headers["user-agent"] as string) || "");
+  // tidak pernah menggagalkan permintaan aslinya. Header geolokasi Vercel
+  // (extractVercelGeo) dipakai sebagai sumber lokasi UTAMA -- lebih akurat
+  // & instan dibanding lookup API eksternal (lihat recordPresence.ts).
+  await recordPresence(userId, getClientIp(req), (req.headers["user-agent"] as string) || "", extractVercelGeo(req.headers));
 
   let result;
   switch (action) {

@@ -10,8 +10,12 @@
 // berapa pesan kontak yang mereka kirim, dan (audit Juli 2026 -- "saya juga
 // ingin tau kapan users online-offline... lokasi... perangkat") status
 // online/offline + kota/negara kasar + perangkat terakhir yang dipakai.
-// Detail penuh satu pelanggan ada di getCustomerDetail.ts, dipanggil
-// terpisah saat admin klik satu baris.
+// Juga menyertakan jenis usaha (industri + baru/berjalan) dari bisnis
+// TERBARU pelanggan itu -- dipakai frontend untuk filter/kelompokkan
+// pelanggan per jenis usaha (audit Juli 2026: "bisa dikelompokan dari
+// masing2 jenis usaha... usaha baru/eksisting, rumah makan, coffee shop dll").
+// Detail penuh satu pelanggan (semua bisnisnya, bukan cuma yang terbaru)
+// ada di getCustomerDetail.ts, dipanggil terpisah saat admin klik satu baris.
 //
 // Baca-saja. Otorisasi lewat sesi admin TERPISAH dari Supabase Auth (lihat
 // services/admin/auth/requireAdminSession.ts) -- adminToken datang dari
@@ -42,7 +46,7 @@ export async function adminListCustomers(adminToken: string | undefined, _payloa
         .limit(500),
       supabase
         .from("business_profiles")
-        .select("id, user_id, business_name, business_stage, active, created_at")
+        .select("id, user_id, business_name, business_stage, business_type, industry, active, created_at")
         .order("created_at", { ascending: false }),
       supabase.from("subscriptions").select("business_profile_id, tier, expires_at").eq("status", "active"),
       supabase.from("contact_messages").select("email"),
@@ -86,6 +90,7 @@ export async function adminListCustomers(adminToken: string | undefined, _payloa
     }
     const emailKey = (p.email || "").trim().toLowerCase();
     const isOnline = !!p.last_seen_at && Date.now() - new Date(p.last_seen_at).getTime() < ONLINE_THRESHOLD_MS;
+    const latest = own[0];
 
     return {
       id: p.id,
@@ -93,7 +98,10 @@ export async function adminListCustomers(adminToken: string | undefined, _payloa
       createdAt: p.created_at,
       role: p.role,
       businessCount: own.length,
-      latestBusinessName: own[0]?.business_name ?? null,
+      latestBusinessName: latest?.business_name ?? null,
+      latestIndustry: latest?.industry ?? null,
+      latestBusinessStage: latest?.business_stage ?? null,
+      latestBusinessType: latest?.business_type ?? null,
       highestTier,
       contactMessageCount: contactCountByEmail.get(emailKey) || 0,
       isOnline,

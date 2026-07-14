@@ -5,11 +5,12 @@
 // dari daftar (listCustomers.ts) -- mengumpulkan SEMUA jejak pelanggan itu
 // di platform dalam satu response: profil (+ status online/offline, lokasi
 // kasar, perangkat terakhir), tiap bisnis yang mereka buat (+ langganan/
-// pembayaran + hasil wizard/analisa + aktivitas workspace), draft wizard
-// yang belum/tidak pernah login, pesan kontak yang mereka kirim, dan
-// ESTIMASI kasar biaya API yang mereka pakai (lihat catatan konstanta biaya
-// di bawah -- ini perkiraan, BUKAN pencatatan token/biaya asli per
-// panggilan, karena itu belum diinstrumentasi di seluruh titik panggilan AI).
+// pembayaran + hasil wizard/analisa + aktivitas workspace + catatan manual
+// admin), draft wizard yang belum/tidak pernah login, pesan kontak yang
+// mereka kirim, dan ESTIMASI kasar biaya API yang mereka pakai (lihat
+// catatan konstanta biaya di bawah -- ini perkiraan, BUKAN pencatatan
+// token/biaya asli per panggilan, karena itu belum diinstrumentasi di
+// seluruh titik panggilan AI).
 //
 // Baca-saja. Otorisasi lewat sesi admin TERPISAH dari Supabase Auth (lihat
 // services/admin/auth/requireAdminSession.ts).
@@ -75,6 +76,7 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
     { data: updates, error: updatesError },
     { data: drafts, error: draftsError },
     { data: contactMessages, error: contactError },
+    { data: notes, error: notesError },
   ] = await Promise.all([
     businessIds.length
       ? supabase
@@ -127,12 +129,22 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
           .ilike("email", emailKey)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+    // Catatan manual admin (migrations/2026-07-15e_admin_business_notes.sql)
+    // -- "kalau tidak relevan, saya bisa screenshot pelanggan, lalu paste
+    // disini agar kita bisa menyelesaikannya secara manual".
+    businessIds.length
+      ? supabase
+          .from("admin_business_notes")
+          .select("id, business_profile_id, note, image_data_url, created_by_email, created_at")
+          .in("business_profile_id", businessIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
-  if (subsError || paymentsError || analysesError || updatesError || draftsError || contactError) {
+  if (subsError || paymentsError || analysesError || updatesError || draftsError || contactError || notesError) {
     console.error(
       "adminGetCustomerDetail error:",
-      subsError || paymentsError || analysesError || updatesError || draftsError || contactError
+      subsError || paymentsError || analysesError || updatesError || draftsError || contactError || notesError
     );
     return { status: 500, body: { error: "Gagal memuat detail pelanggan." } };
   }
@@ -148,6 +160,7 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
     payments: (payments || []).filter((p) => p.business_profile_id === b.id),
     analyses: (analyses || []).filter((a) => a.business_profile_id === b.id),
     updates: (updates || []).filter((u) => u.business_profile_id === b.id),
+    notes: (notes || []).filter((n) => n.business_profile_id === b.id),
   }));
 
   const normalizedEmail = emailKey.toLowerCase();
