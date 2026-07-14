@@ -12,11 +12,18 @@
 // Maksimal 5 percobaan PIN salah per challenge -- lewat itu, challenge
 // langsung dianggap gagal (harus minta link baru dari awal, bukan cuma
 // coba lagi PIN-nya).
+//
+// Audit Juli 2026 ("jangan sampai mudah dibobol"): setiap percobaan PIN
+// SALAH dan setiap login BERHASIL dicatat ke admin_audit_log (lihat
+// services/admin/auditLog.ts) -- ini gerbang paling sensitif di seluruh
+// platform, jadi pemilik produk perlu bisa melihat riwayat percobaan
+// masuknya, bukan cuma hasil akhirnya.
 
 import { timingSafeEqual } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "../../business/create.js";
-import { checkRateLimit } from "../../rateLimit/checkRateLimit.js";
+import { checkRateLimitFailClosed } from "../../rateLimit/checkRateLimit.js";
+import { logAdminAction } from "../auditLog.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -41,7 +48,13 @@ export async function adminVerifyPin(payload: Record<string, unknown>, ip: strin
     return { status: 400, body: { error: "Token dan PIN wajib diisi." } };
   }
 
-  const pinRateLimit = await checkRateLimit(`admin-pin-ip:${ip}`, 20, 600);
+  // Audit Juli 2026: rate limit percobaan PIN GAGAL CLOSED (bukan default
+  // fail-open checkRateLimit yang dipakai fitur publik lain) -- kalau
+  // infrastruktur rate limit sendiri bermasalah, gerbang paling sensitif di
+  // platform ini harus menolak dulu, bukan mempersilakan brute-force tanpa
+  // batas. Trade-off ini SENGAJA dibalik dari fail-open publik: downtime
+  // sesaat di halaman admin jauh lebih murah daripada kebobolan.
+  const pinRateLimit = await checkRateLimitFailClosed(`admin-pin-ip:${ip}`, 20, 600);
   if (!pinRateLimit.allowed) {
     return { status: 429, body: { error: "Terlalu banyak percobaan. Coba lagi beberapa saat lagi." } };
   }
@@ -72,9 +85,25 @@ export async function adminVerifyPin(payload: Record<string, unknown>, ip: strin
     const nextAttempts = (challenge.pin_attempts as number) + 1;
     if (nextAttempts >= MAX_PIN_ATTEMPTS) {
       await supabase.from("admin_login_challenges").update({ status: "failed", pin_attempts: nextAttempts }).eq("id", challenge.id);
+      await logAdminAction({
+        actorEmail: challenge.email as string,
+        actorRole: "unknown",
+        action: "adminLoginLockedOut",
+        detail: { attempts: nextAttempts },
+        ip,
+        userAgent,
+      });
       return { status: 429, body: { error: "Terlalu banyak percobaan PIN salah. Minta link verifikasi baru dari awal." } };
     }
     await supabase.from("admin_login_challenges").update({ pin_attempts: nextAttempts }).eq("id", challenge.id);
+    await logAdminAction({
+      actorEmail: challenge.email as string,
+      actorRole: "unknown",
+      action: "adminLoginWrongPin",
+      detail: { attempt: nextAttempts },
+      ip,
+      userAgent,
+    });
     return { status: 401, body: { error: `PIN salah. Percobaan tersisa: ${MAX_PIN_ATTEMPTS - nextAttempts}.` } };
   }
 
@@ -100,6 +129,14 @@ export async function adminVerifyPin(payload: Record<string, unknown>, ip: strin
     console.error("adminVerifyPin session insert error:", sessionError);
     return { status: 500, body: { error: "Gagal membuat sesi admin. Coba lagi." } };
   }
+
+  await logAdminAction({
+    actorEmail: challenge.email as string,
+    actorRole: session.role as string,
+    action: "adminLoginSuccess",
+    ip,
+    userAgent,
+  });
 
   return { status: 200, body: { adminToken: session.id, role: session.role, email: challenge.email } };
 }

@@ -6,16 +6,16 @@
 // sini, bukan endpoint terpisah.
 //
 // Audit Juli 2026 ("pisahkan halaman super admin ini dari users, atau
-// hackers"): action admin* (alur login 3 langkah + 4 aksi baca/tulis data)
-// menumpang di router ini (bukan endpoint terpisah -- batas 12 Serverless
-// Function Vercel Hobby sudah tercapai, lihat catatan di api/business.ts)
-// TAPI otentikasinya SENGAJA TIDAK lewat gerbang "Bearer <token Supabase>"
-// di bawah -- action admin* dicek lebih dulu, dan pakai sesinya sendiri
-// (header x-admin-token, admin_sessions, lihat
-// services/admin/auth/requireAdminSession.ts) yang tidak ada hubungannya
-// sama sekali dengan sesi login pelanggan. Kalau sesi pelanggan bocor,
-// tidak ada jalan ke admin; kalau sesi admin bocor, tidak ada jalan ke
-// akun pelanggan manapun.
+// hackers"): action admin* (alur login 3 langkah + aksi baca/tulis data,
+// dashboard, pembayaran, log audit, kelola admin) menumpang di router ini
+// (bukan endpoint terpisah -- batas 12 Serverless Function Vercel Hobby
+// sudah tercapai, lihat catatan di api/business.ts) TAPI otentikasinya
+// SENGAJA TIDAK lewat gerbang "Bearer <token Supabase>" di bawah -- action
+// admin* dicek lebih dulu, dan pakai sesinya sendiri (header x-admin-token,
+// admin_sessions, lihat services/admin/auth/requireAdminSession.ts) yang
+// tidak ada hubungannya sama sekali dengan sesi login pelanggan. Kalau
+// sesi pelanggan bocor, tidak ada jalan ke admin; kalau sesi admin bocor,
+// tidak ada jalan ke akun pelanggan manapun.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
@@ -53,6 +53,10 @@ import { adminListCustomers } from "../services/admin/listCustomers.js";
 import { adminGetCustomerDetail } from "../services/admin/getCustomerDetail.js";
 import { adminListContactMessages } from "../services/admin/listContactMessages.js";
 import { adminUpdateContactMessageStatus } from "../services/admin/updateContactMessageStatus.js";
+import { adminGetDashboardSummary } from "../services/admin/getDashboardSummary.js";
+import { adminListPayments } from "../services/admin/listPayments.js";
+import { adminListAuditLog } from "../services/admin/listAuditLog.js";
+import { adminListAdmins, adminSetRole } from "../services/admin/manageAdmins.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -65,6 +69,11 @@ const ADMIN_FLOW_ACTIONS = new Set([
   "adminGetCustomerDetail",
   "adminListContactMessages",
   "adminUpdateContactMessageStatus",
+  "adminGetDashboardSummary",
+  "adminListPayments",
+  "adminListAuditLog",
+  "adminListAdmins",
+  "adminSetRole",
 ]);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -107,7 +116,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         adminResult = await adminListContactMessages(adminToken, payload);
         break;
       case "adminUpdateContactMessageStatus":
-        adminResult = await adminUpdateContactMessageStatus(adminToken, payload);
+        adminResult = await adminUpdateContactMessageStatus(adminToken, payload, ip, userAgent);
+        break;
+      case "adminGetDashboardSummary":
+        adminResult = await adminGetDashboardSummary(adminToken, payload);
+        break;
+      case "adminListPayments":
+        adminResult = await adminListPayments(adminToken, payload);
+        break;
+      case "adminListAuditLog":
+        adminResult = await adminListAuditLog(adminToken, payload);
+        break;
+      case "adminListAdmins":
+        adminResult = await adminListAdmins(adminToken, payload);
+        break;
+      case "adminSetRole":
+        adminResult = await adminSetRole(adminToken, payload, ip, userAgent);
         break;
     }
 

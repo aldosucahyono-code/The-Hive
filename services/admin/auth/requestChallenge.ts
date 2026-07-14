@@ -18,8 +18,9 @@
 import { randomBytes } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "../../business/create.js";
-import { checkRateLimit } from "../../rateLimit/checkRateLimit.js";
+import { checkRateLimitFailClosed } from "../../rateLimit/checkRateLimit.js";
 import { ADMIN_SECRET_PATH } from "../adminSecretPath.js";
+import { logAdminAction } from "../auditLog.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -57,9 +58,9 @@ export async function adminRequestChallenge(payload: Record<string, unknown>, ip
 
   // Batasi per IP DAN per email -- mencegah orang mencoba banyak email
   // sekaligus (enumerasi) maupun membanjiri satu inbox admin tertentu
-  // dengan email verifikasi.
-  const ipLimit = await checkRateLimit(`admin-challenge-ip:${ip}`, 8, 600);
-  const emailLimit = await checkRateLimit(`admin-challenge-email:${email.toLowerCase()}`, 5, 3600);
+  // dengan email verifikasi. Fail-closed (lihat checkRateLimitFailClosed).
+  const ipLimit = await checkRateLimitFailClosed(`admin-challenge-ip:${ip}`, 8, 600);
+  const emailLimit = await checkRateLimitFailClosed(`admin-challenge-email:${email.toLowerCase()}`, 5, 3600);
   if (!ipLimit.allowed || !emailLimit.allowed) {
     return { status: 429, body: { error: "Terlalu banyak percobaan. Coba lagi beberapa saat lagi." } };
   }
@@ -96,6 +97,14 @@ export async function adminRequestChallenge(payload: Record<string, unknown>, ip
     console.error("adminRequestChallenge insert error:", insertError);
     return GENERIC_RESPONSE;
   }
+
+  await logAdminAction({
+    actorEmail: profile!.email as string,
+    actorRole: profile!.role as string,
+    action: "adminLoginRequested",
+    ip,
+    userAgent,
+  });
 
   const verifyUrl = `https://thehive-bisnis.com/${ADMIN_SECRET_PATH}?verify=${token}`;
 

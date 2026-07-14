@@ -2,7 +2,9 @@
 //
 // Halaman admin -- audit Juli 2026 ("super admin, bisa lihat/edit semua
 // database: pelanggan, pesan, chat wizard, workspace, langganan dalam satu
-// halaman" + "pisahkan halaman super admin ini dari users, atau hackers").
+// halaman" + "pisahkan halaman super admin ini dari users, atau hackers" +
+// "halaman lengkap, mudah dibaca dan mudah dioperasikan, ringan, bisa
+// diakses didevice mana saja").
 // Diakses lewat PATH rahasia (lihat src/adminSecretPath.ts + App.tsx),
 // TIDAK ada link publik ke sini sama sekali.
 //
@@ -19,10 +21,17 @@
 // adminToken disimpan di sessionStorage (bukan localStorage) -- hilang
 // otomatis begitu tab ditutup, mengurangi risiko kalau komputer ini dipakai
 // bersama/lupa logout.
+//
+// 6 tab: Dashboard (ringkasan bisnis), Pelanggan (detail per-orang), Pembayaran
+// (transaksi lintas pelanggan), Pesan Kontak, Log Aktivitas Admin dan Kelola
+// Admin (2 terakhir khusus super_admin) -- semua pakai tabel/kartu sederhana
+// (tanpa library chart/UI berat) supaya halaman tetap ringan & cepat dibuka
+// dari perangkat apapun (HP termasuk -- semua grid pakai breakpoint responsif).
 
 import { useCallback, useEffect, useState } from "react";
 
 type Role = "admin" | "super_admin";
+type Tab = "dashboard" | "customers" | "payments" | "messages" | "audit" | "admins";
 
 type Customer = {
   id: string;
@@ -93,12 +102,63 @@ type CustomerDetail = {
   };
 };
 
+type DashboardSummary = {
+  totalCustomers: number;
+  onlineNow: number;
+  tierCounts: Record<string, number>;
+  mrrIdr: number;
+  signupTrend: { date: string; count: number }[];
+  wizardFunnel: { totalDrafts: number; promoted: number; conversionRate: number };
+  payments: { pendingCount: number; pendingAmountIdr: number; failedCount: number; failedAmountIdr: number };
+  newContactMessages: number;
+};
+
+type PaymentRow = {
+  id: string;
+  businessProfileId: string | null;
+  businessName: string | null;
+  customerEmail: string | null;
+  orderId: string;
+  tier: string;
+  amountIdr: number;
+  status: string;
+  createdAt: string;
+};
+
+type AuditLogRow = {
+  id: string;
+  actor_email: string;
+  actor_role: string;
+  action: string;
+  target: string | null;
+  detail: Record<string, unknown> | null;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
+};
+
+type AdminRow = {
+  id: string;
+  email: string;
+  role: string;
+  created_at: string;
+  last_seen_at: string | null;
+};
+
 const SESSION_KEY = "the_hive_admin_session";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "-";
   try {
     return new Date(iso).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
+  } catch {
+    return iso;
+  }
+}
+
+function formatShortDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
   } catch {
     return iso;
   }
@@ -114,12 +174,29 @@ function tierBadgeClass(tier: string): string {
   return "bg-neutral-200 text-neutral-700";
 }
 
+function paymentStatusClass(status: string): string {
+  if (status === "settlement") return "bg-green-100 text-green-700";
+  if (status === "pending") return "bg-amber-100 text-amber-700";
+  if (status === "failed" || status === "expired") return "bg-red-100 text-red-700";
+  return "bg-neutral-100 text-neutral-600";
+}
+
 function OnlineDot({ isOnline }: { isOnline: boolean }) {
   return (
     <span
       className={`inline-block h-2 w-2 rounded-full ${isOnline ? "bg-green-500" : "bg-neutral-300"}`}
       title={isOnline ? "Online" : "Offline"}
     />
+  );
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-2xl border border-neutral-200 p-4">
+      <p className="text-xs font-bold uppercase text-neutral-400">{label}</p>
+      <p className="mt-1 text-xl font-bold">{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-neutral-500">{sub}</p>}
+    </div>
   );
 }
 
@@ -144,8 +221,11 @@ function AdminPage() {
   const [pinInput, setPinInput] = useState("");
   const [pendingToken, setPendingToken] = useState<string | null>(null);
 
-  const [tab, setTab] = useState<"customers" | "messages">("customers");
+  const [tab, setTab] = useState<Tab>("dashboard");
   const [accessError, setAccessError] = useState<string | null>(null);
+
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
@@ -154,9 +234,22 @@ function AdminPage() {
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
+
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  const [admins, setAdmins] = useState<AdminRow[]>([]);
+  const [adminsLoading, setAdminsLoading] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [addAdminBusy, setAddAdminBusy] = useState(false);
+  const [roleBusyEmail, setRoleBusyEmail] = useState<string | null>(null);
 
   // Langkah 2 (klik link di email): kalau URL punya ?verify=token, verifikasi
   // otomatis lalu lanjut ke langkah PIN -- sekali saja saat mount.
@@ -273,11 +366,28 @@ function AdminPage() {
     sessionStorage.removeItem(SESSION_KEY);
     setSession(null);
     setGateStep("email");
+    setDashboard(null);
     setCustomers([]);
+    setPayments([]);
     setMessages([]);
+    setAuditLogs([]);
+    setAdmins([]);
     setSelectedId(null);
     setDetail(null);
   }
+
+  const loadDashboard = useCallback(async () => {
+    setDashboardLoading(true);
+    setAccessError(null);
+    try {
+      const json = await callAdmin("adminGetDashboardSummary");
+      setDashboard(json);
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal memuat data.");
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [callAdmin]);
 
   const loadCustomers = useCallback(async () => {
     setCustomersLoading(true);
@@ -292,6 +402,22 @@ function AdminPage() {
     }
   }, [callAdmin]);
 
+  const loadPayments = useCallback(
+    async (status: string) => {
+      setPaymentsLoading(true);
+      setAccessError(null);
+      try {
+        const json = await callAdmin("adminListPayments", { status });
+        setPayments(json.payments);
+      } catch (err) {
+        setAccessError(err instanceof Error ? err.message : "Gagal memuat data.");
+      } finally {
+        setPaymentsLoading(false);
+      }
+    },
+    [callAdmin]
+  );
+
   const loadMessages = useCallback(async () => {
     setMessagesLoading(true);
     setAccessError(null);
@@ -305,11 +431,42 @@ function AdminPage() {
     }
   }, [callAdmin]);
 
+  const loadAuditLog = useCallback(async () => {
+    setAuditLoading(true);
+    setAccessError(null);
+    try {
+      const json = await callAdmin("adminListAuditLog");
+      setAuditLogs(json.logs);
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal memuat data.");
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [callAdmin]);
+
+  const loadAdmins = useCallback(async () => {
+    setAdminsLoading(true);
+    setAccessError(null);
+    try {
+      const json = await callAdmin("adminListAdmins");
+      setAdmins(json.admins);
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal memuat data.");
+    } finally {
+      setAdminsLoading(false);
+    }
+  }, [callAdmin]);
+
   useEffect(() => {
     if (!session?.adminToken) return;
+    if (tab === "dashboard") loadDashboard();
     if (tab === "customers") loadCustomers();
+    if (tab === "payments") loadPayments(paymentStatusFilter);
     if (tab === "messages") loadMessages();
-  }, [session?.adminToken, tab, loadCustomers, loadMessages]);
+    if (tab === "audit") loadAuditLog();
+    if (tab === "admins") loadAdmins();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.adminToken, tab, loadDashboard, loadCustomers, loadMessages, loadAuditLog, loadAdmins]);
 
   async function openCustomer(id: string) {
     setSelectedId(id);
@@ -334,6 +491,34 @@ function AdminPage() {
       setAccessError(err instanceof Error ? err.message : "Gagal mengubah status.");
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  async function addAdmin() {
+    if (!newAdminEmail.trim()) return;
+    setAddAdminBusy(true);
+    setAccessError(null);
+    try {
+      await callAdmin("adminSetRole", { email: newAdminEmail.trim(), role: "admin" });
+      setNewAdminEmail("");
+      await loadAdmins();
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal menambahkan admin.");
+    } finally {
+      setAddAdminBusy(false);
+    }
+  }
+
+  async function revokeAdmin(email: string) {
+    setRoleBusyEmail(email);
+    setAccessError(null);
+    try {
+      await callAdmin("adminSetRole", { email, role: "user" });
+      await loadAdmins();
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal mencabut akses admin.");
+    } finally {
+      setRoleBusyEmail(null);
     }
   }
 
@@ -397,36 +582,116 @@ function AdminPage() {
     );
   }
 
+  const TAB_LABELS: Record<Tab, string> = {
+    dashboard: "Dashboard",
+    customers: "Pelanggan",
+    payments: "Pembayaran",
+    messages: "Pesan Kontak",
+    audit: "Log Aktivitas",
+    admins: "Kelola Admin",
+  };
+  const visibleTabs: Tab[] =
+    session.role === "super_admin"
+      ? ["dashboard", "customers", "payments", "messages", "audit", "admins"]
+      : ["dashboard", "customers", "payments", "messages"];
+
   // === Sudah punya sesi admin ===
   return (
-    <section className="mx-auto max-w-6xl px-6 py-12">
-      <div className="mb-6 flex items-center justify-between">
+    <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold">Halaman Admin</h1>
           <p className="text-sm text-neutral-500">
             {session.email} &middot; {session.role === "super_admin" ? "Akses penuh (lihat + ubah)" : "Akses lihat saja"}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setTab("customers")}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold ${tab === "customers" ? "bg-primary text-black" : "bg-neutral-100 text-neutral-600"}`}
-          >
-            Pelanggan
-          </button>
-          <button
-            onClick={() => setTab("messages")}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold ${tab === "messages" ? "bg-primary text-black" : "bg-neutral-100 text-neutral-600"}`}
-          >
-            Pesan Kontak
-          </button>
-          <button onClick={handleLogout} className="rounded-lg bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-600">
+        <div className="flex flex-wrap gap-2">
+          {visibleTabs.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`rounded-lg px-3 py-2 text-xs font-semibold sm:text-sm ${tab === t ? "bg-primary text-black" : "bg-neutral-100 text-neutral-600"}`}
+            >
+              {TAB_LABELS[t]}
+            </button>
+          ))}
+          <button onClick={handleLogout} className="rounded-lg bg-neutral-100 px-3 py-2 text-xs font-semibold text-neutral-600 sm:text-sm">
             Keluar
           </button>
         </div>
       </div>
 
       {accessError && <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{accessError}</div>}
+
+      {tab === "dashboard" && (
+        <div className="space-y-6">
+          {dashboardLoading && <p className="text-sm text-neutral-400">Memuat ringkasan...</p>}
+          {!dashboardLoading && dashboard && (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                <StatCard label="Total Pelanggan" value={String(dashboard.totalCustomers)} sub={`${dashboard.onlineNow} online sekarang`} />
+                <StatCard label="MRR Estimasi" value={formatIdr(dashboard.mrrIdr)} sub="dari langganan aktif" />
+                <StatCard
+                  label="Pro / Platinum"
+                  value={`${dashboard.tierCounts.pro || 0} / ${dashboard.tierCounts.platinum || 0}`}
+                  sub={`${dashboard.tierCounts.free || 0} masih gratis`}
+                />
+                <StatCard
+                  label="Konversi Wizard"
+                  value={`${dashboard.wizardFunnel.conversionRate}%`}
+                  sub={`${dashboard.wizardFunnel.promoted} / ${dashboard.wizardFunnel.totalDrafts} jadi akun`}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-neutral-200 p-5">
+                  <h4 className="mb-3 text-xs font-bold uppercase text-neutral-400">Pendaftaran 14 Hari Terakhir</h4>
+                  <div className="flex h-24 items-end gap-1">
+                    {dashboard.signupTrend.map((d) => {
+                      const max = Math.max(1, ...dashboard.signupTrend.map((x) => x.count));
+                      const heightPct = Math.max(4, Math.round((d.count / max) * 100));
+                      return (
+                        <div key={d.date} className="flex flex-1 flex-col items-center gap-1" title={`${formatShortDate(d.date)}: ${d.count}`}>
+                          <div className="w-full rounded-t bg-primary" style={{ height: `${heightPct}%` }} />
+                          <span className="text-[9px] text-neutral-400">{formatShortDate(d.date).slice(0, 2)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-200 p-5">
+                  <h4 className="mb-3 text-xs font-bold uppercase text-neutral-400">Antrian Pembayaran</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-700">Pending</span>
+                      <span className="font-semibold">
+                        {dashboard.payments.pendingCount} &middot; {formatIdr(dashboard.payments.pendingAmountIdr)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-red-700">Gagal</span>
+                      <span className="font-semibold">
+                        {dashboard.payments.failedCount} &middot; {formatIdr(dashboard.payments.failedAmountIdr)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-neutral-600">Pesan kontak baru</span>
+                      <span className="font-semibold">{dashboard.newContactMessages}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setTab("payments")}
+                    className="mt-4 w-full rounded-lg bg-neutral-100 px-3 py-2 text-xs font-semibold text-neutral-600"
+                  >
+                    Lihat semua transaksi
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {tab === "customers" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
@@ -614,8 +879,74 @@ function AdminPage() {
         </div>
       )}
 
+      {tab === "payments" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {["all", "pending", "settlement", "failed", "expired"].map((s) => (
+              <button
+                key={s}
+                onClick={() => {
+                  setPaymentStatusFilter(s);
+                  loadPayments(s);
+                }}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${paymentStatusFilter === s ? "bg-primary text-black" : "bg-neutral-100 text-neutral-600"}`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <div className="overflow-x-auto rounded-2xl border border-neutral-200">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
+                <tr>
+                  <th className="px-4 py-3">Pelanggan</th>
+                  <th className="px-4 py-3">Order ID</th>
+                  <th className="px-4 py-3">Tier</th>
+                  <th className="px-4 py-3">Jumlah</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Tanggal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentsLoading && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-neutral-400">
+                      Memuat...
+                    </td>
+                  </tr>
+                )}
+                {!paymentsLoading && payments.length === 0 && !accessError && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-neutral-400">
+                      Tidak ada transaksi.
+                    </td>
+                  </tr>
+                )}
+                {payments.map((p) => (
+                  <tr key={p.id} className="border-t border-neutral-100">
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{p.customerEmail || "-"}</div>
+                      <div className="text-xs text-neutral-400">{p.businessName || "-"}</div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-neutral-500">{p.orderId}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-1 text-xs font-bold ${tierBadgeClass(p.tier)}`}>{p.tier}</span>
+                    </td>
+                    <td className="px-4 py-3">{formatIdr(p.amountIdr)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${paymentStatusClass(p.status)}`}>{p.status}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-neutral-500">{formatDate(p.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {tab === "messages" && (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200">
+        <div className="overflow-x-auto rounded-2xl border border-neutral-200">
           <table className="w-full text-left text-sm">
             <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
               <tr>
@@ -667,6 +998,133 @@ function AdminPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {tab === "audit" && session.role === "super_admin" && (
+        <div className="overflow-x-auto rounded-2xl border border-neutral-200">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
+              <tr>
+                <th className="px-4 py-3">Waktu</th>
+                <th className="px-4 py-3">Siapa</th>
+                <th className="px-4 py-3">Aksi</th>
+                <th className="px-4 py-3">Target / Detail</th>
+                <th className="px-4 py-3">IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {auditLoading && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-neutral-400">
+                    Memuat...
+                  </td>
+                </tr>
+              )}
+              {!auditLoading && auditLogs.length === 0 && !accessError && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-neutral-400">
+                    Belum ada aktivitas tercatat.
+                  </td>
+                </tr>
+              )}
+              {auditLogs.map((log) => (
+                <tr key={log.id} className="border-t border-neutral-100 align-top">
+                  <td className="px-4 py-3 text-xs text-neutral-500">{formatDate(log.created_at)}</td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{log.actor_email}</div>
+                    <div className="text-xs text-neutral-400">{log.actor_role}</div>
+                  </td>
+                  <td className="px-4 py-3 text-xs font-semibold text-neutral-700">{log.action}</td>
+                  <td className="px-4 py-3 text-xs text-neutral-500">
+                    {log.target && <div>{log.target}</div>}
+                    {log.detail && <div className="text-neutral-400">{JSON.stringify(log.detail)}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-neutral-400">{log.ip || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === "admins" && session.role === "super_admin" && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-neutral-200 p-5">
+            <h4 className="mb-2 text-xs font-bold uppercase text-neutral-400">Tambah Admin (Lihat Saja)</h4>
+            <p className="mb-3 text-xs text-neutral-500">
+              Akun harus sudah pernah daftar di THE HIVE. Admin baru hanya bisa melihat data, tidak bisa mengubah apapun.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="email"
+                value={newAdminEmail}
+                onChange={(e) => setNewAdminEmail(e.target.value)}
+                placeholder="Email akun pelanggan yang mau dijadikan admin"
+                className="flex-1 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm outline-none focus:border-primary"
+              />
+              <button
+                onClick={addAdmin}
+                disabled={addAdminBusy || !newAdminEmail.trim()}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-black disabled:opacity-50"
+              >
+                {addAdminBusy ? "Menambahkan..." : "Tambah"}
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-neutral-200">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
+                <tr>
+                  <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">Terakhir Aktif</th>
+                  <th className="px-4 py-3">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adminsLoading && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-neutral-400">
+                      Memuat...
+                    </td>
+                  </tr>
+                )}
+                {!adminsLoading && admins.length === 0 && !accessError && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-neutral-400">
+                      Belum ada admin.
+                    </td>
+                  </tr>
+                )}
+                {admins.map((a) => (
+                  <tr key={a.id} className="border-t border-neutral-100">
+                    <td className="px-4 py-3 font-medium">{a.email}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-1 text-xs font-bold ${a.role === "super_admin" ? "bg-neutral-900 text-white" : "bg-neutral-200 text-neutral-700"}`}>
+                        {a.role}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-neutral-500">{a.last_seen_at ? formatDate(a.last_seen_at) : "Belum pernah"}</td>
+                    <td className="px-4 py-3">
+                      {a.role === "admin" ? (
+                        <button
+                          onClick={() => revokeAdmin(a.email)}
+                          disabled={roleBusyEmail === a.email}
+                          className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-50"
+                        >
+                          {roleBusyEmail === a.email ? "..." : "Cabut Akses"}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-neutral-400">Kelola lewat database</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </section>

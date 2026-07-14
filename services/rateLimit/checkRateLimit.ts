@@ -41,6 +41,29 @@ export async function checkRateLimit(bucketKey: string, limit: number, windowSec
   return { allowed: count <= limit, count, limit };
 }
 
+/** Sama seperti checkRateLimit, TAPI gagal TERTUTUP (fail closed) kalau RPC
+ * rate limit sendiri error -- dipakai KHUSUS untuk gerbang admin (lihat
+ * services/admin/auth/requestChallenge.ts, verifyPin.ts). Audit Juli 2026
+ * ("jangan sampai mudah dibobol"): trade-off checkRateLimit() biasa
+ * (fail-open demi ketersediaan fitur publik) TIDAK cocok untuk satu-satunya
+ * pintu masuk data seluruh pelanggan -- di sini, downtime sesaat jauh lebih
+ * murah daripada membiarkan brute-force tanpa batas kalau infrastruktur
+ * rate limit sedang bermasalah. */
+export async function checkRateLimitFailClosed(bucketKey: string, limit: number, windowSeconds: number): Promise<RateLimitResult> {
+  const { data, error } = await supabase.rpc("rate_limit_hit", {
+    p_bucket_key: bucketKey,
+    p_window_seconds: windowSeconds,
+  });
+
+  if (error) {
+    console.error("services/rateLimit/checkRateLimit (fail-closed) error:", error);
+    return { allowed: false, count: 0, limit };
+  }
+
+  const count = typeof data === "number" ? data : 0;
+  return { allowed: count <= limit, count, limit };
+}
+
 /** Ambil IP pemanggil dari header yang di-set Vercel (x-forwarded-for).
  * Terima bentuk generik (bukan import VercelRequest di sini) supaya file
  * ini tidak terikat ke satu jenis request object. */
