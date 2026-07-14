@@ -8,10 +8,13 @@
 //
 // Permintaan pemilik produk: "kata-kata bijak perpaduan antara: hidup,
 // cinta, keluarga dan bisnis sesuai kesulitan dan harapan yang mereka
-// masukan di chat wizard... setiap pelanggan juga mendapatkan email push...
-// yang isi kata-katanya juga berbeda, mengikuti perkembangan usaha
-// mereka... intinya mengajak mereka aktif akses the hive, bercerita
-// usahanya sampai dimana."
+// masukan di chat wizard... intinya mengajak mereka aktif akses the hive,
+// bercerita usahanya sampai dimana" -- lalu diperhalus lagi (Juli 2026):
+// "sudah keren, cuma terlalu panjang dan buat lebih emosional/menyentuh
+// pelanggan" -- panjang dipangkas jadi 60-90 kata, dan prompt secara
+// eksplisit diminta menyentuh perasaan lebih dalam (bukan sekadar
+// menyinggung tema, tapi benar-benar terasa personal/mengharukan kalau
+// memang relevan dengan tantangan mereka).
 
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -26,14 +29,15 @@ export type NurturePersona = {
 
 const SYSTEM_PROMPT = `Kamu menulis email personal singkat untuk pemilik UMKM Indonesia, atas nama THE HIVE (konsultan bisnis AI).
 
-Gaya tulisan: hangat, jujur, seperti sahabat yang juga paham bisnis -- BUKAN bahasa marketing/jualan, BUKAN template motivasi generik. Padukan secara halus tema hidup, cinta/keluarga, dan bisnis -- tunjukkan bahwa kesulitan bisnis mereka juga bagian dari perjalanan hidup mereka yang lebih besar (keluarga yang mereka perjuangkan, mimpi yang mereka jaga), tanpa berlebihan atau menye-menye.
+Gaya tulisan: hangat, jujur, seperti sahabat dekat yang paham betul perjuangan mereka -- BUKAN bahasa marketing/jualan, BUKAN template motivasi generik. Padukan secara nyata tema hidup, cinta/keluarga, dan bisnis -- tunjukkan bahwa kesulitan bisnis mereka adalah bagian dari perjuangan hidup yang lebih besar: keluarga yang mereka perjuangkan, waktu yang mereka korbankan, mimpi yang mereka jaga diam-diam. SENTUH PERASAAN SECARA NYATA -- boleh menyayat/mengharukan kalau memang pas dengan tantangan mereka (lelah, khawatir, kangen waktu untuk orang terkasih, takut gagal, dst), tapi tetap jujur dan spesifik untuk orang ini -- JANGAN klise, JANGAN berlebihan sampai terasa dibuat-buat.
 
 Aturan keras:
-- Bahasa Indonesia, sapaan "kamu", panjang 100-160 kata.
+- Bahasa Indonesia, sapaan "kamu", panjang 60-90 kata SAJA -- singkat, padat, setiap kalimat harus kena, tidak ada kalimat basa-basi.
 - WAJIB menyinggung tantangan dan harapan spesifik yang diberikan -- jangan generik.
 - JANGAN mengarang klaim/statistik/janji hasil bisnis apapun.
-- Akhiri dengan ajakan LEMBUT (bukan mendesak) untuk buka THE HIVE dan cerita sudah sampai mana usahanya -- bukan ajakan membeli/upgrade paket.
-- JANGAN pakai bullet point, JANGAN pakai subjek email di dalam teks, JANGAN tanda tangan formal berlebihan -- cukup "-- THE HIVE" di baris terakhir.
+- Akhiri dengan SATU kalimat ajakan LEMBUT untuk buka THE HIVE dan cerita sudah sampai mana usahanya -- bukan ajakan membeli/upgrade paket.
+- JANGAN bullet point, JANGAN subjek email di dalam teks, JANGAN tanda tangan formal -- cukup "-- THE HIVE" di baris terakhir.
+- Maksimal 2 paragraf pendek -- ini email singkat yang menyentuh, bukan esai.
 - Keluarkan HANYA teks email polos (bukan HTML, bukan markdown, bukan JSON).`;
 
 function buildUserPrompt(p: NurturePersona): string {
@@ -59,7 +63,7 @@ export async function buildNurtureMessage(persona: NurturePersona): Promise<stri
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 500,
+      max_tokens: 400,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: buildUserPrompt(persona) }],
     });

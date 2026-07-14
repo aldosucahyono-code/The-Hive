@@ -156,7 +156,17 @@ export async function sendNurtureBatch(): Promise<{ sent: number; skipped: numbe
 
   const batch = withOverdue.slice(0, MAX_PER_RUN).map((x) => x.candidate);
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL;
+  // Audit Juli 2026 ("apakah noreply@... mengganggu login users?"): sengaja
+  // TIDAK memakai RESEND_FROM_EMAIL yang sama dengan email verifikasi admin
+  // -- dipisah lewat env var sendiri (NURTURE_FROM_EMAIL, mis.
+  // "inspirasi@thehive-bisnis.com") supaya reputasi pengiriman email
+  // marketing/dorongan ini TIDAK bercampur dengan email transaksional
+  // penting (verifikasi admin, dst). Login pelanggan sendiri sama sekali
+  // tidak lewat sini -- itu dikirim Supabase Auth lewat SMTP terpisah,
+  // tidak tersentuh oleh perubahan ini. Fallback ke RESEND_FROM_EMAIL kalau
+  // NURTURE_FROM_EMAIL belum sempat diset, supaya fitur ini tidak mati
+  // total sebelum env var barunya ditambahkan.
+  const fromEmail = process.env.NURTURE_FROM_EMAIL || process.env.RESEND_FROM_EMAIL;
 
   let sent = 0;
   let errors = 0;
@@ -164,7 +174,7 @@ export async function sendNurtureBatch(): Promise<{ sent: number; skipped: numbe
   for (const c of batch) {
     try {
       if (!apiKey || !fromEmail) {
-        console.error("sendNurtureBatch: RESEND_API_KEY/RESEND_FROM_EMAIL belum diset.");
+        console.error("sendNurtureBatch: RESEND_API_KEY/NURTURE_FROM_EMAIL (atau RESEND_FROM_EMAIL) belum diset.");
         errors++;
         continue;
       }
