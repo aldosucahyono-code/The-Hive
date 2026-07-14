@@ -29,6 +29,8 @@ function Footer({ variant = "light" }: { variant?: "dark" | "light" }) {
         <a href="#refund" onClick={navigateTo("refund")} className={linkClassName}>{t.footer.refundPolicy}</a>
         <span className={dotClassName}>•</span>
         <a href="#referensi" onClick={navigateTo("referensi")} className={linkClassName}>{t.footer.shareToFriend}</a>
+        <span className={dotClassName}>•</span>
+        <a href="#kontak" onClick={navigateTo("kontak")} className={linkClassName}>{t.footer.contactUs}</a>
       </div>
     </footer>
   );

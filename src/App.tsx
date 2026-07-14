@@ -11,6 +11,7 @@ import ChatWizard from "./components/ChatWizard";
 import Footer from "./components/Footer";
 import LegalPage from "./components/LegalPage";
 import FeedbackPage from "./components/FeedbackPage";
+import ContactPage from "./components/ContactPage";
 import ReferralPage from "./components/ReferralPage";
 import TentangKami from "./components/TentangKami";
 import PaymentPage from "./components/PaymentPage";
@@ -188,6 +189,20 @@ function App() {
       <>
         <Navbar />
         <FeedbackPage />
+        <Footer />
+      </>
+    );
+  }
+
+  // Audit Juli 2026 ("channel support publik"): BEDA dari #ulasan-internal
+  // di atas (sengaja disembunyikan, tidak ada link publik) -- #kontak ini
+  // PUBLIK, tertaut dari Footer semua halaman (lihat Footer.tsx), supaya
+  // pengguna yang bukan kenalan pribadi tetap punya jalur menghubungi.
+  if (rawHash === "kontak") {
+    return (
+      <>
+        <Navbar />
+        <ContactPage />
         <Footer />
       </>
     );

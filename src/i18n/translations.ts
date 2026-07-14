@@ -454,6 +454,7 @@ const id = {
     terms: "Syarat & Ketentuan",
     refundPolicy: "Kebijakan Refund",
     shareToFriend: "Bagikan ke Teman",
+    contactUs: "Hubungi Kami",
   },
 
   chatFlow: {
@@ -1489,6 +1490,23 @@ const id = {
     emailSubject: "Masukan untuk THE HIVE",
     notFilled: "(tidak diisi)",
   },
+
+  contactPage: {
+    title: "Hubungi Kami",
+    desc: "Ada pertanyaan, kendala, atau masukan? Isi form di bawah, tim kami akan membalas lewat email yang kamu isi.",
+    emailFallbackPrefix: "Atau kirim email langsung ke ",
+    namaLabel: "Nama (opsional)",
+    namaPlaceholder: "Nama Anda",
+    emailLabel: "Email",
+    emailPlaceholder: "email@contoh.com",
+    pesanLabel: "Pesan",
+    pesanPlaceholder: "Ceritakan pertanyaan atau kendala Anda...",
+    submitButton: "Kirim Pesan",
+    sendingButton: "Mengirim...",
+    sentTitle: "Pesan Terkirim",
+    sentMessage: "Terima kasih! Pesan Anda sudah kami terima, tim kami akan membalas lewat email yang Anda isi.",
+    errorMessage: "Gagal mengirim pesan. Coba lagi dalam beberapa saat.",
+  },
 };
 
 export type Translations = typeof id;
@@ -1915,6 +1933,7 @@ const en: Translations = {
     terms: "Terms & Conditions",
     refundPolicy: "Refund Policy",
     shareToFriend: "Share with a Friend",
+    contactUs: "Contact Us",
   },
 
   chatFlow: {
@@ -2936,6 +2955,23 @@ const en: Translations = {
     submitButton: "Send Feedback",
     emailSubject: "Feedback for THE HIVE",
     notFilled: "(not filled)",
+  },
+
+  contactPage: {
+    title: "Contact Us",
+    desc: "Have a question, issue, or feedback? Fill out the form below and our team will reply to the email you provide.",
+    emailFallbackPrefix: "Or email us directly at ",
+    namaLabel: "Name (optional)",
+    namaPlaceholder: "Your name",
+    emailLabel: "Email",
+    emailPlaceholder: "email@example.com",
+    pesanLabel: "Message",
+    pesanPlaceholder: "Tell us about your question or issue...",
+    submitButton: "Send Message",
+    sendingButton: "Sending...",
+    sentTitle: "Message Sent",
+    sentMessage: "Thank you! We've received your message and will reply to the email you provided.",
+    errorMessage: "Failed to send message. Please try again shortly.",
   },
 };
 
