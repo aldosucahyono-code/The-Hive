@@ -59,6 +59,37 @@ function App() {
     }
   }, [isAuthCallback, loading]);
 
+  // Audit Juli 2026 ("verifikasi magic link lintas perangkat" -- lihat
+  // migrations/2026-07-14_login_relay.sql untuk alur lengkap): ini adalah
+  // sisi "Device B" -- perangkat MANAPUN yang benar-benar mengklik link di
+  // email (bisa beda dari perangkat yang tadinya minta link/"Device A").
+  // Supabase sendiri (lewat detectSessionInUrl, lihat supabaseClient.ts)
+  // SUDAH otomatis membaca access_token/refresh_token dari hash URL dan
+  // membuat sesi login UNTUK PERANGKAT INI -- efek di bawah ini TIDAK
+  // mengurus itu. Tugasnya cuma satu: kalau ada "rid" di query string
+  // (artinya link ini datang dari alur relai, bukan link magic link
+  // biasa), titipkan token yang sama ke backend (action
+  // confirmLoginRelay) supaya Device A yang sedang menunggu bisa
+  // mengambilnya lewat polling dan otomatis masuk juga -- tanpa perlu
+  // menunggu apapun dari sisi Device B ini. Fire-and-forget & jalan SEKALI
+  // saat mount, terlepas dari status loading sesi Device B sendiri.
+  useEffect(() => {
+    const rid = urlParams.get("rid");
+    if (!hasHashToken || !rid) return;
+
+    const hashParams = new URLSearchParams(rawHashRaw);
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+    if (!accessToken || !refreshToken) return;
+
+    fetch("/api/check-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "confirmLoginRelay", rid, accessToken, refreshToken }),
+    }).catch((err) => console.error("confirmLoginRelay error:", err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const animateHero = rawHash === "";
 
   useEffect(() => {

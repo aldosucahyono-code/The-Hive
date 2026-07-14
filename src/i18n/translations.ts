@@ -29,6 +29,11 @@ const id = {
     emailPlaceholder: "nama@email.com",
     sendingButton: "Mengirim...",
     sendButton: "Kirim Link Aktivasi",
+    // Audit Juli 2026 ("verifikasi magic link lintas perangkat"): dipakai
+    // AuthModal.tsx selama polling waitForCrossDeviceLogin berjalan --
+    // lihat migrations/2026-07-14_login_relay.sql untuk alur lengkapnya.
+    crossDeviceWaitingLabel: "Buka link di email itu dari perangkat manapun (HP, laptop lain, dsb) — begitu diklik, kamu otomatis masuk di sini.",
+    crossDeviceExpiredLabel: "Link ini sudah kedaluwarsa atau belum juga diklik. Klik \"Kirim Ulang Link\" untuk minta yang baru.",
   },
 
   chooseAnalysisType: {
@@ -1509,6 +1514,8 @@ const en: Translations = {
     emailPlaceholder: "name@email.com",
     sendingButton: "Sending...",
     sendButton: "Send Activation Link",
+    crossDeviceWaitingLabel: "Open that email link from any device (phone, another laptop, etc.) — once clicked, you'll be signed in here automatically.",
+    crossDeviceExpiredLabel: "This link has expired or hasn't been clicked yet. Click \"Resend Link\" to get a new one.",
   },
 
   chooseAnalysisType: {

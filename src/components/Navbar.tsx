@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import logo from "../assets/logo/hive-logo.png";
 import { hardNavigate } from "../utils/navigate";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -27,6 +27,20 @@ function Navbar({ variant = "light" }: NavbarProps) {
   const { user } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const isLight = variant === "light";
+
+  // Audit Juli 2026 ("verifikasi magic link lintas perangkat" -- lihat
+  // migrations/2026-07-14_login_relay.sql): kalau modal login sedang
+  // terbuka dan `user` tiba-tiba terisi TANPA reload apapun (ini bisa
+  // terjadi kalau login dikonfirmasi lewat link yang diklik di perangkat
+  // lain -- lihat AuthContext.tsx/AuthModal.tsx), langsung tutup modal &
+  // masuk Workspace, persis seperti kalau tombol Workspace diklik manual
+  // setelah login normal di perangkat yang sama.
+  useEffect(() => {
+    if (user && showAuthModal) {
+      setShowAuthModal(false);
+      hardNavigate("workspace");
+    }
+  }, [user, showAuthModal]);
 
   // Isi navbar (link + tombol) SAMA di semua rute termasuk Workspace
   // (audit Juli 2026, directive PO: "isi navbar di workspace sama dengan

@@ -13,6 +13,15 @@ interface AuthModalProps {
 }
 
 type ModalState = 'idle' | 'sending' | 'sent' | 'error'
+// Audit Juli 2026 ("verifikasi magic link lintas perangkat" -- lihat
+// migrations/2026-07-14_login_relay.sql): status polling relai, dipakai
+// SETELAH modalState === 'sent'. 'waiting' = sedang menunggu link diklik
+// di perangkat manapun; 'expired'/'timeout' menampilkan pesan berbeda
+// tapi keduanya sama-sama menyuruh pengguna klik "Kirim Ulang Link".
+// Tidak ada status 'confirmed' di sini -- begitu confirmed, modal ini
+// langsung ditutup (onClose) dan halaman pemanggil bereaksi ke `user`
+// yang sudah terisi (lihat Navbar.tsx untuk kasus redirect ke Workspace).
+type RelayUiState = 'idle' | 'waiting' | 'expired' | 'timeout'
 
 // Supabase signInWithOtp SENGAJA tidak pernah bilang "email ini tidak
 // terdaftar/tidak valid" secara eksplisit (mencegah orang lain menebak
@@ -45,16 +54,24 @@ function friendlyAuthError(rawMessage: string, lang: 'id' | 'en'): string {
 }
 
 export default function AuthModal({ onClose, defaultEmail }: AuthModalProps) {
-  const { signInWithMagicLink } = useAuth()
+  const { signInWithMagicLink, waitForCrossDeviceLogin } = useAuth()
   const { t, lang } = useLanguage()
   const [email, setEmail] = useState(defaultEmail || '')
   const [state, setState] = useState<ModalState>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [cooldown, setCooldown] = useState(0)
+  const [relayState, setRelayState] = useState<RelayUiState>('idle')
   const cooldownIntervalRef = useRef<number | null>(null)
+  // Ditutup lewat tombol X / klik di luar modal SEBELUM relai selesai
+  // (mis. pengguna berubah pikiran) -- polling waitForCrossDeviceLogin
+  // tetap jalan di background (fetch tidak bisa "dibatalkan" dengan
+  // bersih tanpa AbortController tambahan), tapi flag ini mencegah
+  // setState dipanggil ke komponen yang sudah tidak dirender lagi.
+  const unmountedRef = useRef(false)
 
   useEffect(() => {
     return () => {
+      unmountedRef.current = true
       if (cooldownIntervalRef.current) window.clearInterval(cooldownIntervalRef.current)
     }
   }, [])
@@ -75,14 +92,34 @@ export default function AuthModal({ onClose, defaultEmail }: AuthModalProps) {
 
   async function sendLink(targetEmail: string) {
     setState('sending')
-    const { error } = await signInWithMagicLink(targetEmail.trim())
+    setRelayState('idle')
+    const { error, rid } = await signInWithMagicLink(targetEmail.trim())
 
     if (error) {
       setErrorMsg(friendlyAuthError(error, lang))
       setState('error')
-    } else {
-      setState('sent')
-      startCooldown()
+      return
+    }
+
+    setState('sent')
+    startCooldown()
+
+    // Audit Juli 2026 ("verifikasi lintas perangkat"): kalau rid berhasil
+    // dibuat, mulai menunggu di background -- begitu link diklik di
+    // PERANGKAT MANAPUN (bukan cuma perangkat ini), sesi otomatis aktif
+    // di sini juga tanpa pengguna perlu klik apapun lagi di layar ini.
+    // Tanpa rid (gagal dibuat, lihat catatan di AuthContext.tsx), diam
+    // saja -- pengguna tetap bisa login normal asal buka link itu sendiri
+    // di perangkat yang sama.
+    if (rid) {
+      setRelayState('waiting')
+      const status = await waitForCrossDeviceLogin(rid)
+      if (unmountedRef.current) return
+      if (status === 'confirmed') {
+        onClose()
+      } else {
+        setRelayState(status)
+      }
     }
   }
 
@@ -97,6 +134,7 @@ export default function AuthModal({ onClose, defaultEmail }: AuthModalProps) {
     // (bukan diketik ulang dari nol) — tapi sekarang bisa diedit lagi.
     setState('idle')
     setErrorMsg('')
+    setRelayState('idle')
   }
 
   function handleResend() {
@@ -131,6 +169,19 @@ export default function AuthModal({ onClose, defaultEmail }: AuthModalProps) {
               {t.authModal.sentDescSuffix}
             </p>
             <p className="mt-4 text-xs leading-relaxed text-neutral-500">{t.authModal.sentHelpNote}</p>
+
+            {relayState === 'waiting' && (
+              <div className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-neutral-700">
+                <span className="h-3.5 w-3.5 flex-shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                {t.authModal.crossDeviceWaitingLabel}
+              </div>
+            )}
+            {(relayState === 'expired' || relayState === 'timeout') && (
+              <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-800">
+                {t.authModal.crossDeviceExpiredLabel}
+              </p>
+            )}
+
             <div className="mt-5 flex flex-col items-center gap-2">
               <button
                 onClick={handleResend}
