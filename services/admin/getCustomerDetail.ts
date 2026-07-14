@@ -1,25 +1,42 @@
 // services/admin/getCustomerDetail.ts
 //
 // Business logic untuk action "adminGetCustomerDetail" di router
-// /api/workspace. Dipanggil halaman #admin saat admin klik satu pelanggan
+// /api/workspace. Dipanggil halaman admin saat admin klik satu pelanggan
 // dari daftar (listCustomers.ts) -- mengumpulkan SEMUA jejak pelanggan itu
-// di platform dalam satu response: profil, tiap bisnis yang mereka buat
-// (+ langganan/pembayaran + hasil wizard/analisa + aktivitas workspace),
-// draft wizard yang belum/tidak pernah login, dan pesan kontak yang mereka
-// kirim.
+// di platform dalam satu response: profil (+ status online/offline, lokasi
+// kasar, perangkat terakhir), tiap bisnis yang mereka buat (+ langganan/
+// pembayaran + hasil wizard/analisa + aktivitas workspace), draft wizard
+// yang belum/tidak pernah login, pesan kontak yang mereka kirim, dan
+// ESTIMASI kasar biaya API yang mereka pakai (lihat catatan konstanta biaya
+// di bawah -- ini perkiraan, BUKAN pencatatan token/biaya asli per
+// panggilan, karena itu belum diinstrumentasi di seluruh titik panggilan AI).
 //
-// Baca-saja. Semua role admin ('admin' & 'super_admin') boleh panggil ini.
+// Baca-saja. Otorisasi lewat sesi admin TERPISAH dari Supabase Auth (lihat
+// services/admin/auth/requireAdminSession.ts).
 
 import { createClient } from "@supabase/supabase-js";
 import type { ServiceResult } from "../business/create.js";
-import { requireAdminRole } from "./requireAdminRole.js";
+import { requireAdminSession } from "./auth/requireAdminSession.js";
+import { parseDevice } from "./parseDevice.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-export async function adminGetCustomerDetail(userId: string, payload: Record<string, unknown>): Promise<ServiceResult> {
-  const role = await requireAdminRole(userId);
-  if (!role) {
-    return { status: 403, body: { error: "Kamu tidak punya akses ke halaman ini." } };
+const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+
+// Perkiraan biaya rata-rata per panggilan AI, dalam Rupiah -- ANGKA KASAR
+// (belum ada pencatatan token/biaya asli per panggilan di platform ini).
+// Dasar perkiraan: chat Beemo & keputusan (proposeDecision) rata-rata
+// panggilan Claude ukuran sedang; analisa/baseline report jauh lebih berat
+// (prompt + output lebih panjang). Sesuaikan angka ini kapan saja kalau
+// mau lebih akurat -- tidak mempengaruhi data lain di platform.
+const ASSUMED_COST_PER_CHAT_MESSAGE_IDR = 150;
+const ASSUMED_COST_PER_DECISION_IDR = 300;
+const ASSUMED_COST_PER_ANALYSIS_IDR = 1000;
+
+export async function adminGetCustomerDetail(adminToken: string | undefined, payload: Record<string, unknown>): Promise<ServiceResult> {
+  const session = await requireAdminSession(adminToken);
+  if (!session) {
+    return { status: 403, body: { error: "Sesi admin tidak valid atau sudah kedaluwarsa. Silakan login ulang." } };
   }
 
   const customerId = payload.customerId;
@@ -29,7 +46,7 @@ export async function adminGetCustomerDetail(userId: string, payload: Record<str
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, email, created_at, role")
+    .select("id, email, created_at, role, last_seen_at, last_ip, last_user_agent, last_geo_city, last_geo_country")
     .eq("id", customerId)
     .maybeSingle();
 
@@ -137,14 +154,37 @@ export async function adminGetCustomerDetail(userId: string, payload: Record<str
     })
     .slice(0, 20);
 
+  // Estimasi kasar biaya API (lihat catatan konstanta di atas file ini).
+  const totalChatMessages = (subs || []).reduce((sum, s) => sum + (s.chat_message_count || 0), 0);
+  const totalDecisions = (subs || []).reduce((sum, s) => sum + (s.decision_count || 0), 0);
+  const totalAnalyses = (analyses || []).length;
+  const estimatedApiCostIdr =
+    totalChatMessages * ASSUMED_COST_PER_CHAT_MESSAGE_IDR +
+    totalDecisions * ASSUMED_COST_PER_DECISION_IDR +
+    totalAnalyses * ASSUMED_COST_PER_ANALYSIS_IDR;
+
+  const isOnline = !!profile.last_seen_at && Date.now() - new Date(profile.last_seen_at).getTime() < ONLINE_THRESHOLD_MS;
+
   return {
     status: 200,
     body: {
-      role,
-      profile,
+      role: session.role,
+      profile: {
+        ...profile,
+        isOnline,
+        lastLocation: [profile.last_geo_city, profile.last_geo_country].filter(Boolean).join(", ") || null,
+        lastDevice: parseDevice(profile.last_user_agent),
+      },
       businesses: businessesWithData,
       wizardDrafts: matchingDrafts,
       contactMessages: contactMessages || [],
+      usageEstimate: {
+        totalChatMessages,
+        totalDecisions,
+        totalAnalyses,
+        estimatedApiCostIdr,
+        isEstimate: true,
+      },
     },
   };
 }

@@ -4,9 +4,22 @@
 // (Tahap 2.1). Kemampuan Workspace lain di Business Engine (Business
 // Health, Progress, Achievement) akan ditambah sebagai action baru di
 // sini, bukan endpoint terpisah.
+//
+// Audit Juli 2026 ("pisahkan halaman super admin ini dari users, atau
+// hackers"): action admin* (alur login 3 langkah + 4 aksi baca/tulis data)
+// menumpang di router ini (bukan endpoint terpisah -- batas 12 Serverless
+// Function Vercel Hobby sudah tercapai, lihat catatan di api/business.ts)
+// TAPI otentikasinya SENGAJA TIDAK lewat gerbang "Bearer <token Supabase>"
+// di bawah -- action admin* dicek lebih dulu, dan pakai sesinya sendiri
+// (header x-admin-token, admin_sessions, lihat
+// services/admin/auth/requireAdminSession.ts) yang tidak ada hubungannya
+// sama sekali dengan sesi login pelanggan. Kalau sesi pelanggan bocor,
+// tidak ada jalan ke admin; kalau sesi admin bocor, tidak ada jalan ke
+// akun pelanggan manapun.
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
+import { getClientIp } from "../services/rateLimit/checkRateLimit.js";
 import { submitBusinessUpdate } from "../services/workspace/submitUpdate.js";
 import { listBusinessUpdates } from "../services/workspace/listUpdates.js";
 import { getBusinessHealth } from "../services/workspace/getBusinessHealth.js";
@@ -31,12 +44,11 @@ import { getSocialMediaAnalysis } from "../services/socialMedia/getSocialMediaAn
 import { getMacroSnapshot } from "../services/macro/getMacroSnapshot.js";
 import { getNotifications } from "../services/notifications/getNotifications.js";
 import { markNotificationsSeen } from "../services/notifications/markNotificationsSeen.js";
-// Audit Juli 2026 ("halaman #admin super admin"): 4 action di bawah ini
-// menumpang di router workspace yang SUDAH ADA (bukan endpoint terpisah)
-// karena project ini sudah tepat di batas 12 Serverless Function di plan
-// Vercel Hobby (lihat catatan di api/business.ts). Otorisasi role admin
-// dicek DI DALAM masing-masing service (requireAdminRole.ts) -- bukan cuma
-// mengandalkan user sudah login (yang dicek router ini untuk SEMUA action).
+import { recordPresence } from "../services/admin/recordPresence.js";
+import { adminRequestChallenge } from "../services/admin/auth/requestChallenge.js";
+import { adminVerifyEmailToken } from "../services/admin/auth/verifyEmailToken.js";
+import { adminVerifyPin } from "../services/admin/auth/verifyPin.js";
+import { adminLogout } from "../services/admin/auth/logout.js";
 import { adminListCustomers } from "../services/admin/listCustomers.js";
 import { adminGetCustomerDetail } from "../services/admin/getCustomerDetail.js";
 import { adminListContactMessages } from "../services/admin/listContactMessages.js";
@@ -44,11 +56,65 @@ import { adminUpdateContactMessageStatus } from "../services/admin/updateContact
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
+const ADMIN_FLOW_ACTIONS = new Set([
+  "adminRequestChallenge",
+  "adminVerifyEmailToken",
+  "adminVerifyPin",
+  "adminLogout",
+  "adminListCustomers",
+  "adminGetCustomerDetail",
+  "adminListContactMessages",
+  "adminUpdateContactMessageStatus",
+]);
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const { action, ...payload } = req.body || {};
+
+  // --- Jalur admin: sesi TERPISAH TOTAL dari Supabase Auth, lihat catatan
+  // di atas file ini. Ditangani SEBELUM gerbang "Bearer <token>" di bawah,
+  // karena admin belum tentu (dan tidak perlu) punya sesi login pelanggan
+  // sama sekali. ---
+  if (ADMIN_FLOW_ACTIONS.has(action)) {
+    const ip = getClientIp(req);
+    const userAgent = (req.headers["user-agent"] as string) || "";
+    const adminToken = req.headers["x-admin-token"] as string | undefined;
+
+    let adminResult;
+    switch (action) {
+      case "adminRequestChallenge":
+        adminResult = await adminRequestChallenge(payload, ip, userAgent);
+        break;
+      case "adminVerifyEmailToken":
+        adminResult = await adminVerifyEmailToken(payload);
+        break;
+      case "adminVerifyPin":
+        adminResult = await adminVerifyPin(payload, ip, userAgent);
+        break;
+      case "adminLogout":
+        adminResult = await adminLogout(adminToken);
+        break;
+      case "adminListCustomers":
+        adminResult = await adminListCustomers(adminToken, payload);
+        break;
+      case "adminGetCustomerDetail":
+        adminResult = await adminGetCustomerDetail(adminToken, payload);
+        break;
+      case "adminListContactMessages":
+        adminResult = await adminListContactMessages(adminToken, payload);
+        break;
+      case "adminUpdateContactMessageStatus":
+        adminResult = await adminUpdateContactMessageStatus(adminToken, payload);
+        break;
+    }
+
+    return res.status(adminResult!.status).json(adminResult!.body);
+  }
+
+  // --- Jalur pelanggan biasa: seperti sebelumnya, WAJIB sesi Supabase Auth. ---
   const authHeader = req.headers.authorization as string | undefined;
   if (!authHeader?.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Silakan login terlebih dahulu." });
@@ -61,7 +127,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = userData.user.id;
   const userEmail = userData.user.email ?? null;
 
-  const { action, ...payload } = req.body || {};
+  // Audit Juli 2026 ("online-offline, lokasi, perangkat"): direkam untuk
+  // SEMUA action pelanggan di bawah (bukan endpoint terpisah) supaya
+  // memanfaatkan traffic yang sudah ada -- lihat services/admin/recordPresence.ts
+  // untuk throttle-nya (maksimal sekali/menit per pelanggan) dan kenapa ini
+  // tidak pernah menggagalkan permintaan aslinya.
+  await recordPresence(userId, getClientIp(req), (req.headers["user-agent"] as string) || "");
 
   let result;
   switch (action) {
@@ -139,18 +210,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "markNotificationsSeen":
       result = await markNotificationsSeen(userId, payload);
-      break;
-    case "adminListCustomers":
-      result = await adminListCustomers(userId, payload);
-      break;
-    case "adminGetCustomerDetail":
-      result = await adminGetCustomerDetail(userId, payload);
-      break;
-    case "adminListContactMessages":
-      result = await adminListContactMessages(userId, payload);
-      break;
-    case "adminUpdateContactMessageStatus":
-      result = await adminUpdateContactMessageStatus(userId, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });

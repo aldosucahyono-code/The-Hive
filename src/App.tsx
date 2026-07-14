@@ -13,6 +13,7 @@ import LegalPage from "./components/LegalPage";
 import FeedbackPage from "./components/FeedbackPage";
 import ContactPage from "./components/ContactPage";
 import AdminPage from "./components/AdminPage";
+import { ADMIN_SECRET_PATH } from "./adminSecretPath";
 import ReferralPage from "./components/ReferralPage";
 import TentangKami from "./components/TentangKami";
 import PaymentPage from "./components/PaymentPage";
@@ -209,12 +210,15 @@ function App() {
     );
   }
 
-  // Audit Juli 2026 ("halaman #admin super admin"): SENGAJA disembunyikan,
-  // tidak ada link publik ke sini sama sekali -- sama seperti pola di atas
-  // (#ulasan-internal). Otorisasi sebenarnya (siapa yang boleh lihat data)
-  // dicek di backend lewat profiles.role, lihat AdminPage.tsx dan
-  // migrations/2026-07-15b_admin_roles.sql.
-  if (rawHash === "admin") {
+  // Audit Juli 2026 ("pisahkan halaman super admin ini dari users, atau
+  // hackers"): TIDAK LAGI di hash "#admin" yang gampang ditebak -- sekarang
+  // di PATH acak (lihat src/adminSecretPath.ts + vercel.json rewrites,
+  // HARUS SAMA PERSIS dengan services/admin/adminSecretPath.ts di backend).
+  // Path ini SENDIRIAN bukan proteksi utama (bundle JS publik tetap bisa
+  // dibaca siapapun yang mencari) -- proteksi sebenarnya ada di alur email
+  // admin terdaftar + PIN 6 digit di dalam AdminPage.tsx sendiri (lihat
+  // migrations/2026-07-15c_admin_security.sql).
+  if (window.location.pathname === `/${ADMIN_SECRET_PATH}`) {
     return (
       <>
         <Navbar />

@@ -24,5 +24,11 @@
       "path": "/api/cron/generate-expiry-reports",
       "schedule": "0 1 * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/p6k9cyiqf09xvr0ldjmnqd",
+      "destination": "/index.html"
+    }
   ]
 }
