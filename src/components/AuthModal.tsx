@@ -50,6 +50,20 @@ function friendlyAuthError(rawMessage: string, lang: 'id' | 'en'): string {
       ? 'Format email ini tidak valid. Periksa lagi penulisannya.'
       : 'This email format is invalid. Please double-check the spelling.'
   }
+  // Bugfix (QA Juli 2026): untuk error jenis tertentu (mis. kegagalan kirim
+  // email di sisi server / SMTP, biasanya muncul sebagai 5xx dari Supabase),
+  // library @supabase/supabase-js sendiri membungkusnya sebagai
+  // AuthRetryableFetchError dengan `.message` yang TIDAK berguna -- cuma
+  // literal teks "{}" (bukan pesan aslinya "Error sending magic link
+  // email" dsb). Ini quirk di library, bukan sesuatu yang bisa kita
+  // perbaiki dari sisi pesannya -- jadi alih-alih menampilkan "{}" mentah
+  // ke pengguna, kita deteksi pola ini (pesan kosong atau cuma berisi objek
+  // JSON kosong/tidak terbaca) dan ganti dengan pesan umum yang jelas.
+  if (!rawMessage.trim() || /^\{.*\}$/.test(rawMessage.trim())) {
+    return lang === 'id'
+      ? 'Gagal mengirim email verifikasi. Coba lagi dalam beberapa saat.'
+      : 'Failed to send the verification email. Please try again shortly.'
+  }
   return rawMessage
 }
 
