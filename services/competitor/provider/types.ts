@@ -9,6 +9,6 @@
 import type { ProviderQuery, ProviderResult } from "../types/index.js";
 
 export interface CompetitorDataProvider {
-  readonly source: "google_places" | "openstreetmap" | "mock";
+  readonly source: "google_places" | "openstreetmap" | "claude_web_search" | "mock";
   fetchCompetitors(query: ProviderQuery): Promise<ProviderResult>;
 }

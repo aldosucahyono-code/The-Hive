@@ -1612,6 +1612,7 @@ type CompetitorRecordData = {
   category: string | null;
   priceLevel: number | null;
   distanceLabel: string | null;
+  sourceUrl: string | null;
 };
 type OpportunityData = {
   id: string;
@@ -1646,7 +1647,7 @@ type FormattedInsightData = {
 };
 type CompetitorAnalysisData = {
   competitor: {
-    dataSource: "google_places" | "openstreetmap" | "mock";
+    dataSource: "google_places" | "openstreetmap" | "claude_web_search" | "mock";
     marketSummary: { totalCompetitorsFound: number; averageRating: number | null; averageReviewCount: number | null };
     competitors: CompetitorRecordData[];
     marketPosition: "leader" | "competitive" | "developing" | "unknown";
@@ -1846,6 +1847,7 @@ function CompetitorPanel({
 
   const { competitor, insights } = data;
   const isMock = competitor.dataSource === "mock";
+  const isWebSearch = competitor.dataSource === "claude_web_search";
 
   const marketPositionInsight = insights.find((i) => i.category === "market_position") || null;
   const strengthInsights = insights.filter((i) => i.category === "strength");
@@ -1861,6 +1863,13 @@ function CompetitorPanel({
         <WorkspaceCard tone="warning">
           <p className="text-sm font-semibold text-amber-300">{t.workspace.competitorMockDataBadge}</p>
           <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.competitorMockDataDesc}</p>
+        </WorkspaceCard>
+      )}
+
+      {isWebSearch && (
+        <WorkspaceCard tone="success">
+          <p className="text-sm font-semibold text-emerald-300">{t.workspace.competitorWebSearchBadge}</p>
+          <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.competitorWebSearchDesc}</p>
         </WorkspaceCard>
       )}
 
@@ -1894,6 +1903,16 @@ function CompetitorPanel({
                   >
                     📍 {t.workspace.competitorMapsLinkLabel}
                   </a>
+                  {c.sourceUrl && (
+                    <a
+                      href={c.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 ml-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                    >
+                      🔗 {t.workspace.competitorSourceLinkLabel}
+                    </a>
+                  )}
                 </div>
                 <div className="text-right text-xs text-neutral-400">
                   {c.rating != null ? `${c.rating}★` : t.workspace.competitorNoRatingData}

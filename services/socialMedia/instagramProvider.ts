@@ -37,8 +37,17 @@ const SEARCH_ACTOR_ID = process.env.APIFY_INSTAGRAM_SEARCH_ACTOR_ID || "apify/in
 const PROFILE_ACTOR_ID = process.env.APIFY_INSTAGRAM_PROFILE_ACTOR_ID || "apify/instagram-profile-scraper";
 
 const MAX_COMPETITORS = 3;
-const SEARCH_TIMEOUT_MS = 8000;
-const PROFILE_TIMEOUT_MS = 8000;
+// Audit Juli 2026 (laporan pemilik produk: "dari medsos juga tidak keluar"):
+// SEBELUMNYA 8000ms -- terlalu pendek untuk run-sync-get-dataset-items pada
+// actor pihak ketiga (cold start container + scraping sungguhan biasanya
+// 10-30 detik), jadi AbortController hampir selalu memutus panggilan
+// SEBELUM actor selesai -> selalu jatuh ke data contoh walau
+// APIFY_API_TOKEN valid dan actor berjalan normal. maxDuration
+// api/workspace.ts sebenarnya 180 detik (lihat vercel.json), jauh lebih
+// longgar dari catatan lama "60 detik" di file ini -- 20 detik per
+// panggilan masih realistis dan sisa waktu tetap banyak untuk request lain.
+const SEARCH_TIMEOUT_MS = 20000;
+const PROFILE_TIMEOUT_MS = 20000;
 
 export type BusinessSearchContext = {
   industry: string;

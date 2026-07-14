@@ -40,11 +40,13 @@ export type { SocialPlatform, SocialMediaCompetitorRecord, SocialMediaInsight, S
 const ALL_PLATFORMS: SocialPlatform[] = ["instagram", "tiktok", "facebook"];
 
 // Anggaran waktu untuk SELURUH fase live (search+profile Apify, sequential)
-// — sisa waktu dari batas keras 60 detik (vercel.json maxDuration) dipakai
-// untuk Competitor Engine (biasanya cache-hit, cepat), ringkasan AI, dan
-// overhead request lain. Lihat instagramProvider.ts untuk detail timeout
-// per panggilan Apify.
-const SOCIAL_LIVE_BUDGET_MS = 30000;
+// — batas keras sebenarnya 180 detik (vercel.json maxDuration api/workspace.ts,
+// bukan 60 detik seperti catatan lama), sisanya dipakai untuk Competitor
+// Engine (biasanya cache-hit, cepat), ringkasan AI, dan overhead request
+// lain. Dinaikkan dari 30000 (Juli 2026, sejalan dengan kenaikan timeout
+// per panggilan di instagramProvider.ts dari 8s ke 20s -- budget lama
+// terlalu sempit untuk bahkan SATU panggilan penuh dengan timeout baru).
+const SOCIAL_LIVE_BUDGET_MS = 45000;
 
 /** Data CONTOH (bukan data pasar nyata) — nama disusun dari industri bisnis
  * supaya terasa relevan ke pengguna, sama pola dengan

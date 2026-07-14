@@ -57,6 +57,7 @@ export const GooglePlacesProvider: CompetitorDataProvider = {
         latitude: r.geometry?.location?.lat ?? null,
         longitude: r.geometry?.location?.lng ?? null,
         priceLevel: r.price_level ?? null,
+        sourceUrl: null,
         raw: r,
       }));
 

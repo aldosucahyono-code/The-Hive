@@ -19,7 +19,13 @@
 // membuat Opportunity/Recommendation Engine mengimpor tipe Competitor
 // secara langsung — hanya lewat MarketSignal.
 
-export type DataSource = "google_places" | "openstreetmap" | "mock";
+// "claude_web_search" (Juli 2026): jalur fallback ketiga lewat Claude +
+// web_search, dipakai HANYA saat Google Places/OpenStreetMap gagal total
+// atau kembali 0 hasil — lihat provider/ClaudeWebSearchProvider.ts dan
+// provider/index.ts untuk urutan keputusan lengkap. Tetap data NYATA
+// (bukan karangan/mock), hanya sumbernya beda dari Google Maps langsung —
+// UI tetap wajib menampilkan label jujur soal sumbernya.
+export type DataSource = "google_places" | "openstreetmap" | "claude_web_search" | "mock";
 
 // =============================================================================
 // Provider layer — apa yang dikembalikan provider MENTAH, sebelum dirapikan
@@ -44,6 +50,7 @@ export type RawCompetitorPlace = {
   latitude: number | null;
   longitude: number | null;
   priceLevel: number | null; // 0-4, null kalau tidak ada
+  sourceUrl: string | null; // link sumber asli (dipakai ClaudeWebSearchProvider — Google/OSM null, sudah ada link Maps generik di UI)
   raw: Record<string, unknown>; // payload asli provider, buat debug/audit — TIDAK ditampilkan ke pengguna
 };
 
@@ -66,6 +73,7 @@ export type CompetitorRecord = {
   category: string | null;
   priceLevel: number | null;
   distanceLabel: string | null; // "berdekatan" dsb — TIDAK menghitung jarak presisi kalau tidak ada koordinat pasti, demi data honesty
+  sourceUrl: string | null;
 };
 
 // =============================================================================

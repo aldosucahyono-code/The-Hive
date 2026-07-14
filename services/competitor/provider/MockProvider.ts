@@ -24,6 +24,7 @@ function buildMockPlaces(query: ProviderQuery): RawCompetitorPlace[] {
       latitude: null,
       longitude: null,
       priceLevel: null,
+      sourceUrl: null,
       raw: { mock: true },
     },
     {
@@ -36,6 +37,7 @@ function buildMockPlaces(query: ProviderQuery): RawCompetitorPlace[] {
       latitude: null,
       longitude: null,
       priceLevel: null,
+      sourceUrl: null,
       raw: { mock: true },
     },
     {
@@ -48,6 +50,7 @@ function buildMockPlaces(query: ProviderQuery): RawCompetitorPlace[] {
       latitude: null,
       longitude: null,
       priceLevel: null,
+      sourceUrl: null,
       raw: { mock: true },
     },
   ];

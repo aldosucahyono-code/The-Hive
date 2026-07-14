@@ -22,6 +22,7 @@ export function normalizeCompetitors(result: ProviderResult): CompetitorRecord[]
       // yang tidak selalu ada) — daripada mengarang angka jarak, kita jujur
       // hanya menandai "di sekitar lokasi yang sama" secara kualitatif.
       distanceLabel: p.latitude != null && p.longitude != null ? "sekitar lokasi yang sama" : null,
+      sourceUrl: p.sourceUrl,
     }))
     // Buang duplikat berdasar nama (beberapa POI provider kadang dobel)
     .filter((c, idx, arr) => arr.findIndex((x) => x.name.toLowerCase() === c.name.toLowerCase()) === idx);

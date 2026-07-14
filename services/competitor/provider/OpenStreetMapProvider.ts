@@ -98,6 +98,7 @@ async function searchNearbyPlaces(
       latitude: el.lat ?? null,
       longitude: el.lon ?? null,
       priceLevel: null,
+      sourceUrl: null,
       raw: el,
     }));
 }
