@@ -12,6 +12,7 @@ import Footer from "./components/Footer";
 import LegalPage from "./components/LegalPage";
 import FeedbackPage from "./components/FeedbackPage";
 import ContactPage from "./components/ContactPage";
+import AdminPage from "./components/AdminPage";
 import ReferralPage from "./components/ReferralPage";
 import TentangKami from "./components/TentangKami";
 import PaymentPage from "./components/PaymentPage";
@@ -203,6 +204,21 @@ function App() {
       <>
         <Navbar />
         <ContactPage />
+        <Footer />
+      </>
+    );
+  }
+
+  // Audit Juli 2026 ("halaman #admin super admin"): SENGAJA disembunyikan,
+  // tidak ada link publik ke sini sama sekali -- sama seperti pola di atas
+  // (#ulasan-internal). Otorisasi sebenarnya (siapa yang boleh lihat data)
+  // dicek di backend lewat profiles.role, lihat AdminPage.tsx dan
+  // migrations/2026-07-15b_admin_roles.sql.
+  if (rawHash === "admin") {
+    return (
+      <>
+        <Navbar />
+        <AdminPage />
         <Footer />
       </>
     );

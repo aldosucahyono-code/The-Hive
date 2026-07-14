@@ -31,6 +31,16 @@ import { getSocialMediaAnalysis } from "../services/socialMedia/getSocialMediaAn
 import { getMacroSnapshot } from "../services/macro/getMacroSnapshot.js";
 import { getNotifications } from "../services/notifications/getNotifications.js";
 import { markNotificationsSeen } from "../services/notifications/markNotificationsSeen.js";
+// Audit Juli 2026 ("halaman #admin super admin"): 4 action di bawah ini
+// menumpang di router workspace yang SUDAH ADA (bukan endpoint terpisah)
+// karena project ini sudah tepat di batas 12 Serverless Function di plan
+// Vercel Hobby (lihat catatan di api/business.ts). Otorisasi role admin
+// dicek DI DALAM masing-masing service (requireAdminRole.ts) -- bukan cuma
+// mengandalkan user sudah login (yang dicek router ini untuk SEMUA action).
+import { adminListCustomers } from "../services/admin/listCustomers.js";
+import { adminGetCustomerDetail } from "../services/admin/getCustomerDetail.js";
+import { adminListContactMessages } from "../services/admin/listContactMessages.js";
+import { adminUpdateContactMessageStatus } from "../services/admin/updateContactMessageStatus.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -129,6 +139,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "markNotificationsSeen":
       result = await markNotificationsSeen(userId, payload);
+      break;
+    case "adminListCustomers":
+      result = await adminListCustomers(userId, payload);
+      break;
+    case "adminGetCustomerDetail":
+      result = await adminGetCustomerDetail(userId, payload);
+      break;
+    case "adminListContactMessages":
+      result = await adminListContactMessages(userId, payload);
+      break;
+    case "adminUpdateContactMessageStatus":
+      result = await adminUpdateContactMessageStatus(userId, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });
