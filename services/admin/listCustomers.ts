@@ -42,7 +42,7 @@ export async function adminListCustomers(adminToken: string | undefined, _payloa
         .limit(500),
       supabase
         .from("business_profiles")
-        .select("id, user_id, business_name, business_stage, is_archived, created_at")
+        .select("id, user_id, business_name, business_stage, active, created_at")
         .order("created_at", { ascending: false }),
       supabase.from("subscriptions").select("business_profile_id, tier, expires_at").eq("status", "active"),
       supabase.from("contact_messages").select("email"),
@@ -62,6 +62,10 @@ export async function adminListCustomers(adminToken: string | undefined, _payloa
 
   const activeTierByBusinessId = new Map<string, string>();
   for (const s of activeSubs || []) {
+    // Kalau expires_at ada dan sudah lewat, jangan dianggap aktif (mirror
+    // logika getActiveMembership.ts) -- daftar ini cuma ringkasan, jadi
+    // cukup cek expiry sederhana di sini, bukan panggil getActiveMembership
+    // per business (akan jadi N+1 query untuk daftar besar).
     if (s.expires_at && new Date(s.expires_at).getTime() <= Date.now()) continue;
     activeTierByBusinessId.set(s.business_profile_id, s.tier);
   }

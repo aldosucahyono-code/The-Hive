@@ -56,7 +56,7 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
 
   const { data: businesses, error: businessesError } = await supabase
     .from("business_profiles")
-    .select("id, business_name, industry, business_stage, business_type, phone_number, is_archived, created_at")
+    .select("id, business_name, industry, business_stage, business_type, phone_number, active, created_at")
     .eq("user_id", customerId)
     .order("created_at", { ascending: false });
 
@@ -139,6 +139,11 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
 
   const businessesWithData = (businesses || []).map((b) => ({
     ...b,
+    // Kolom sebenarnya di business_profiles adalah "active" (bukan
+    // "is_archived") -- dibalik di sini supaya bentuk response untuk
+    // AdminPage.tsx tetap sama (is_archived: true kalau bisnis ini
+    // di-nonaktifkan/archive oleh pemiliknya).
+    is_archived: b.active === false,
     subscriptions: (subs || []).filter((s) => s.business_profile_id === b.id),
     payments: (payments || []).filter((p) => p.business_profile_id === b.id),
     analyses: (analyses || []).filter((a) => a.business_profile_id === b.id),
