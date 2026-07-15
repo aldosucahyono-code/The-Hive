@@ -4035,6 +4035,36 @@ function MenuIcon({ name }: { name: MenuKey }) {
 
 function Workspace() {
   const { user, session, loading, signOut } = useAuth();
+
+  // Audit Juli 2026 (directive PO: "apabila workspace tidak aktif diakses
+  // selama 30 menit, otomatis log out") -- keamanan sesi: kalau Workspace
+  // dibuka lalu ditinggal tanpa aktivitas apapun (mouse/keyboard/scroll/
+  // tap) selama 30 menit, sesi login diakhiri otomatis dan pengguna
+  // dikembalikan ke landing page. Timer di-reset setiap kali ada aktivitas
+  // -- BUKAN 30 menit sejak Workspace dibuka, tapi 30 menit sejak
+  // AKTIVITAS TERAKHIR.
+  useEffect(() => {
+    if (!user) return;
+    const IDLE_LOGOUT_MS = 30 * 60 * 1000;
+    let idleTimer: number;
+
+    function resetIdleTimer() {
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(() => {
+        signOut().then(() => hardNavigate(""));
+      }, IDLE_LOGOUT_MS);
+    }
+
+    const activityEvents = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "click"];
+    activityEvents.forEach((evt) => window.addEventListener(evt, resetIdleTimer));
+    resetIdleTimer();
+
+    return () => {
+      window.clearTimeout(idleTimer);
+      activityEvents.forEach((evt) => window.removeEventListener(evt, resetIdleTimer));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
   const { t, lang, setLang } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("today");
   const [businesses, setBusinesses] = useState<BusinessProfileRow[]>([]);

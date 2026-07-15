@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../i18n/LanguageContext'
+import { hardNavigate } from '../utils/navigate'
 
 interface AuthModalProps {
   onClose: () => void
@@ -154,12 +155,15 @@ export default function AuthModal({ onClose, defaultEmail, initialError }: AuthM
       setCodeState('error')
       return
     }
-    // Sukses -- session sudah aktif lewat onAuthStateChange (lihat
-    // AuthContext.tsx), Navbar.tsx punya efek terpisah yang menutup modal
-    // ini & redirect ke Workspace begitu `user` terisi. onClose() di sini
-    // cuma jaga-jaga kalau modal ini dipanggil dari tempat lain tanpa efek
-    // itu.
-    onClose()
+    // Sukses -- langsung ke Workspace lewat reload penuh (audit Juli 2026:
+    // SEBELUMNYA cuma onClose() + mengandalkan efek Navbar.tsx yang
+    // menunggu `user` terisi -- ternyata race, kadang modal keburu
+    // tertutup duluan sebelum efek itu sempat jalan, jadi pengguna
+    // "kembali" ke landing page dan harus klik tombol Workspace lagi
+    // secara manual. hardNavigate langsung di sini menghindari race itu
+    // sepenuhnya, sama seperti pola yang sudah dipakai di
+    // ChatFlow.tsx/handleVerifyRecognizedEmailCode).
+    hardNavigate('workspace')
   }
 
   const handleOverlayClick = (e: React.MouseEvent) => {
