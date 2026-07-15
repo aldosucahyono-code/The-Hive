@@ -27,6 +27,7 @@ import { getActiveMembership } from "../membership/getActiveMembership.js";
 import { getBusinessMemory, type BusinessMemoryContext } from "../memory/getBusinessMemory.js";
 import { proposeMemoryFact } from "../memory/proposeMemoryFact.js";
 import { saveDecisionRecord, DECISION_QUOTA } from "../decision/saveDecisionRecord.js";
+import { logClaudeUsage, extractUsage } from "../costTracking/logUsage.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -487,6 +488,11 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
       // berjalan stabil.
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: CHAT_SEARCH_MAX_USES[tier] }] as any,
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda balasan ke pengguna kalau lambat/gagal.
+    const usage = extractUsage(response);
+    void logClaudeUsage({ businessProfileId, action: "chat", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
 
     // Konkatenasi SEMUA blok teks (bukan cuma yang pertama) — saat Beemo
     // mencari dulu, jawabannya bisa terpecah jadi beberapa blok teks yang

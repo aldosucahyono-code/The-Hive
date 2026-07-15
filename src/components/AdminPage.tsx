@@ -31,7 +31,7 @@
 import { useCallback, useEffect, useMemo, useState, type ClipboardEvent } from "react";
 
 type Role = "admin" | "super_admin";
-type Tab = "dashboard" | "customers" | "payments" | "messages" | "audit" | "admins";
+type Tab = "dashboard" | "customers" | "payments" | "messages" | "audit" | "admins" | "costs";
 
 type Customer = {
   id: string;
@@ -142,6 +142,37 @@ type DashboardSummary = {
   newContactMessages: number;
 };
 
+type CostDashboard = {
+  periodDays: number;
+  exchangeRate: { rate: number; source: "live_api" | "cache_db" | "static"; fetchedAt: string };
+  aiUsage: {
+    totalCostUsd: number;
+    totalCostIdr: number;
+    claudeCostUsd: number;
+    claudeCostIdr: number;
+    apifyCostUsd: number;
+    apifyCostIdr: number;
+    anonymousCostUsd: number;
+    anonymousCostIdr: number;
+    byAction: { action: string; costUsd: number; costIdr: number }[];
+    topCustomers: { businessProfileId: string; businessName: string; email: string | null; costUsd: number; costIdr: number }[];
+    rowsScanned: number;
+    scanLimitReached: boolean;
+  };
+  vercel:
+    | { available: true; totalCostUsd: number; byService: { serviceName: string; costUsd: number }[]; periodStart: string; periodEnd: string; fetchedAt: string }
+    | { available: false; reason: string };
+  supabase:
+    | {
+        available: true;
+        dbSizeBytes: number;
+        planAddons: { addonType: string; variant: string | null }[];
+        freeTierLimits: { dbSizeBytes: number; fileStorageBytes: number; egressBytes: number; monthlyActiveUsers: number };
+        fetchedAt: string;
+      }
+    | { available: false; reason: string };
+};
+
 type PaymentRow = {
   id: string;
   businessProfileId: string | null;
@@ -195,6 +226,15 @@ function formatShortDate(iso: string): string {
 
 function formatIdr(value: number): string {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
+}
+
+function formatUsd(value: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(value);
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // Audit Juli 2026 ("saya ingin tau betul, kira2 relevan tidak pertanyaan
@@ -286,6 +326,9 @@ function AdminPage() {
 
   const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+
+  const [costDashboard, setCostDashboard] = useState<CostDashboard | null>(null);
+  const [costDashboardLoading, setCostDashboardLoading] = useState(false);
 
   const [admins, setAdmins] = useState<AdminRow[]>([]);
   const [adminsLoading, setAdminsLoading] = useState(false);
@@ -489,6 +532,19 @@ function AdminPage() {
     }
   }, [callAdmin]);
 
+  const loadCostDashboard = useCallback(async () => {
+    setCostDashboardLoading(true);
+    setAccessError(null);
+    try {
+      const json = await callAdmin("adminGetCostDashboard");
+      setCostDashboard(json);
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal memuat data.");
+    } finally {
+      setCostDashboardLoading(false);
+    }
+  }, [callAdmin]);
+
   const loadAdmins = useCallback(async () => {
     setAdminsLoading(true);
     setAccessError(null);
@@ -510,8 +566,9 @@ function AdminPage() {
     if (tab === "messages") loadMessages();
     if (tab === "audit") loadAuditLog();
     if (tab === "admins") loadAdmins();
+    if (tab === "costs") loadCostDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.adminToken, tab, loadDashboard, loadCustomers, loadMessages, loadAuditLog, loadAdmins]);
+  }, [session?.adminToken, tab, loadDashboard, loadCustomers, loadMessages, loadAuditLog, loadAdmins, loadCostDashboard]);
 
   // Audit Juli 2026 ("bisa dikelompokan dari masing2 jenis usaha... usaha
   // baru/eksisting, rumah makan, coffee shop dll"): filter dilakukan di
@@ -701,10 +758,11 @@ function AdminPage() {
     messages: "Pesan Kontak",
     audit: "Log Aktivitas",
     admins: "Kelola Admin",
+    costs: "Biaya & Kuota",
   };
   const visibleTabs: Tab[] =
     session.role === "super_admin"
-      ? ["dashboard", "customers", "payments", "messages", "audit", "admins"]
+      ? ["dashboard", "customers", "payments", "messages", "costs", "audit", "admins"]
       : ["dashboard", "customers", "payments", "messages"];
 
   // === Sudah punya sesi admin ===
@@ -1288,6 +1346,125 @@ function AdminPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {tab === "costs" && session.role === "super_admin" && (
+        <div className="space-y-6">
+          {costDashboardLoading && <p className="text-sm text-neutral-400">Memuat data biaya...</p>}
+          {!costDashboardLoading && costDashboard && (
+            <>
+              <div className="rounded-2xl border border-neutral-200 p-4 text-xs text-neutral-500">
+                Kurs saat ini: <span className="font-semibold text-neutral-700">Rp{Math.round(costDashboard.exchangeRate.rate).toLocaleString("id-ID")} / USD</span>{" "}
+                ({costDashboard.exchangeRate.source === "live_api" ? "live" : costDashboard.exchangeRate.source === "cache_db" ? "cache" : "fallback statis"},
+                per {formatDate(costDashboard.exchangeRate.fetchedAt)}) &middot; Periode {costDashboard.periodDays} hari terakhir
+                {costDashboard.aiUsage.scanLimitReached && " (data dipotong pada batas baris scan, biaya sebenarnya bisa lebih tinggi)"}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                <StatCard
+                  label="Total Biaya AI"
+                  value={formatIdr(costDashboard.aiUsage.totalCostIdr)}
+                  sub={`${formatUsd(costDashboard.aiUsage.totalCostUsd)} (Claude + Apify)`}
+                />
+                <StatCard label="Claude" value={formatIdr(costDashboard.aiUsage.claudeCostIdr)} sub={formatUsd(costDashboard.aiUsage.claudeCostUsd)} />
+                <StatCard label="Apify" value={formatIdr(costDashboard.aiUsage.apifyCostIdr)} sub={formatUsd(costDashboard.aiUsage.apifyCostUsd)} />
+                <StatCard
+                  label="Pra-akun (anonim)"
+                  value={formatIdr(costDashboard.aiUsage.anonymousCostIdr)}
+                  sub="preview + wizard sebelum akun dibuat"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-neutral-200 p-5">
+                  <h4 className="mb-3 text-xs font-bold uppercase text-neutral-400">Biaya per Aksi</h4>
+                  <div className="space-y-2 text-sm">
+                    {costDashboard.aiUsage.byAction.length === 0 && <p className="text-neutral-400">Belum ada data pada periode ini.</p>}
+                    {costDashboard.aiUsage.byAction.map((a) => (
+                      <div key={a.action} className="flex items-center justify-between">
+                        <span className="text-neutral-600">{a.action}</span>
+                        <span className="font-semibold">
+                          {formatIdr(a.costIdr)} <span className="text-xs text-neutral-400">({formatUsd(a.costUsd)})</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-200 p-5">
+                  <h4 className="mb-3 text-xs font-bold uppercase text-neutral-400">Hosting & Infrastruktur</h4>
+                  <div className="space-y-3 text-sm">
+                    <div>
+                      <p className="mb-1 font-semibold text-neutral-700">Vercel</p>
+                      {costDashboard.vercel.available ? (
+                        <>
+                          <p className="text-neutral-600">
+                            Total: {formatUsd(costDashboard.vercel.totalCostUsd)} ({formatIdr(Math.round(costDashboard.vercel.totalCostUsd * costDashboard.exchangeRate.rate))})
+                          </p>
+                          {costDashboard.vercel.byService.slice(0, 5).map((s) => (
+                            <p key={s.serviceName} className="text-xs text-neutral-400">
+                              {s.serviceName}: {formatUsd(s.costUsd)}
+                            </p>
+                          ))}
+                        </>
+                      ) : (
+                        <p className="text-xs text-amber-700">{costDashboard.vercel.reason}</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="mb-1 font-semibold text-neutral-700">Supabase</p>
+                      {costDashboard.supabase.available ? (
+                        <>
+                          <p className="text-neutral-600">
+                            Ukuran database: {formatBytes(costDashboard.supabase.dbSizeBytes)} / {formatBytes(costDashboard.supabase.freeTierLimits.dbSizeBytes)}{" "}
+                            ({Math.round((costDashboard.supabase.dbSizeBytes / costDashboard.supabase.freeTierLimits.dbSizeBytes) * 1000) / 10}% kuota Free)
+                          </p>
+                          {costDashboard.supabase.planAddons.length > 0 && (
+                            <p className="text-xs text-neutral-400">
+                              Addon aktif: {costDashboard.supabase.planAddons.map((a) => `${a.addonType}${a.variant ? ` (${a.variant})` : ""}`).join(", ")}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-amber-700">{costDashboard.supabase.reason}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-neutral-200">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
+                    <tr>
+                      <th className="px-4 py-3">Bisnis</th>
+                      <th className="px-4 py-3">Email</th>
+                      <th className="px-4 py-3">Biaya (Rp)</th>
+                      <th className="px-4 py-3">Biaya (USD)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {costDashboard.aiUsage.topCustomers.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-6 text-center text-neutral-400">
+                          Belum ada pemakaian AI tercatat pada periode ini.
+                        </td>
+                      </tr>
+                    )}
+                    {costDashboard.aiUsage.topCustomers.map((c) => (
+                      <tr key={c.businessProfileId} className="border-t border-neutral-100">
+                        <td className="px-4 py-3 font-medium">{c.businessName}</td>
+                        <td className="px-4 py-3 text-neutral-500">{c.email || "-"}</td>
+                        <td className="px-4 py-3 font-semibold">{formatIdr(c.costIdr)}</td>
+                        <td className="px-4 py-3 text-xs text-neutral-400">{formatUsd(c.costUsd)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
 

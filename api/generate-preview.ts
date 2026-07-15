@@ -14,6 +14,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import Anthropic from "@anthropic-ai/sdk";
 import { sendFreeSummaryEmail } from "../services/email/sendFreeSummaryEmail.js";
 import { checkRateLimit, getClientIp, RATE_LIMIT_MESSAGE_ID, RATE_LIMIT_MESSAGE_EN } from "../services/rateLimit/checkRateLimit.js";
+import { logClaudeUsage, extractUsage } from "../services/costTracking/logUsage.js";
 
 type WizardPayload = {
   jenisAnalisis: "baru" | "berjalan" | "";
@@ -215,6 +216,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       system: activeLang === "en" ? SYSTEM_PROMPT_EN : SYSTEM_PROMPT_ID,
       messages: [{ role: "user", content: buildUserPrompt(wizardData, activeLang) }],
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda respons ke pengguna kalau lambat/gagal.
+    // businessProfileId null: preview terjadi SEBELUM akun ada.
+    const usage = extractUsage(message);
+    void logClaudeUsage({ businessProfileId: null, email: wizardData.email || null, action: "preview", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
 
     const textBlock = message.content.find((b) => b.type === "text");
     const raw = textBlock && "text" in textBlock ? textBlock.text : "";

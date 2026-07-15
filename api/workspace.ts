@@ -60,6 +60,7 @@ import { adminListPayments } from "../services/admin/listPayments.js";
 import { adminListAuditLog } from "../services/admin/listAuditLog.js";
 import { adminListAdmins, adminSetRole } from "../services/admin/manageAdmins.js";
 import { adminAddBusinessNote } from "../services/admin/addBusinessNote.js";
+import { adminGetCostDashboard } from "../services/admin/getCostDashboard.js";
 import { nurtureUnsubscribe } from "../services/nurture/unsubscribe.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -79,6 +80,7 @@ const ADMIN_FLOW_ACTIONS = new Set([
   "adminListAdmins",
   "adminSetRole",
   "adminAddBusinessNote",
+  "adminGetCostDashboard",
 ]);
 
 // Aksi PUBLIK -- tidak butuh sesi admin ATAUPUN login Supabase. Sengaja
@@ -157,6 +159,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         break;
       case "adminAddBusinessNote":
         adminResult = await adminAddBusinessNote(adminToken, payload, ip, userAgent);
+        break;
+      case "adminGetCostDashboard":
+        adminResult = await adminGetCostDashboard(adminToken, payload);
         break;
     }
 

@@ -32,6 +32,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { generateFinalReport } from "../../services/reports/generateFinalReport.js";
 import { sendNurtureBatch } from "../../services/nurture/sendNurtureBatch.js";
+import { sendExpiryReminders } from "../../services/subscriptions/sendExpiryReminders.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -44,6 +45,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.query.job === "nurture") {
     const result = await sendNurtureBatch();
+    return res.status(200).json(result);
+  }
+
+  // Pengingat H-2 sebelum langganan PRO/PLATINUM habis (permintaan pemilik
+  // produk Juli 2026) -- lihat services/subscriptions/sendExpiryReminders.ts
+  // untuk detail lengkap. Menumpang di cron yang sama, pola SAMA dengan
+  // ?job=nurture di atas.
+  if (req.query.job === "expiry-reminder") {
+    const result = await sendExpiryReminders();
     return res.status(200).json(result);
   }
 

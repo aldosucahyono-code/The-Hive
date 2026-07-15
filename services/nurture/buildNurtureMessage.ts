@@ -17,6 +17,7 @@
 // memang relevan dengan tantangan mereka).
 
 import Anthropic from "@anthropic-ai/sdk";
+import { logClaudeUsage, extractUsage } from "../costTracking/logUsage.js";
 
 export type NurturePersona = {
   namaBisnis: string;
@@ -52,7 +53,7 @@ Harapan/target yang mereka sebutkan: ${p.target || "belum spesifik"}
 Tulis satu email personal untuk orang ini sesuai aturan di atas.`;
 }
 
-export async function buildNurtureMessage(persona: NurturePersona): Promise<string | null> {
+export async function buildNurtureMessage(persona: NurturePersona, email?: string | null): Promise<string | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.error("buildNurtureMessage: ANTHROPIC_API_KEY belum diset.");
@@ -67,6 +68,14 @@ export async function buildNurtureMessage(persona: NurturePersona): Promise<stri
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: buildUserPrompt(persona) }],
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda pengiriman email kalau lambat/gagal.
+    // businessProfileId null: wizard_drafts (sumber data ini) pre-akun,
+    // hanya email yang tersedia.
+    const usage = extractUsage(response);
+    void logClaudeUsage({ businessProfileId: null, email: email ?? null, action: "nurture_email", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
+
     const text = response.content
       .filter((b) => b.type === "text")
       .map((b) => ("text" in b ? b.text : ""))

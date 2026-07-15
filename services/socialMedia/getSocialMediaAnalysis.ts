@@ -241,14 +241,14 @@ async function tryLiveSnapshot(
     // panjang di instagramProvider.ts soal alasan dua jalur ini.
     const liveRecords =
       competitorNames.length > 0
-        ? await fetchInstagramLiveRecords(competitorNames, searchContext, token, SOCIAL_LIVE_BUDGET_MS)
-        : await fetchInstagramLiveRecordsByCategory(searchContext, token, SOCIAL_LIVE_BUDGET_MS);
+        ? await fetchInstagramLiveRecords(competitorNames, searchContext, token, SOCIAL_LIVE_BUDGET_MS, businessProfileId)
+        : await fetchInstagramLiveRecordsByCategory(searchContext, token, SOCIAL_LIVE_BUDGET_MS, businessProfileId);
 
     // Tetap dikembalikan sebagai live_api walau liveRecords kosong — "belum
     // ketemu akun medsos kompetitor" itu sendiri adalah hasil yang jujur,
     // BUKAN alasan diam-diam menukar ke data contoh (yang bisa disalah
     // artikan sebagai data nyata).
-    const aiSummary = await generateLiveSummary(liveRecords, business.business_name, lang);
+    const aiSummary = await generateLiveSummary(liveRecords, business.business_name, lang, businessProfileId);
 
     const followerCounts = liveRecords.map((r) => r.followers);
     const snapshot: SocialMediaSnapshot = {

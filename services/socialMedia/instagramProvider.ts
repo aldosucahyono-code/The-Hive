@@ -48,6 +48,7 @@
 
 import { runApifyActor } from "./apifyClient.js";
 import type { SocialMediaLiveRecord } from "./types.js";
+import { logApifyUsage } from "../costTracking/logUsage.js";
 
 const SEARCH_ACTOR_ID = process.env.APIFY_INSTAGRAM_SEARCH_ACTOR_ID || "apify/instagram-search-scraper";
 
@@ -104,7 +105,8 @@ function buildCategoryQuery(context: BusinessSearchContext): string {
 async function searchInstagramProfilesByCategory(
   context: BusinessSearchContext,
   token: string,
-  limit: number
+  limit: number,
+  businessProfileId?: string | null
 ): Promise<SocialMediaLiveRecord[]> {
   const query = buildCategoryQuery(context);
   if (!query) return [];
@@ -116,6 +118,11 @@ async function searchInstagramProfilesByCategory(
       timeoutMs: SEARCH_TIMEOUT_MS,
       input: { search: query, searchType: "user", searchLimit: limit },
     });
+
+    // Biaya Apify sungguhan (Juli 2026, "tidak boleh ada data palsu") --
+    // "Pay per event", 1 event = 1 hasil dikembalikan actor (dikonfirmasi
+    // dari billing sungguhan pemilik produk) -- fire and forget.
+    void logApifyUsage({ businessProfileId: businessProfileId ?? null, action: "social_media_category", events: items.length });
 
     const seen = new Set<string>();
     const results: SocialMediaLiveRecord[] = [];
@@ -142,7 +149,8 @@ async function searchInstagramProfilesByCategory(
 async function searchInstagramProfile(
   competitorName: string,
   context: BusinessSearchContext,
-  token: string
+  token: string,
+  businessProfileId?: string | null
 ): Promise<{ username: string; followers: number } | null> {
   try {
     const query = buildSearchQuery(competitorName, context);
@@ -152,6 +160,10 @@ async function searchInstagramProfile(
       timeoutMs: SEARCH_TIMEOUT_MS,
       input: { search: query, searchType: "user", searchLimit: 1 },
     });
+
+    // Biaya Apify sungguhan -- lihat catatan di searchInstagramProfilesByCategory.
+    void logApifyUsage({ businessProfileId: businessProfileId ?? null, action: "social_media_by_name", events: items.length });
+
     const first = items[0];
     const username = (first?.username || first?.ownerUsername || "").replace(/^@/, "");
     if (!username || typeof first?.followersCount !== "number") return null; // jujur: tidak mengarang followers kalau tidak ada di hasil
@@ -172,7 +184,8 @@ export async function fetchInstagramLiveRecords(
   competitorNames: string[],
   context: BusinessSearchContext,
   token: string,
-  budgetMs: number
+  budgetMs: number,
+  businessProfileId?: string | null
 ): Promise<SocialMediaLiveRecord[]> {
   const names = competitorNames.slice(0, MAX_COMPETITORS);
   const results: SocialMediaLiveRecord[] = [];
@@ -181,7 +194,7 @@ export async function fetchInstagramLiveRecords(
   for (const name of names) {
     if (Date.now() >= deadline) break; // anggaran waktu habis — berhenti, jangan paksa lanjut
 
-    const profile = await searchInstagramProfile(name, context, token);
+    const profile = await searchInstagramProfile(name, context, token, businessProfileId);
     if (!profile) continue;
 
     results.push({ competitorName: name, platform: "instagram", username: profile.username, followers: profile.followers });
@@ -198,11 +211,12 @@ export async function fetchInstagramLiveRecords(
 export async function fetchInstagramLiveRecordsByCategory(
   context: BusinessSearchContext,
   token: string,
-  budgetMs: number
+  budgetMs: number,
+  businessProfileId?: string | null
 ): Promise<SocialMediaLiveRecord[]> {
   // budgetMs tidak dipakai untuk memotong di tengah SATU panggilan (Apify
   // run-sync sudah punya timeout sendiri lewat SEARCH_TIMEOUT_MS) — cukup
   // dijaga di sini supaya sinyal deadline tetap konsisten dengan caller.
   if (budgetMs <= 0) return [];
-  return searchInstagramProfilesByCategory(context, token, MAX_COMPETITORS);
+  return searchInstagramProfilesByCategory(context, token, MAX_COMPETITORS, businessProfileId);
 }

@@ -24,6 +24,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import Anthropic from "@anthropic-ai/sdk";
 import { checkRateLimit, getClientIp, RATE_LIMIT_MESSAGE_ID, RATE_LIMIT_MESSAGE_EN } from "../services/rateLimit/checkRateLimit.js";
+import { logClaudeUsage, extractUsage } from "../services/costTracking/logUsage.js";
 
 type Payload = {
   jenisAnalisis: "baru" | "berjalan";
@@ -138,6 +139,12 @@ async function handleValidateAnswer(
         },
       ],
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda validasi ke pengguna kalau lambat/gagal.
+    // businessProfileId null: validasi per-field wizard terjadi SEBELUM akun ada.
+    const usage = extractUsage(message);
+    void logClaudeUsage({ businessProfileId: null, action: "wizard_validate_answer", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
 
     const raw = message.content
       .filter((b) => b.type === "text")
@@ -306,6 +313,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // di services/beemo/chat.ts.
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 2 }] as any,
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda respons ke pengguna kalau lambat/gagal.
+    // businessProfileId null: pertanyaan wizard terjadi SEBELUM akun ada.
+    const usage = extractUsage(message);
+    void logClaudeUsage({ businessProfileId: null, action: "wizard_questions", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
 
     const raw = message.content
       .filter((b) => b.type === "text")

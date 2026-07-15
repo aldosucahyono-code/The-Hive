@@ -23,6 +23,7 @@ import { getActiveMembership } from "../membership/getActiveMembership.js";
 import { getBusinessMemory } from "../memory/getBusinessMemory.js";
 import { buildContextBlock } from "../beemo/chat.js";
 import { saveDecisionRecord, DECISION_QUOTA } from "./saveDecisionRecord.js";
+import { logClaudeUsage, extractUsage } from "../costTracking/logUsage.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -201,6 +202,11 @@ export async function proposeDecision(userId: string, payload: Record<string, un
       // di services/beemo/chat.ts.
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: DECISION_SEARCH_MAX_USES[tier] }] as any,
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda respons ke pengguna kalau lambat/gagal.
+    const usage = extractUsage(response);
+    void logClaudeUsage({ businessProfileId, action: "decision", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
 
     // Konkatenasi SEMUA blok teks (bukan cuma yang pertama) — lihat catatan
     // yang sama di services/beemo/chat.ts soal kenapa ini perlu sejak ada

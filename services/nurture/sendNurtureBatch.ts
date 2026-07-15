@@ -179,7 +179,7 @@ export async function sendNurtureBatch(): Promise<{ sent: number; skipped: numbe
         continue;
       }
 
-      const messageText = await buildNurtureMessage(c.persona);
+      const messageText = await buildNurtureMessage(c.persona, c.email);
       if (!messageText) {
         errors++;
         continue;

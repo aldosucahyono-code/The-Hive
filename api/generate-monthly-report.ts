@@ -22,6 +22,7 @@ import { getBusinessMemory } from "../services/memory/getBusinessMemory.js";
 import { buildMonthlySystemPrompt, MONTHLY_SCHEMA_DESCRIPTION } from "../report-engine/monthlyReportPrompt.js";
 import { renderReportPdf } from "../report-engine/renderPdf.js";
 import type { ReportData } from "../report-engine/types.js";
+import { logClaudeUsage, extractUsage } from "../services/costTracking/logUsage.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -183,6 +184,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // di services/beemo/chat.ts.
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }] as any,
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda respons ke pengguna kalau lambat/gagal.
+    const usage = extractUsage(message);
+    void logClaudeUsage({ businessProfileId, action: "monthly_report", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
 
     const raw = message.content
       .filter((b) => b.type === "text")

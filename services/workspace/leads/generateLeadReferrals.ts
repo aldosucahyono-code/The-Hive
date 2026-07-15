@@ -29,6 +29,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ServiceResult } from "../../business/create.js";
 import { getActiveMembership } from "../../membership/getActiveMembership.js";
 import { checkRateLimit } from "../../rateLimit/checkRateLimit.js";
+import { logClaudeUsage, extractUsage } from "../../costTracking/logUsage.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -135,6 +136,12 @@ export async function generateLeadReferrals(userId: string, payload: Record<stri
       // di services/beemo/chat.ts dan services/reports/generateFinalReport.ts.
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8 }] as any,
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda respons ke pengguna kalau lambat/gagal.
+    const usage = extractUsage(response);
+    void logClaudeUsage({ businessProfileId, action: "lead_referrals", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
+
     const rawText = response.content
       .filter((b) => b.type === "text")
       .map((b) => ("text" in b ? b.text : ""))

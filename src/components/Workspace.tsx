@@ -4617,6 +4617,22 @@ function Workspace() {
     setShowUpgradeModal(true);
   }
 
+  // Audit Juli 2026 ("sediakan notifikasi/pop up workspace yang ketika
+  // diklik perpanjangan masuk langsung untuk melakukan pembayaran"): link
+  // "Perpanjang Sekarang" di email pengingat H-2 (lihat
+  // services/subscriptions/sendExpiryReminders.ts) menunjuk ke
+  // thehive-bisnis.com/?upgrade=1 -- efek ini membuka modal upgrade
+  // otomatis begitu Workspace dimuat lewat link itu, lalu membersihkan
+  // ?upgrade=1 dari URL (sekali saja, supaya refresh/back tidak membuka
+  // modal berulang-ulang).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("upgrade") !== "1") return;
+    window.history.replaceState({}, "", window.location.pathname);
+    openUpgradeModal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function handleUpgraded() {
     setShowUpgradeModal(false);
     setCheckingUpgrade(true);
@@ -5556,10 +5572,21 @@ function Workspace() {
                       <button
                         key={n.id}
                         onClick={() => {
-                          if (n.menuKey) setActiveMenu(n.menuKey);
+                          // Audit Juli 2026 ("ketika diklik perpanjangan
+                          // masuk langsung untuk melakukan pembayaran"):
+                          // notifikasi "waktu langganan akan habis" TIDAK
+                          // cukup pindah ke tab Settings (menuKey lama) --
+                          // langsung buka modal pembayaran/upgrade supaya
+                          // pelanggan tidak perlu cari sendiri tombol
+                          // perpanjang.
+                          if (n.type === "subscription_expiring") {
+                            openUpgradeModal();
+                          } else if (n.menuKey) {
+                            setActiveMenu(n.menuKey);
+                          }
                           setShowNotifications(false);
                         }}
-                        disabled={!n.menuKey}
+                        disabled={!n.menuKey && n.type !== "subscription_expiring"}
                         className={
                           "block w-full border-b border-white/5 px-4 py-3 text-left transition-colors last:border-b-0 " +
                           (n.menuKey ? "hover:bg-white/5 cursor-pointer" : "cursor-default") +

@@ -25,6 +25,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { SocialMediaLiveRecord } from "./types.js";
+import { logClaudeUsage, extractUsage } from "../costTracking/logUsage.js";
 
 const SYSTEM_PROMPT_ID = `Kamu adalah Beemo, asisten AI THE HIVE. Tugasmu: tulis SATU paragraf pendek (maksimal 4 kalimat) ringkasan perkembangan kehadiran media sosial kompetitor, berdasarkan HANYA data username Instagram + jumlah follower yang diberikan. JANGAN mengarang data yang tidak diberikan (jangan sebut engagement, jumlah post, isi konten — data itu TIDAK tersedia).
 
@@ -54,7 +55,8 @@ Reply with ONLY the summary text, no markdown, no preamble like "Summary:".`;
 export async function generateLiveSummary(
   records: SocialMediaLiveRecord[],
   businessName: string,
-  lang: "id" | "en"
+  lang: "id" | "en",
+  businessProfileId?: string | null
 ): Promise<string | null> {
   if (records.length === 0) return null;
 
@@ -77,6 +79,12 @@ export async function generateLiveSummary(
       system: lang === "id" ? SYSTEM_PROMPT_ID : SYSTEM_PROMPT_EN,
       messages: [{ role: "user", content: userPrompt }],
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda respons ke pengguna kalau lambat/gagal.
+    const usage = extractUsage(response);
+    void logClaudeUsage({ businessProfileId: businessProfileId ?? null, action: "social_media_summary", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
+
     const text = response.content
       .filter((b) => b.type === "text")
       .map((b) => ("text" in b ? b.text : ""))

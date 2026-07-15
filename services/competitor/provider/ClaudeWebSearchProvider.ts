@@ -31,6 +31,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { CompetitorDataProvider } from "./types.js";
 import type { ProviderQuery, ProviderResult, RawCompetitorPlace } from "../types/index.js";
+import { logClaudeUsage, extractUsage } from "../../costTracking/logUsage.js";
 
 const MAX_RESULTS = 6;
 
@@ -97,6 +98,13 @@ export const ClaudeWebSearchProvider: CompetitorDataProvider = {
       // di services/workspace/leads/generateLeadReferrals.ts.
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8 }] as any,
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda respons ke pengguna kalau lambat/gagal.
+    // businessProfileId null: query provider ini anonim, tidak ada id akun
+    // di ProviderQuery (lihat catatan header file).
+    const usage = extractUsage(response);
+    void logClaudeUsage({ businessProfileId: null, action: "competitor_web_search", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
 
     const rawText = response.content
       .filter((b) => b.type === "text")

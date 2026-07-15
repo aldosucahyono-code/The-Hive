@@ -25,6 +25,7 @@ import type { ServiceResult } from "../business/create.js";
 import { getMacroSnapshot, type MacroSnapshot } from "../macro/getMacroSnapshot.js";
 import { getCachedSocialSnapshot } from "../socialMedia/cache.js";
 import type { SocialMediaSnapshot } from "../socialMedia/types.js";
+import { logClaudeUsage, extractUsage } from "../costTracking/logUsage.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -187,6 +188,7 @@ function parseFinalReportJson(raw: string): FinalReportAiContent {
 const FINAL_REPORT_MAX_ATTEMPTS = 3;
 
 async function callClaudeForFinalReport(
+  businessProfileId: string,
   memory: BusinessMemoryContext,
   reportType: FinalReportType,
   lang: "id" | "en",
@@ -221,6 +223,11 @@ async function callClaudeForFinalReport(
       // services/beemo/chat.ts dan generate-monthly-report.ts.
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }] as any,
     });
+
+    // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
+    // and forget, tidak menunda respons ke pengguna kalau lambat/gagal.
+    const usage = extractUsage(response);
+    void logClaudeUsage({ businessProfileId, action: "final_report", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
 
     const raw = response.content
       .filter((b) => b.type === "text")
@@ -297,7 +304,7 @@ export async function generateFinalReport(
   ]);
 
   try {
-    const aiContent = await callClaudeForFinalReport(memory, reportType, lang, macro, social);
+    const aiContent = await callClaudeForFinalReport(businessProfileId, memory, reportType, lang, macro, social);
     const reportData = buildReportData(memory, reportType, lang, aiContent);
     const pdfBuffer = await renderReportPdf(reportData);
 
