@@ -247,10 +247,30 @@ const id = {
   paymentPage: {
     backButton: "← Kembali ke Beranda",
     unlockTitle: "Unlock Laporan",
-    description: "Setelah pembayaran berhasil, laporan lengkap Anda akan langsung tersedia dalam format PDF.",
+    // Bugfix Juli 2026 (QA: "sesuaikan tulisan ini menjadi users akan
+    // langsung masuk ke workspace platinum dan sebutkan keunggulan
+    // singkatnya" -- copy LAMA cuma menyebut "laporan PDF" seolah itu
+    // satu-satunya yang didapat, padahal pembayaran berhasil = langsung
+    // masuk Workspace pribadi sesuai paket yang dipilih). emailLabel juga
+    // diubah dari "Email tujuan laporan" -> "Email akun kamu" supaya tidak
+    // menyiratkan ini cuma soal pengiriman laporan.
+    description: "Setelah pembayaran berhasil, kamu langsung masuk ke Workspace pribadimu dengan akses penuh sesuai paket yang dipilih -- bukan cuma laporan sekali baca.",
+    benefitsTitle: "Yang kamu dapat:",
+    proBenefits: [
+      "Akses penuh Business Workspace & Dashboard, kapan saja",
+      "Analisa kekuatan-kelemahan bisnis & kompetitor sekitarmu",
+      "SOP & strategi marketing siap dijalankan",
+      "Konsultasi Chat Beemo selama 30 hari",
+    ],
+    platinumBenefits: [
+      "Semua yang ada di PRO, plus:",
+      "Laporan PDF resmi (Laporan Awal & Bulanan), otomatis",
+      "Riset multi-peran Beemo AI (HRD, Akuntan, Marketing, Legal)",
+      "Kuota Chat Beemo lebih besar dari PRO",
+    ],
     bisnisLabel: "Bisnis",
     namaLabel: "Nama",
-    emailLabel: "Email tujuan laporan",
+    emailLabel: "Email akun kamu",
     totalLabel: "Total",
     missingDataWarning:
       "Data bisnis tidak ditemukan. Sebaiknya mulai dari analisis gratis dulu supaya laporan yang kami kirim sesuai dengan bisnis Anda.",
@@ -258,7 +278,7 @@ const id = {
     payButtonLoading: "Memproses...",
     paymentErrorGeneric: "Pembayaran gagal. Silakan coba lagi.",
     paymentErrorNetwork: "Terjadi kesalahan. Silakan coba lagi.",
-    footerNote: "Setelah pembayaran berhasil, laporan lengkap Anda akan langsung tersedia dalam format PDF.",
+    footerNote: "Setelah pembayaran berhasil, kamu langsung masuk ke Workspace pribadimu -- tidak perlu login/OTP ulang.",
     confirmingMsg1: "Menyelesaikan proses pembayaran...",
     confirmingMsg2: "Mengaktifkan Workspace...",
     confirmingMsg3: "Menyiapkan akun Anda...",
@@ -1766,10 +1786,23 @@ const en: Translations = {
   paymentPage: {
     backButton: "← Back to Home",
     unlockTitle: "Unlock Report",
-    description: "Once payment succeeds, your full report will be immediately available as a PDF.",
+    description: "Once payment succeeds, you'll land straight in your personal Workspace with full access matching the plan you chose -- not just a one-time report.",
+    benefitsTitle: "What you get:",
+    proBenefits: [
+      "Full access to Business Workspace & Dashboard, anytime",
+      "Strengths-weaknesses analysis & nearby competitors",
+      "SOP & marketing strategy ready to act on",
+      "30 days of Beemo AI chat consultation",
+    ],
+    platinumBenefits: [
+      "Everything in PRO, plus:",
+      "Official PDF reports (Initial & Monthly), automatic",
+      "Multi-role Beemo AI research (HR, Accountant, Marketing, Legal)",
+      "A much bigger Beemo AI chat quota than PRO",
+    ],
     bisnisLabel: "Business",
     namaLabel: "Name",
-    emailLabel: "Report delivery email",
+    emailLabel: "Your account email",
     totalLabel: "Total",
     missingDataWarning:
       "Business data not found. It's best to start with the free analysis first so the report we generate matches your business.",
@@ -1777,7 +1810,7 @@ const en: Translations = {
     payButtonLoading: "Processing...",
     paymentErrorGeneric: "Payment failed. Please try again.",
     paymentErrorNetwork: "Something went wrong. Please try again.",
-    footerNote: "Once payment succeeds, your full report will be immediately available as a PDF.",
+    footerNote: "Once payment succeeds, you'll land straight in your personal Workspace -- no need to sign in/enter OTP again.",
     confirmingMsg1: "Finishing up your payment...",
     confirmingMsg2: "Activating your Workspace...",
     confirmingMsg3: "Preparing your account...",

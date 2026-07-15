@@ -35,6 +35,21 @@ type Payload = {
 
 type DynamicQuestion = { question: string; placeholder: string };
 
+// produkJasaExamples (bugfix Juli 2026, "Dunia Pasir/Penyedia Pasir Besi
+// Lumajang" masih disodori contoh nasi goreng/kopi): SEBELUM ini, contoh di
+// pertanyaan "produk/jasa utama apa" (ChatFlow.tsx) dipetakan dari daftar
+// keyword statis di kode (PRODUK_JASA_EXAMPLE_MAP) -- jenis bisnis apa pun
+// yang tidak cocok satupun keyword-nya (mis. "penyedia pasir", pertambangan,
+// distributor material, dst) selalu jatuh ke contoh default F&B, padahal
+// nama & jenis bisnisnya sudah jelas beda sama sekali. Reuse endpoint yang
+// SAMA (bukan bikin panggilan API baru) supaya tidak nambah latency --
+// endpoint ini SUDAH dipanggil sedini mungkin (begitu namaBisnis+jenisBisnis
+// terisi, jauh sebelum pertanyaan produkJasa muncul beberapa langkah
+// kemudian), jadi menambah 1 field lagi di respons yang sama tidak menunda
+// apa pun. Kalau field ini kosong/API gagal, ChatFlow.tsx tetap fallback ke
+// peta keyword statis yang lama -- alur tidak pernah macet.
+type DynamicProdukJasaExamples = [string, string];
+
 // --- Mode "validateAnswer" (fitur baru, Juli 2026) -------------------------
 // Reuse endpoint ini (bukan file api/ baru) supaya jumlah Vercel Serverless
 // Function tidak melebihi batas 12 di plan Hobby — lihat catatan yang sama
@@ -196,9 +211,20 @@ ATURAN 2 PERTANYAAN BARU:
    general dan aman.
 5. Setiap pertanyaan harus punya "placeholder" — contoh singkat jawaban
    (gaya "Contoh : ...") supaya pengguna tidak bingung harus jawab apa.
-6. Balas HANYA dengan JSON array valid berisi TEPAT 2 objek, tanpa markdown,
-   tanpa teks lain, format:
-[{ "question": string, "placeholder": string }, { "question": string, "placeholder": string }]`;
+6. SELAIN 2 pertanyaan itu, buat juga "produkJasaExamples": array berisi
+   TEPAT 2 contoh produk/jasa UTAMA yang paling mungkin dijual bisnis ini,
+   dipikirkan sendiri dari nama & jenis bisnis yang diberikan (bukan
+   kategori umum/generik) — dipakai sebagai contoh jawaban di pertanyaan
+   LAIN ("produk/jasa utama apa yang kamu jual") supaya terasa nyambung
+   dengan bisnis spesifik ini, bukan kategori umum yang tidak nyambung.
+   Gaya singkat 2-5 kata per contoh (BUKAN kalimat penuh), sangat spesifik
+   ke jenis bisnis & nama bisnis ini (contoh: kalau jenis bisnisnya
+   "Penyedia Pasir Besi" dengan nama "Dunia Pasir", contohnya SEHARUSNYA
+   seperti "Pasir besi curah per truk"/"Pasir cor bangunan siap kirim" --
+   BUKAN "Nasi goreng"/"Kopi susu" yang sama sekali tidak nyambung).
+7. Balas HANYA dengan JSON OBJECT valid, tanpa markdown, tanpa teks lain,
+   format persis:
+{"questions": [{ "question": string, "placeholder": string }, { "question": string, "placeholder": string }], "produkJasaExamples": [string, string]}`;
 
 const SYSTEM_EN = `You are Beemo AI, THE HIVE's business consultant. Your only job here is to
 create EXACTLY 2 additional mandatory questions for the landing page chat
@@ -231,9 +257,20 @@ RULES FOR THE 2 NEW QUESTIONS:
    conflict, health, etc.), REPLACE it with a more general, safe question.
 5. Every question needs a "placeholder" — a short example answer (style
    "e.g. ...") so the user isn't confused about what to answer.
-6. Reply with ONLY a valid JSON array of EXACTLY 2 objects, no markdown, no
-   other text, format:
-[{ "question": string, "placeholder": string }, { "question": string, "placeholder": string }]`;
+6. IN ADDITION to the 2 questions, also produce "produkJasaExamples": an
+   array of EXACTLY 2 example main products/services this specific business
+   most likely sells, reasoned from the given business name & type (not a
+   generic category) — used as the example answer for ANOTHER question
+   ("what's your main product/service") so it feels relevant to this
+   specific business, not a mismatched generic category. Short style, 2-5
+   words per example (NOT a full sentence), very specific to this business
+   type & name (e.g. for business type "Iron Sand Supplier" named "Dunia
+   Pasir", examples SHOULD look like "Bulk iron sand by truckload"/"Ready-
+   to-ship construction sand" -- NOT "Fried rice"/"Milk coffee" which is
+   completely unrelated).
+7. Reply with ONLY a valid JSON OBJECT, no markdown, no other text, in
+   exactly this format:
+{"questions": [{ "question": string, "placeholder": string }, { "question": string, "placeholder": string }], "produkJasaExamples": [string, string]}`;
 
 function buildUserPrompt(data: Payload, lang: "id" | "en"): string {
   const isBaru = data.jenisAnalisis === "baru";
@@ -326,20 +363,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .join("");
     let cleaned = raw.replace(/```json|```/g, "").trim();
 
-    let questions: DynamicQuestion[];
+    // Bugfix Juli 2026: respons SEKARANG berbentuk objek {questions,
+    // produkJasaExamples} (bukan array bare seperti sebelumnya) supaya bisa
+    // membawa produkJasaExamples sekaligus tanpa panggilan API terpisah.
+    // Tetap terima bentuk array LAMA sebagai fallback kompatibilitas kalau
+    // suatu saat model membalas format lama (fail-open, bukan fail 500).
+    let parsed: unknown;
     try {
-      questions = JSON.parse(cleaned) as DynamicQuestion[];
+      parsed = JSON.parse(cleaned);
     } catch (parseErr) {
-      const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) throw parseErr;
-      questions = JSON.parse(jsonMatch[0]) as DynamicQuestion[];
+      const objMatch = cleaned.match(/\{[\s\S]*\}/);
+      const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+      const match = objMatch || arrMatch;
+      if (!match) throw parseErr;
+      parsed = JSON.parse(match[0]);
+    }
+
+    let questions: DynamicQuestion[];
+    let produkJasaExamples: DynamicProdukJasaExamples | null = null;
+
+    if (Array.isArray(parsed)) {
+      questions = parsed as DynamicQuestion[];
+    } else {
+      const obj = parsed as { questions?: DynamicQuestion[]; produkJasaExamples?: unknown };
+      questions = Array.isArray(obj.questions) ? obj.questions : [];
+      if (
+        Array.isArray(obj.produkJasaExamples) &&
+        obj.produkJasaExamples.length === 2 &&
+        obj.produkJasaExamples.every((ex) => typeof ex === "string" && ex.trim().length > 0)
+      ) {
+        produkJasaExamples = obj.produkJasaExamples as DynamicProdukJasaExamples;
+      }
     }
 
     if (!Array.isArray(questions) || questions.length !== 2) {
       throw new Error("Jumlah pertanyaan yang dihasilkan tidak sesuai (harus tepat 2).");
     }
 
-    return res.status(200).json({ questions });
+    return res.status(200).json({ questions, produkJasaExamples });
   } catch (err) {
     console.error("generate-wizard-questions error:", err);
     return res.status(500).json({ error: "Gagal membuat pertanyaan tambahan." });

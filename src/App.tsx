@@ -25,7 +25,33 @@ function App() {
   const [start, setStart] = useState(false);
   const { loading, user } = useAuth();
 
-  const rawHashRaw = window.location.hash.replace("#", "");
+  // BUGFIX Juli 2026 ("klik magic link -> mendarat di Landing page, BUKAN
+  // Workspace, walau login SUDAH berhasil" -- laporan users lewat video,
+  // dikonfirmasi lewat frame-by-frame + audit kode). Root cause: SEBELUM
+  // ini, rawHashRaw/urlParams dibaca ULANG dari window.location di SETIAP
+  // render (bukan cuma sekali). supabase-js (detectSessionInUrl: true)
+  // otomatis MEMBERSIHKAN #access_token=... dari address bar begitu token
+  // itu selesai diproses jadi sesi -- pembersihan ini terjadi kira-kira
+  // BERSAMAAN dengan "loading" berubah false & "user" terisi. Race-nya:
+  // begitu "user" berubah dan komponen ini re-render, rawHashRaw yang
+  // dibaca ULANG saat render itu JUGA sudah ikut kosong (sudah keburu
+  // dibersihkan duluan oleh supabase-js) -- isAuthCallback pun ikut jadi
+  // false TEPAT di render yang seharusnya memicu redirect ke #workspace
+  // (effect di bawah, baris ~62). Hasilnya: redirect tidak pernah jalan,
+  // App jatuh ke rute default (Landing page) walau pengguna sudah benar-
+  // benar berhasil login -- persis gejala di video laporan (URL akhirnya
+  // cuma "/#" polos, padahal Navbar sudah menampilkan tombol "Workspace"
+  // yang membuktikan sesi sebenarnya sudah aktif).
+  //
+  // Fix: baca window.location HANYA SEKALI saat komponen ini mount (lazy
+  // initializer useState, bukan window.location langsung tiap render) --
+  // nilainya jadi STABIL sepanjang hidup komponen ini, terlepas kapan
+  // supabase-js membersihkan address bar setelahnya. Aman dipakai di
+  // seluruh App ini karena navigasi SELALU lewat hardNavigate (full page
+  // reload, lihat utils/navigate.ts) -- tidak pernah ada perubahan
+  // hash/query TANPA remount komponen ini.
+  const [rawHashRaw] = useState(() => window.location.hash.replace("#", ""));
+  const [initialSearch] = useState(() => window.location.search);
 
   // Setelah user klik Magic Link di email, Supabase bisa memakai salah satu
   // dari DUA cara mengembalikan token, tergantung konfigurasi Auth flow
@@ -38,7 +64,7 @@ function App() {
   // klik "Workspace" manual alih-alih langsung masuk. Sekarang keduanya
   // dideteksi, supaya SELALU diarahkan ke #workspace terlepas dari flow
   // yang aktif di project ini.
-  const urlParams = new URLSearchParams(window.location.search);
+  const urlParams = new URLSearchParams(initialSearch);
   const hasAuthCode = urlParams.has("code");
   const hasHashToken =
     rawHashRaw.includes("access_token=") || rawHashRaw.includes("type=magiclink") || rawHashRaw.includes("type=recovery");

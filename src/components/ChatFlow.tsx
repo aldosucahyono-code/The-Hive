@@ -198,6 +198,16 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const [dynamicQuestions, setDynamicQuestions] = useState<
     { question: string; placeholder: string }[] | null
   >(null);
+  // Bugfix Juli 2026 ("Dunia Pasir/Penyedia Pasir Besi Lumajang" masih
+  // disodori contoh nasi goreng/kopi di pertanyaan produkJasa): sebelumnya
+  // contoh itu dipetakan dari daftar keyword statis (PRODUK_JASA_EXAMPLE_MAP
+  // di bawah) yang tidak mengenali jenis bisnis di luar daftarnya. Sekarang
+  // Beemo AI ikut memikirkan 2 contoh produk/jasa yang benar-benar sesuai
+  // nama & jenis bisnis ini, di-fetch BERSAMAAN dengan dynamicQuestions di
+  // atas (endpoint yang sama, tidak ada panggilan/latency tambahan). Kalau
+  // API gagal/belum siap saat pengguna sampai ke pertanyaan produkJasa,
+  // produkJasaExamples() di bawah tetap fallback ke peta keyword statis.
+  const [dynamicProdukJasaExamples, setDynamicProdukJasaExamples] = useState<[string, string] | null>(null);
   const [dynamicFetchStarted, setDynamicFetchStarted] = useState(false);
 
   useEffect(() => {
@@ -220,6 +230,14 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
         const json = await res.json();
         if (res.ok && Array.isArray(json.questions) && json.questions.length === 2) {
           setDynamicQuestions(json.questions);
+        }
+        if (
+          res.ok &&
+          Array.isArray(json.produkJasaExamples) &&
+          json.produkJasaExamples.length === 2 &&
+          json.produkJasaExamples.every((ex: unknown) => typeof ex === "string" && ex.trim().length > 0)
+        ) {
+          setDynamicProdukJasaExamples(json.produkJasaExamples as [string, string]);
         }
       } catch (err) {
         console.error("generate-wizard-questions error:", err);
@@ -313,11 +331,11 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       // goreng/kopi walau jenisBisnis-nya sudah jelas beda (mis. bakso).
       field: "produkJasa",
       prompt: (d) => {
-        const [ex1, ex2] = produkJasaExamples(d.jenisBisnis, lang);
+        const [ex1, ex2] = dynamicProdukJasaExamples || produkJasaExamples(d.jenisBisnis, lang);
         return fill(t.chatFlow.askProdukJasa, d).replace("{contoh1}", ex1).replace("{contoh2}", ex2);
       },
       inputType: "text",
-      placeholder: produkJasaExamples(data.jenisBisnis, lang).join(", ") + "...",
+      placeholder: (dynamicProdukJasaExamples || produkJasaExamples(data.jenisBisnis, lang)).join(", ") + "...",
       validate: (v: string) => isValidFreeText(v, 3, 1),
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "kenal",

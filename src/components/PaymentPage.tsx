@@ -358,6 +358,18 @@ function PaymentPage({ plan }: { plan: PlanId }) {
           {t.paymentPage.description}
         </p>
 
+        {/* Bugfix Juli 2026 (QA: "sebutkan keunggulan singkatnya"): daftar
+            keunggulan ringkas sesuai paket yang dipilih, supaya jelas apa
+            yang didapat SEBELUM bayar -- bukan cuma "laporan PDF". */}
+        <ul className="mt-4 space-y-1.5">
+          {(plan === "platinum" ? t.paymentPage.platinumBenefits : t.paymentPage.proBenefits).map((benefit) => (
+            <li key={benefit} className="flex items-start gap-2 text-sm text-neutral-700">
+              <span className={`mt-0.5 flex-none ${info.accentText}`}>✓</span>
+              {benefit}
+            </li>
+          ))}
+        </ul>
+
         <div className="mt-6 space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-5">
           <div className="flex items-center justify-between text-sm">
             <span className="text-neutral-600">{t.paymentPage.bisnisLabel}</span>
