@@ -102,6 +102,25 @@ function fill(template: string, data: WizardData): string {
     .replace(/\{namaBisnis\}/g, data.namaBisnis || "");
 }
 
+/** Bugfix Juli 2026 (QA: "pertanyaan template dulu, terus reload/berubah
+ * sendiri"): dipakai untuk menampilkan pertanyaan yang isinya dinamis
+ * (bucketAnswer1/2, produkJasa) di riwayat percakapan yang SUDAH dijawab.
+ * SEBELUM ini, riwayat selalu memanggil q.prompt(data) langsung -- yang
+ * dievaluasi ULANG di setiap render, jadi kalau dynamicQuestions/
+ * dynamicProdukJasaExamples baru selesai di-fetch SETELAH pengguna sudah
+ * menjawab (mis. pengguna mengetik sangat cepat), teks pertanyaan yang
+ * SUDAH ditampilkan & dijawab bisa "berubah sendiri" di riwayat -- padahal
+ * jawaban pengguna sebenarnya menjawab teks yang LAMA. Field
+ * bucketQuestion1/bucketQuestion2 sudah lama membekukan teks yang
+ * benar-benar ditampilkan (lihat handleSubmitAnswer) -- fungsi ini
+ * memakainya kalau tersedia, baru fallback ke q.prompt(data) kalau belum
+ * (mis. saat masih dalam mode edit sebelum submit pertama kali). */
+function frozenPrompt(q: Question, data: WizardData): string {
+  if (q.field === "bucketAnswer1" && data.bucketQuestion1) return data.bucketQuestion1;
+  if (q.field === "bucketAnswer2" && data.bucketQuestion2) return data.bucketQuestion2;
+  return q.prompt(data);
+}
+
 // Contoh produk/jasa untuk pertanyaan produkJasa (audit Juli 2026): SEBELUM
 // ini, contohnya SELALU "Nasi goreng gerobak keliling"/"Kopi susu gula
 // aren" tidak peduli jenisBisnis-nya apa — jadi pengguna yang jenis
@@ -246,6 +265,25 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.namaBisnis, data.jenisBisnis, data.jenisAnalisis, dynamicFetchStarted]);
+
+  // Bugfix Juli 2026 (QA: "kalau perlu loading 5-8 detik gapapa, daripada
+  // kasih pertanyaan template dulu terus reload/berubah sendiri" -- laporan
+  // users menunjukkan pertanyaan produkJasa sempat tampil pakai contoh
+  // fallback yang tidak nyambung ke bisnisnya, lalu TERLIHAT BERUBAH sendiri
+  // begitu dynamicProdukJasaExamples selesai di-fetch, karena prompt()/
+  // placeholder dievaluasi ulang tiap render, bukan dibekukan begitu
+  // ditampilkan). Fix: JANGAN tampilkan pertanyaan produkJasa sama sekali
+  // sampai dynamicProdukJasaExamples siap (maksimal 8 detik, lalu fallback
+  // ke peta keyword supaya tidak macet selamanya kalau API benar-benar
+  // gagal) -- pengguna cukup melihat indikator "mengetik" sebentar, BUKAN
+  // pertanyaan yang nanti berubah sendiri di depan matanya.
+  const [produkJasaExamplesTimedOut, setProdukJasaExamplesTimedOut] = useState(false);
+  useEffect(() => {
+    if (!dynamicFetchStarted || dynamicProdukJasaExamples || produkJasaExamplesTimedOut) return;
+    const timeoutId = window.setTimeout(() => setProdukJasaExamplesTimedOut(true), 8000);
+    return () => window.clearTimeout(timeoutId);
+  }, [dynamicFetchStarted, dynamicProdukJasaExamples, produkJasaExamplesTimedOut]);
+  const produkJasaExamplesReady = !!dynamicProdukJasaExamples || produkJasaExamplesTimedOut;
 
   const fallbackBucketQuestion1 = isBaru
     ? t.chatFlow.dynamicFallbackFranchiseQuestion
@@ -491,7 +529,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   function getCurrentBotText(): string | null {
     if (editingField) {
       const q = questions.find((qq) => qq.field === editingField);
-      return q ? q.prompt(data) : null;
+      return q ? frozenPrompt(q, data) : null;
     }
     if (emailStatus === "recognized") return t.chatFlow.emailRecognizedMessage;
     // BUGFIX Juli 2026: sebelumnya baris ini mengembalikan summaryIntro
@@ -504,8 +542,22 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
         ? t.chatFlow.semanticNudgeLocation
         : t.chatFlow.semanticNudgeGeneric;
     }
+    // Bugfix Juli 2026 (lihat produkJasaExamplesReady di atas): jangan
+    // kembalikan teks pertanyaan produkJasa sama sekali kalau contoh AI-nya
+    // belum siap -- null di sini ditangani sebagai "masih menunggu" oleh
+    // waitingForProdukJasa di bawah (tetap tampilkan indikator mengetik,
+    // BUKAN pertanyaan yang nanti berubah sendiri).
+    if (activeQuestion?.field === "produkJasa" && !produkJasaExamplesReady) return null;
     return activeQuestion ? activeQuestion.prompt(data) : null;
   }
+
+  // Bugfix Juli 2026: true selama pertanyaan produkJasa BELUM siap
+  // ditampilkan (menunggu dynamicProdukJasaExamples) -- dipakai untuk
+  // memaksa indikator "mengetik" tetap tampil (bukan cuma sekali 450ms
+  // seperti animasi biasa) dan menyembunyikan composer/input sampai
+  // pertanyaannya benar-benar final, supaya tidak pernah ada teks yang
+  // tampil dulu baru berubah di depan pengguna.
+  const waitingForProdukJasa = !editingField && activeQuestion?.field === "produkJasa" && !produkJasaExamplesReady;
 
   const [revealedLength, setRevealedLength] = useState(0);
   const [showTypingDots, setShowTypingDots] = useState(false);
@@ -514,7 +566,11 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
   // Kunci unik per "pesan bot yang sedang tampil" — dipakai supaya animasi
   // mengetik cuma jalan sekali per pesan baru, bukan tiap kali komponen
-  // render ulang (misalnya saat mengetik jawaban).
+  // render ulang (misalnya saat mengetik jawaban). Selama
+  // waitingForProdukJasa, key-nya konstan ("produkJasa-waiting") supaya
+  // efek reveal tidak berulang kali di-reset saat menunggu -- begitu siap
+  // (produkJasaExamplesReady jadi true), key berubah ke `q-${answeredCount}`
+  // yang baru, memicu animasi reveal berjalan SEKALI dengan teks final.
   const typingKey = editingField
     ? `edit-${editingField}`
     : emailStatus === "recognized"
@@ -523,7 +579,9 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
         ? "summary"
         : activeQuestion && semanticRetryField === activeQuestion.field
           ? `semantic-retry-${semanticRetryField}`
-          : `q-${answeredCount}`;
+          : waitingForProdukJasa
+            ? "produkJasa-waiting"
+            : `q-${answeredCount}`;
 
   useEffect(() => {
     if (typingIntervalRef.current) window.clearInterval(typingIntervalRef.current);
@@ -562,7 +620,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   }, [typingKey]);
 
   const currentBotFullText = getCurrentBotText() || "";
-  const typingDone = !showTypingDots && revealedLength >= currentBotFullText.length;
+  const typingDone = !showTypingDots && !waitingForProdukJasa && revealedLength >= currentBotFullText.length;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -898,7 +956,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-1 pb-2 pr-2">
         {questions.slice(0, answeredCount).map((q) => (
           <div key={q.field as string} className="space-y-2">
-            <ChatBubble role="bot" text={q.prompt(data)} />
+            <ChatBubble role="bot" text={frozenPrompt(q, data)} />
             <ChatBubble role="user" text={(data[q.field] as string) || ""} />
           </div>
         ))}
@@ -941,7 +999,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
         {activeQuestion && (!allAnswered || editingField) && (
           <div className="space-y-1.5">
-            {showTypingDots ? (
+            {showTypingDots || waitingForProdukJasa ? (
               <TypingDots />
             ) : (
               <ChatBubble role="bot" text={currentBotFullText.slice(0, revealedLength)} />
