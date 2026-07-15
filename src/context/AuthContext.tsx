@@ -10,6 +10,12 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   signInWithMagicLink: (email: string) => Promise<{ error: string | null; rid: string | null }>
+  // Audit Juli 2026 ("magic link sering kedaluwarsa duluan"): jalur
+  // cadangan pakai kode 6 digit ({{ .Token }} di template email Supabase,
+  // sama-sama dikirim di email yang sama dengan link-nya) -- diketik
+  // manual oleh pengguna, jadi TIDAK BISA "termakan" oleh scanner otomatis
+  // aplikasi email seperti yang terjadi pada link (lihat AuthModal.tsx).
+  verifyOtpCode: (email: string, token: string) => Promise<{ error: string | null }>
   waitForCrossDeviceLogin: (rid: string) => Promise<RelayStatus>
   signOut: () => Promise<void>
 }
@@ -89,6 +95,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null, rid }
   }
 
+  // Audit Juli 2026 ("magic link sering kedaluwarsa duluan"): verifyOtp
+  // dengan type: 'email' menerima kode {{ .Token }} 6 digit yang Supabase
+  // kirim di email OTP YANG SAMA dengan magic link-nya (dua representasi
+  // dari satu token request, bukan dua token terpisah) -- begitu berhasil,
+  // supabase-js otomatis set session & memicu onAuthStateChange sendiri
+  // (listener di atas yang menangkapnya), jadi tidak perlu setSession
+  // manual di sini seperti waitForCrossDeviceLogin.
+  const verifyOtpCode = async (email: string, token: string) => {
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: token.trim(),
+      type: 'email',
+    })
+    return { error: error?.message ?? null }
+  }
+
   // Dipanggil AuthModal.tsx setelah magic link terkirim (kalau rid berhasil
   // dibuat) -- polling ke checkLoginRelay sampai salah satu dari 3 hal
   // terjadi: (1) confirmed -- Device B (perangkat manapun yang mengklik
@@ -147,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         loading,
         signInWithMagicLink,
+        verifyOtpCode,
         waitForCrossDeviceLogin,
         signOut,
       }}

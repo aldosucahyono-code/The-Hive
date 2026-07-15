@@ -35,6 +35,19 @@ const id = {
     crossDeviceWaitingLabel: "Buka link di email itu dari perangkat manapun (HP, laptop lain, dsb) — begitu diklik, kamu otomatis masuk di sini.",
     crossDeviceExpiredLabel: "Link ini sudah kedaluwarsa atau belum juga diklik. Klik \"Kirim Ulang Link\" untuk minta yang baru.",
     expiredLinkError: "Link login itu sudah kedaluwarsa atau sudah pernah dipakai (sering terjadi kalau aplikasi email kamu memindai link itu duluan). Masukkan emailmu lagi untuk minta link baru.",
+    // Audit Juli 2026 ("link magic link sering kedaluwarsa duluan karena
+    // di-scan aplikasi email"): jalur cadangan -- kode 6 digit yang SAMA
+    // dikirim di email yang sama (lihat {{ .Token }} di template Supabase),
+    // diketik manual lewat supabase.auth.verifyOtp(). Scanner otomatis
+    // aplikasi email tidak bisa "mengetik" kode, jadi jalur ini tidak akan
+    // ikut termakan seperti link-nya.
+    codeSectionDivider: "atau",
+    codeHelpNote: "Kalau link di atas tidak bisa dibuka atau bilang kedaluwarsa, masukkan kode 6 digit dari email yang sama di sini.",
+    codeInputLabel: "Kode 6 digit dari email",
+    codeInputPlaceholder: "123456",
+    codeSubmitButton: "Masuk dengan Kode",
+    codeVerifyingButton: "Memverifikasi...",
+    codeInvalidError: "Kode salah atau sudah kedaluwarsa. Klik \"Kirim Ulang Link\" untuk minta kode baru.",
   },
 
   chooseAnalysisType: {
@@ -1539,6 +1552,13 @@ const en: Translations = {
     crossDeviceWaitingLabel: "Open that email link from any device (phone, another laptop, etc.) — once clicked, you'll be signed in here automatically.",
     crossDeviceExpiredLabel: "This link has expired or hasn't been clicked yet. Click \"Resend Link\" to get a new one.",
     expiredLinkError: "That sign-in link has expired or was already used (this often happens if your email app scans the link first). Enter your email again to get a new one.",
+    codeSectionDivider: "or",
+    codeHelpNote: "If the link above won't open or says it's expired, enter the 6-digit code from that same email here.",
+    codeInputLabel: "6-digit code from the email",
+    codeInputPlaceholder: "123456",
+    codeSubmitButton: "Sign In With Code",
+    codeVerifyingButton: "Verifying...",
+    codeInvalidError: "Wrong or expired code. Click \"Resend Link\" to get a new one.",
   },
 
   chooseAnalysisType: {

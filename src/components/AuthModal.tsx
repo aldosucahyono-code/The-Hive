@@ -74,7 +74,7 @@ function friendlyAuthError(rawMessage: string, lang: 'id' | 'en'): string {
 }
 
 export default function AuthModal({ onClose, defaultEmail, initialError }: AuthModalProps) {
-  const { signInWithMagicLink, waitForCrossDeviceLogin } = useAuth()
+  const { signInWithMagicLink, verifyOtpCode, waitForCrossDeviceLogin } = useAuth()
   const { t, lang } = useLanguage()
   const [email, setEmail] = useState(defaultEmail || '')
   const [state, setState] = useState<ModalState>(initialError ? 'error' : 'idle')
@@ -82,6 +82,13 @@ export default function AuthModal({ onClose, defaultEmail, initialError }: AuthM
   const [cooldown, setCooldown] = useState(0)
   const [relayState, setRelayState] = useState<RelayUiState>('idle')
   const cooldownIntervalRef = useRef<number | null>(null)
+  // Audit Juli 2026 ("magic link sering kedaluwarsa duluan karena di-scan
+  // aplikasi email"): jalur cadangan kode 6 digit -- lihat verifyOtpCode di
+  // AuthContext.tsx untuk alasan lengkap kenapa ini kebal dari masalah yang
+  // sama dengan link-nya.
+  const [code, setCode] = useState('')
+  const [codeState, setCodeState] = useState<'idle' | 'verifying' | 'error'>('idle')
+  const [codeErrorMsg, setCodeErrorMsg] = useState('')
   // Ditutup lewat tombol X / klik di luar modal SEBELUM relai selesai
   // (mis. pengguna berubah pikiran) -- polling waitForCrossDeviceLogin
   // tetap jalan di background (fetch tidak bisa "dibatalkan" dengan
@@ -159,7 +166,30 @@ export default function AuthModal({ onClose, defaultEmail, initialError }: AuthM
 
   function handleResend() {
     if (cooldown > 0 || state === 'sending') return
+    setCode('')
+    setCodeState('idle')
+    setCodeErrorMsg('')
     sendLink(email)
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault()
+    if (!code.trim() || codeState === 'verifying') return
+    setCodeState('verifying')
+    setCodeErrorMsg('')
+    const { error } = await verifyOtpCode(email, code)
+    if (unmountedRef.current) return
+    if (error) {
+      setCodeErrorMsg(t.authModal.codeInvalidError)
+      setCodeState('error')
+      return
+    }
+    // Sukses -- session sudah aktif lewat onAuthStateChange (lihat
+    // AuthContext.tsx), Navbar.tsx punya efek terpisah yang menutup modal
+    // ini & redirect ke Workspace begitu `user` terisi. onClose() di sini
+    // cuma jaga-jaga kalau modal ini dipanggil dari tempat lain tanpa efek
+    // itu.
+    onClose()
   }
 
   const handleOverlayClick = (e: React.MouseEvent) => {
@@ -213,6 +243,41 @@ export default function AuthModal({ onClose, defaultEmail, initialError }: AuthM
               <button onClick={handleChangeEmail} className="text-xs text-neutral-500 underline hover:text-neutral-700">
                 {t.authModal.changeEmailButton}
               </button>
+            </div>
+
+            {/* Audit Juli 2026: jalur cadangan kode 6 digit -- lihat
+                verifyOtpCode di AuthContext.tsx. Selalu tampil di layar
+                "sent", bukan cuma setelah link gagal, supaya pengguna yang
+                sudah pernah kena masalah ini tidak perlu menunggu gagal
+                dulu. */}
+            <div className="mt-6 border-t border-neutral-200 pt-5 text-left">
+              <p className="mb-3 text-center text-xs text-neutral-500">{t.authModal.codeHelpNote}</p>
+              <form onSubmit={handleVerifyCode} className="flex flex-col items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => {
+                    setCode(e.target.value.replace(/[^0-9]/g, ''))
+                    if (codeState === 'error') setCodeState('idle')
+                  }}
+                  placeholder={t.authModal.codeInputPlaceholder}
+                  disabled={codeState === 'verifying'}
+                  className="w-40 rounded-lg border border-neutral-300 bg-neutral-50 px-4 py-2.5 text-center text-lg tracking-[0.3em] text-neutral-900 placeholder:tracking-normal placeholder:text-neutral-400 focus:border-primary/50 focus:outline-none"
+                />
+                {codeState === 'error' && (
+                  <p className="text-center text-xs text-red-600">{codeErrorMsg}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={!code.trim() || codeState === 'verifying'}
+                  className="rounded-lg border border-neutral-300 px-4 py-2 text-xs font-bold text-neutral-800 hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {codeState === 'verifying' ? t.authModal.codeVerifyingButton : t.authModal.codeSubmitButton}
+                </button>
+              </form>
             </div>
           </div>
         ) : (
