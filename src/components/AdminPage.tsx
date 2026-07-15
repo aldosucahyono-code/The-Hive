@@ -171,6 +171,17 @@ type CostDashboard = {
         fetchedAt: string;
       }
     | { available: false; reason: string };
+  anthropic:
+    | {
+        available: true;
+        periodCostUsd: number;
+        periodStart: string;
+        periodEnd: string;
+        monthToDateCostUsd: number;
+        monthlyBudgetUsd: number | null;
+        fetchedAt: string;
+      }
+    | { available: false; reason: string };
 };
 
 type PaymentRow = {
@@ -1428,6 +1439,39 @@ function AdminPage() {
                         </>
                       ) : (
                         <p className="text-xs text-amber-700">{costDashboard.supabase.reason}</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="mb-1 font-semibold text-neutral-700">Akun Anthropic (Claude)</p>
+                      {costDashboard.anthropic.available ? (
+                        (() => {
+                          const a = costDashboard.anthropic as Extract<CostDashboard["anthropic"], { available: true }>;
+                          const pct = a.monthlyBudgetUsd ? (a.monthToDateCostUsd / a.monthlyBudgetUsd) * 100 : null;
+                          const warnColor = pct === null ? "text-neutral-600" : pct >= 95 ? "text-red-700" : pct >= 80 ? "text-amber-700" : "text-neutral-600";
+                          return (
+                            <>
+                              <p className={`font-semibold ${warnColor}`}>
+                                Bulan ini: {formatUsd(a.monthToDateCostUsd)}
+                                {pct !== null && ` / ${formatUsd(a.monthlyBudgetUsd!)} (${Math.round(pct)}%)`}
+                              </p>
+                              {pct !== null && pct >= 80 && (
+                                <p className="text-xs font-semibold text-amber-700">
+                                  {pct >= 95 ? "Hampir habis -- segera top up." : "Mendekati batas bulanan."}
+                                </p>
+                              )}
+                              {pct === null && (
+                                <p className="text-xs text-neutral-400">
+                                  Set ANTHROPIC_MONTHLY_BUDGET_USD untuk lihat persentase dari batas bulanan.
+                                </p>
+                              )}
+                              <p className="text-xs text-neutral-400">
+                                {costDashboard.periodDays} hari terakhir: {formatUsd(a.periodCostUsd)} (data resmi dari Anthropic Cost Report API)
+                              </p>
+                            </>
+                          );
+                        })()
+                      ) : (
+                        <p className="text-xs text-amber-700">{costDashboard.anthropic.reason}</p>
                       )}
                     </div>
                   </div>

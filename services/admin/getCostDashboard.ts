@@ -34,6 +34,7 @@ import { requireAdminSession } from "./auth/requireAdminSession.js";
 import { getUsdIdrRate } from "../exchangeRate/getUsdIdrRate.js";
 import { getVercelUsage } from "../vercelUsage/getVercelUsage.js";
 import { getSupabaseUsage } from "../supabaseUsage/getSupabaseUsage.js";
+import { getAnthropicUsage } from "../anthropicUsage/getAnthropicUsage.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -49,7 +50,7 @@ export async function adminGetCostDashboard(adminToken: string | undefined, payl
   const periodDays = typeof payload.periodDays === "number" && payload.periodDays > 0 ? Math.min(payload.periodDays, 90) : 30;
   const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString();
 
-  const [usageRows, exchangeRate, vercelUsage, supabaseUsage] = await Promise.all([
+  const [usageRows, exchangeRate, vercelUsage, supabaseUsage, anthropicUsage] = await Promise.all([
     supabase
       .from("ai_usage_log")
       .select("business_profile_id, email, service, action, cost_usd, created_at")
@@ -59,6 +60,7 @@ export async function adminGetCostDashboard(adminToken: string | undefined, payl
     getUsdIdrRate(),
     getVercelUsage(periodDays),
     getSupabaseUsage(),
+    getAnthropicUsage(periodDays),
   ]);
 
   if (usageRows.error) {
@@ -146,6 +148,7 @@ export async function adminGetCostDashboard(adminToken: string | undefined, payl
       },
       vercel: vercelUsage,
       supabase: supabaseUsage,
+      anthropic: anthropicUsage,
     },
   };
 }
