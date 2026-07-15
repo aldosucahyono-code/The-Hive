@@ -441,7 +441,12 @@ function PaymentPage({ plan }: { plan: PlanId }) {
       </div>
 
       {showAuthModal && (
-        <AuthModal onClose={() => setShowAuthModal(false)} defaultEmail={order?.email} />
+        // onSuccess = tutup modal saja, JANGAN hardNavigate ke workspace
+        // langsung (lihat catatan AuthModalProps.onSuccess di AuthModal.tsx)
+        // -- pengguna HARUS tetap di halaman pembayaran ini setelah login,
+        // supaya efek promoteDraft di atas jalan dan tombol "Bayar" bisa
+        // aktif, bukan malah dibuang ke Workspace sebelum sempat checkout.
+        <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={() => setShowAuthModal(false)} defaultEmail={order?.email} />
       )}
     </section>
   );

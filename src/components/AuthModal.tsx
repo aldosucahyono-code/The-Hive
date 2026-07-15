@@ -11,6 +11,26 @@ interface AuthModalProps {
   // saat mengisi wizard, yang sebelumnya menyebabkan bisnisnya "salah
   // nempel" ke akun lain (lihat guard emailMismatch di promoteDraft.ts).
   defaultEmail?: string
+  // Bugfix Juli 2026 (ditemukan lewat audit, BELUM sempat dilaporkan
+  // pengguna): hardNavigate('workspace') di handleVerifyCode di bawah
+  // SEBELUMNYA tanpa syarat -- benar untuk kasus login generik (tombol
+  // "Workspace" di Navbar, yang jadi alasan fix itu dibuat), tapi SALAH
+  // untuk dua pemanggil lain yang juga memakai AuthModal ini:
+  // 1. PreviewReport.tsx (CTA "Coba Gratis, Masuk ke Workspace" untuk
+  //    pengunjung anonim baru) -- hardNavigate langsung membuang halaman
+  //    SEBELUM efek autoPromote sempat jalan (butuh `user` terisi DULU,
+  //    baru fetch /api/save-submission + promoteDraft) -- draft wizard
+  //    yang baru saja diisi jadi TIDAK PERNAH ter-attach ke akun, akun
+  //    baru mendarat di Workspace kosong dan harus mengulang wizard dari
+  //    nol.
+  // 2. PaymentPage.tsx (login sebelum checkout) -- hardNavigate membuang
+  //    pengguna dari halaman pembayaran SEBELUM bisa klik "Bayar" sama
+  //    sekali.
+  // Kalau onSuccess diisi, dipanggil SEBAGAI GANTI hardNavigate default --
+  // pemanggil yang perlu urutan lain (tutup modal dulu, biarkan efek
+  // sendiri yang lanjut) pakai ini. Kalau tidak diisi, perilaku LAMA
+  // (hardNavigate('workspace')) tetap jalan seperti sebelumnya.
+  onSuccess?: () => void
   // Audit Juli 2026 (bug nyata: magic link TETAP gagal otp_expired walau
   // email paling baru diklik, terkonfirmasi langsung oleh pemilik produk
   // di laptop & HP -- gejala industri umum: aplikasi email memindai/
@@ -70,7 +90,7 @@ function friendlyAuthError(rawMessage: string, lang: 'id' | 'en'): string {
   return rawMessage
 }
 
-export default function AuthModal({ onClose, defaultEmail, initialError }: AuthModalProps) {
+export default function AuthModal({ onClose, defaultEmail, initialError, onSuccess }: AuthModalProps) {
   const { sendLoginOtp, verifyOtpCode } = useAuth()
   const { t, lang } = useLanguage()
   const [email, setEmail] = useState(defaultEmail || '')
@@ -155,15 +175,25 @@ export default function AuthModal({ onClose, defaultEmail, initialError }: AuthM
       setCodeState('error')
       return
     }
-    // Sukses -- langsung ke Workspace lewat reload penuh (audit Juli 2026:
-    // SEBELUMNYA cuma onClose() + mengandalkan efek Navbar.tsx yang
+    // Sukses. Default: langsung ke Workspace lewat reload penuh (audit Juli
+    // 2026: SEBELUMNYA cuma onClose() + mengandalkan efek Navbar.tsx yang
     // menunggu `user` terisi -- ternyata race, kadang modal keburu
     // tertutup duluan sebelum efek itu sempat jalan, jadi pengguna
     // "kembali" ke landing page dan harus klik tombol Workspace lagi
     // secara manual. hardNavigate langsung di sini menghindari race itu
     // sepenuhnya, sama seperti pola yang sudah dipakai di
     // ChatFlow.tsx/handleVerifyRecognizedEmailCode).
-    hardNavigate('workspace')
+    //
+    // TAPI kalau pemanggil kasih onSuccess sendiri (lihat catatan di
+    // AuthModalProps), pakai itu SEBAGAI GANTI -- pemanggil seperti
+    // PreviewReport.tsx/PaymentPage.tsx punya proses lanjutan (promote
+    // draft, lanjut checkout) yang justru butuh TETAP di halaman yang
+    // sama setelah modal tertutup, bukan langsung dibuang ke Workspace.
+    if (onSuccess) {
+      onSuccess()
+    } else {
+      hardNavigate('workspace')
+    }
   }
 
   const handleOverlayClick = (e: React.MouseEvent) => {

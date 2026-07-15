@@ -397,7 +397,13 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
       </div>
 
       {showAuthModal && (
-        <AuthModal onClose={() => setShowAuthModal(false)} defaultEmail={data.email} />
+        // onSuccess = tutup modal saja, JANGAN hardNavigate ke workspace
+        // langsung (lihat catatan AuthModalProps.onSuccess di AuthModal.tsx)
+        // -- membiarkan halaman ini tetap terbuka setelah login supaya
+        // efek autoPromote di atas (butuh `user` terisi dulu) benar-benar
+        // sempat jalan: simpan wizard jadi draft + promote ke business_profile
+        // SEBELUM pengguna dipindah ke Workspace-nya sendiri.
+        <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={() => setShowAuthModal(false)} defaultEmail={data.email} />
       )}
 
     </section>
