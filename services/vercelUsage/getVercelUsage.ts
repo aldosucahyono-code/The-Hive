@@ -6,16 +6,16 @@
 // v1.3, diumumkan Vercel Feb 2026: https://vercel.com/changelog/access-billing-usage-cost-data-api).
 // Mengembalikan data tagihan SUNGGUHAN per hari/service, BUKAN estimasi.
 //
-// Butuh DUA env var baru di Vercel (pemilik produk sendiri yang harus
-// generate + set -- ini kredensial akun sensitif, TIDAK dibuat otomatis
-// dari sini):
-// - VERCEL_API_TOKEN: Personal Access Token dari
-//   https://vercel.com/account/tokens (scope minimal: Read untuk team yang
-//   relevan). Role akun yang membuat token harus salah satu dari
-//   Owner/Member/Developer/Security/Billing/Enterprise Viewer di team itu.
-// - VERCEL_TEAM_ID: id team (BUKAN slug) -- lihat Team Settings -> General
-//   di dashboard Vercel, atau jalankan `vercel teams ls` di CLI yang sudah
-//   login.
+// Butuh env var baru di Vercel (pemilik produk sendiri yang harus generate
+// + set -- ini kredensial akun sensitif, TIDAK dibuat otomatis dari sini):
+// - VERCEL_API_TOKEN (WAJIB): Personal Access Token dari
+//   https://vercel.com/account/tokens (scope minimal: Read untuk
+//   team/akun yang relevan).
+// - VERCEL_TEAM_ID (OPSIONAL): id team (BUKAN slug) -- HANYA relevan kalau
+//   project ada di bawah Vercel Team sungguhan. Untuk project di bawah akun
+//   PERSONAL (tidak ada menu "Team" di Vercel Settings sama sekali -- kasus
+//   THE HIVE), parameter teamId TIDAK disertakan sama sekali di request --
+//   API Vercel otomatis pakai scope akun personal dari token-nya sendiri.
 //
 // Fail-soft: kalau salah satu env var belum diset, atau panggilan API
 // gagal (token salah/kadaluarsa/network), fungsi ini mengembalikan
@@ -52,11 +52,12 @@ export type VercelUsageResult =
  * top up", tidak perlu histori setahun penuh tiap render dashboard). */
 export async function getVercelUsage(periodDays = 30): Promise<VercelUsageResult> {
   const token = process.env.VERCEL_API_TOKEN;
+  // OPSIONAL -- lihat catatan header file soal akun personal vs Team.
   const teamId = process.env.VERCEL_TEAM_ID;
-  if (!token || !teamId) {
+  if (!token) {
     return {
       available: false,
-      reason: "VERCEL_API_TOKEN dan/atau VERCEL_TEAM_ID belum diset di Vercel Environment Variables.",
+      reason: "VERCEL_API_TOKEN belum diset di Vercel Environment Variables.",
     };
   }
 
@@ -64,7 +65,8 @@ export async function getVercelUsage(periodDays = 30): Promise<VercelUsageResult
   const from = new Date(to.getTime() - periodDays * 24 * 60 * 60 * 1000);
 
   try {
-    const url = `${FOCUS_ENDPOINT}?teamId=${encodeURIComponent(teamId)}&from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`;
+    const teamParam = teamId ? `&teamId=${encodeURIComponent(teamId)}` : "";
+    const url = `${FOCUS_ENDPOINT}?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}${teamParam}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     const res = await fetch(url, {
