@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { WizardData } from "./ChatWizard";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
+import { hardNavigate } from "../utils/navigate";
 import {
   isValidNameLike,
   isValidRoleOrCategory,
@@ -168,7 +169,7 @@ function produkJasaExamples(jenisBisnis: string, lang: "id" | "en"): [string, st
 
 function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const { t, lang } = useLanguage();
-  const { signInWithMagicLink, user } = useAuth();
+  const { sendLoginOtp, verifyOtpCode, user } = useAuth();
   const isBaru = data.jenisAnalisis === "baru";
   // Audit Juli 2026 (directive PO: gateway satu-satunya lewat Chat Wizard,
   // termasuk untuk user yang MEMANG sudah login mau tambah bisnis lain) —
@@ -432,10 +433,16 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const [botError, setBotError] = useState(false);
   const [editingField, setEditingField] = useState<keyof WizardData | null>(null);
   // "Kenali email yang sudah pernah gabung" — murni fitur UX, bukan gerbang
-  // akses. Kalau email dikenali, tawarkan kirim Magic Link (verifikasi
-  // kepemilikan tetap wajib) alih-alih memaksa isi wizard dari nol.
+  // akses. Kalau email dikenali, tawarkan kirim kode masuk 6 digit
+  // (verifikasi kepemilikan tetap wajib) alih-alih memaksa isi wizard dari
+  // nol. Audit Juli 2026: dulu kirim magic link, sekarang kode 6 digit --
+  // lihat catatan lengkap di AuthModal.tsx (link tetap gagal otp_expired
+  // walau email paling baru diklik, gejala industri umum aplikasi email
+  // memindai link duluan).
   const [emailStatus, setEmailStatus] = useState<"idle" | "checking" | "recognized">("idle");
   const [magicLinkState, setMagicLinkState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpCodeState, setOtpCodeState] = useState<"idle" | "verifying" | "error">("idle");
   // Validasi semantik (directive PO: "jawaban harus sesuai dengan
   // pertanyaan"): semanticChecking = sedang menunggu Beemo AI menilai
   // relevansi jawaban. semanticRetryField = field yang sedang diminta
@@ -666,13 +673,32 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
   async function handleSendMagicLink() {
     setMagicLinkState("sending");
-    const { error } = await signInWithMagicLink(data.email);
+    setOtpCode("");
+    setOtpCodeState("idle");
+    const { error } = await sendLoginOtp(data.email);
     setMagicLinkState(error ? "error" : "sent");
+  }
+
+  async function handleVerifyRecognizedEmailCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!otpCode.trim() || otpCodeState === "verifying") return;
+    setOtpCodeState("verifying");
+    const { error } = await verifyOtpCode(data.email, otpCode);
+    if (error) {
+      setOtpCodeState("error");
+      return;
+    }
+    // Sukses -- session sudah aktif lewat onAuthStateChange (lihat
+    // AuthContext.tsx). hardNavigate reload penuh ke #workspace, sama
+    // seperti jalur login normal lainnya.
+    hardNavigate("workspace");
   }
 
   function handleContinueAsNewAnalysis() {
     setEmailStatus("idle");
     setMagicLinkState("idle");
+    setOtpCode("");
+    setOtpCodeState("idle");
   }
 
   // Enter mengirim jawaban; di textarea, Shift+Enter tetap bikin baris baru
@@ -914,9 +940,45 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
         {emailStatus === "recognized" && typingDone && (
           <div className="space-y-3 pt-1">
             {magicLinkState === "sent" ? (
-              <p className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm text-neutral-800">
-                {t.chatFlow.emailRecognizedSent}
-              </p>
+              <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
+                <p className="text-sm text-neutral-800">{t.chatFlow.emailRecognizedSent}</p>
+                <p className="text-xs leading-relaxed text-amber-800">{t.authModal.secrecyWarning}</p>
+                <form onSubmit={handleVerifyRecognizedEmailCode} className="flex flex-col items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => {
+                      setOtpCode(e.target.value.replace(/[^0-9]/g, ""));
+                      if (otpCodeState === "error") setOtpCodeState("idle");
+                    }}
+                    placeholder={t.chatFlow.emailRecognizedCodePlaceholder}
+                    disabled={otpCodeState === "verifying"}
+                    className="w-40 rounded-lg border border-neutral-300 bg-white px-4 py-2.5 text-center text-lg tracking-[0.3em] text-neutral-900 placeholder:tracking-normal placeholder:text-neutral-400 focus:border-primary/50 focus:outline-none"
+                  />
+                  {otpCodeState === "error" && (
+                    <p className="text-center text-xs text-red-600">{t.chatFlow.emailRecognizedCodeInvalidError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={!otpCode.trim() || otpCodeState === "verifying"}
+                    className="w-40 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {otpCodeState === "verifying"
+                      ? t.chatFlow.emailRecognizedCodeVerifyingButton
+                      : t.chatFlow.emailRecognizedCodeSubmitButton}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendMagicLink}
+                    className="text-xs font-semibold text-primary underline hover:opacity-80"
+                  >
+                    {t.chatFlow.emailRecognizedResendButton}
+                  </button>
+                </form>
+              </div>
             ) : (
               <>
                 <button

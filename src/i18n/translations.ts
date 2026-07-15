@@ -16,38 +16,33 @@ const id = {
     langToggle: "EN",
   },
 
+  // Audit Juli 2026 ("magic link tetap gagal otp_expired walau email
+  // paling baru diklik, terkonfirmasi di laptop & HP -- gejala industri
+  // umum: aplikasi email memindai/prefetch link SEBELUM pengguna klik,
+  // menghabiskan token sekali-pakainya"): dirombak total dari link yang
+  // bisa diklik menjadi KODE 6 DIGIT yang wajib diketik manual (directive
+  // PO eksplisit: "jangan pakai link redirect lagi karena error"). Kode
+  // manual tidak bisa "dihabiskan" oleh scanner otomatis seperti link.
   authModal: {
     closeLabel: "Tutup",
-    sentTitle: "Cek Email Kamu 📬",
-    sentDescPrefix: "Kami sudah kirim link aktivasi ke ",
-    sentDescSuffix: ". Klik link di email itu untuk masuk ke Workspace.",
-    sentHelpNote: "Tidak muncul dalam beberapa menit? Cek folder spam/promosi, atau pastikan alamat email di atas benar — kalau salah ketik, klik \"Pakai email lain\" di bawah.",
-    resendButton: "Kirim Ulang Link",
-    changeEmailButton: "Pakai email lain",
     title: "Aktifkan Workspace",
-    subtitle: "Masukkan email kamu, kami kirim link aman untuk masuk — tanpa password.",
+    subtitle: "Masukkan email kamu, kami kirim kode masuk 6 digit — tanpa password.",
     emailPlaceholder: "nama@email.com",
     sendingButton: "Mengirim...",
-    sendButton: "Kirim Link Aktivasi",
-    // Audit Juli 2026 ("verifikasi magic link lintas perangkat"): dipakai
-    // AuthModal.tsx selama polling waitForCrossDeviceLogin berjalan --
-    // lihat migrations/2026-07-14_login_relay.sql untuk alur lengkapnya.
-    crossDeviceWaitingLabel: "Buka link di email itu dari perangkat manapun (HP, laptop lain, dsb) — begitu diklik, kamu otomatis masuk di sini.",
-    crossDeviceExpiredLabel: "Link ini sudah kedaluwarsa atau belum juga diklik. Klik \"Kirim Ulang Link\" untuk minta yang baru.",
-    expiredLinkError: "Link login itu sudah kedaluwarsa atau sudah pernah dipakai (sering terjadi kalau aplikasi email kamu memindai link itu duluan). Masukkan emailmu lagi untuk minta link baru.",
-    // Audit Juli 2026 ("link magic link sering kedaluwarsa duluan karena
-    // di-scan aplikasi email"): jalur cadangan -- kode 6 digit yang SAMA
-    // dikirim di email yang sama (lihat {{ .Token }} di template Supabase),
-    // diketik manual lewat supabase.auth.verifyOtp(). Scanner otomatis
-    // aplikasi email tidak bisa "mengetik" kode, jadi jalur ini tidak akan
-    // ikut termakan seperti link-nya.
-    codeSectionDivider: "atau",
-    codeHelpNote: "Kalau link di atas tidak bisa dibuka atau bilang kedaluwarsa, masukkan kode 6 digit dari email yang sama di sini.",
+    sendButton: "Kirim Kode Masuk",
+    sentTitle: "Cek Email Kamu 📬",
+    sentDescPrefix: "Kami sudah kirim kode 6 digit ke ",
+    sentDescSuffix: ". Masukkan kode itu di bawah untuk masuk ke Workspace.",
+    sentHelpNote: "Tidak muncul dalam beberapa menit? Cek folder spam/promosi, atau pastikan alamat email di atas benar — kalau salah ketik, klik \"Pakai email lain\" di bawah.",
+    secrecyWarning: "🔒 Kode ini rahasia — jangan berikan ke siapa pun, termasuk yang mengaku dari THE HIVE. Kode berlaku 30 menit.",
     codeInputLabel: "Kode 6 digit dari email",
     codeInputPlaceholder: "123456",
-    codeSubmitButton: "Masuk dengan Kode",
+    codeSubmitButton: "Masuk",
     codeVerifyingButton: "Memverifikasi...",
-    codeInvalidError: "Kode salah atau sudah kedaluwarsa. Klik \"Kirim Ulang Link\" untuk minta kode baru.",
+    codeInvalidError: "Kode salah atau sudah kedaluwarsa. Klik \"Kirim Ulang Kode\" untuk minta yang baru.",
+    resendButton: "Kirim Ulang Kode",
+    changeEmailButton: "Pakai email lain",
+    expiredLinkError: "Kode login itu sudah kedaluwarsa atau sudah pernah dipakai. Masukkan emailmu lagi untuk minta kode baru.",
   },
 
   chooseAnalysisType: {
@@ -477,11 +472,19 @@ const id = {
     askEmail: "Senang kenalan denganmu, {nama}! 😊 Boleh minta emailmu? Pastikan diisi dengan benar ya — email ini yang nanti dipakai untuk mengaktifkan Workspace dan mengakses hasil analisismu.",
     askNoHp: "Terima kasih! Boleh minta juga nomor HP/WhatsApp kamu? Ini nanti dipakai untuk mengirim notifikasi penting soal bisnismu.",
     emailRecognizedMessage: "Sepertinya kamu sudah pernah gabung dengan email ini! Mau langsung masuk ke Workspace yang sudah ada, atau lanjutkan analisis baru?",
-    emailRecognizedSendButton: "Kirim Link Masuk ke Workspace",
+    emailRecognizedSendButton: "Kirim Kode Masuk ke Workspace",
     emailRecognizedSending: "Mengirim...",
-    emailRecognizedSent: "Link masuk sudah dikirim ke emailmu. Cek inbox untuk lanjut ke Workspace.",
-    emailRecognizedError: "Gagal mengirim link. Coba lagi.",
+    emailRecognizedSent: "Kode 6 digit sudah dikirim ke emailmu. Masukkan di bawah untuk masuk ke Workspace.",
+    emailRecognizedError: "Gagal mengirim kode. Coba lagi.",
     emailRecognizedContinueButton: "Lanjutkan sebagai analisis baru",
+    // Audit Juli 2026 ("konsisten dengan AuthModal.tsx" -- lihat catatan
+    // lengkap di authModal di atas): jalur email dikenali mid-wizard ini
+    // JUGA dipindah ke kode 6 digit, bukan link.
+    emailRecognizedCodePlaceholder: "123456",
+    emailRecognizedCodeSubmitButton: "Masuk",
+    emailRecognizedCodeVerifyingButton: "Memverifikasi...",
+    emailRecognizedCodeInvalidError: "Kode salah atau sudah kedaluwarsa. Klik \"Kirim Ulang\" untuk minta yang baru.",
+    emailRecognizedResendButton: "Kirim Ulang",
     askProfesi: "Baik. Sekarang, kamu berperan sebagai apa di bisnis ini? (misalnya Founder, Owner, Manager)",
     askNamaBisnis: "Terima kasih, {profesi} — apa nama bisnis atau brand kamu?",
     askJenisBisnis: "{namaBisnis}, nama yang menarik. Bisnis ini bergerak di bidang apa? (misalnya Coffee Shop, Retail, Jasa Konsultasi)",
@@ -1538,27 +1541,24 @@ const en: Translations = {
 
   authModal: {
     closeLabel: "Close",
-    sentTitle: "Check Your Email 📬",
-    sentDescPrefix: "We've sent an activation link to ",
-    sentDescSuffix: ". Click the link in that email to enter your Workspace.",
-    sentHelpNote: "Didn't get it in a few minutes? Check your spam/promotions folder, or make sure the email above is correct — if you mistyped it, click \"Use a different email\" below.",
-    resendButton: "Resend Link",
-    changeEmailButton: "Use a different email",
     title: "Activate Workspace",
-    subtitle: "Enter your email, we'll send you a secure link to sign in — no password needed.",
+    subtitle: "Enter your email, we'll send you a 6-digit sign-in code — no password needed.",
     emailPlaceholder: "name@email.com",
     sendingButton: "Sending...",
-    sendButton: "Send Activation Link",
-    crossDeviceWaitingLabel: "Open that email link from any device (phone, another laptop, etc.) — once clicked, you'll be signed in here automatically.",
-    crossDeviceExpiredLabel: "This link has expired or hasn't been clicked yet. Click \"Resend Link\" to get a new one.",
-    expiredLinkError: "That sign-in link has expired or was already used (this often happens if your email app scans the link first). Enter your email again to get a new one.",
-    codeSectionDivider: "or",
-    codeHelpNote: "If the link above won't open or says it's expired, enter the 6-digit code from that same email here.",
+    sendButton: "Send Sign-In Code",
+    sentTitle: "Check Your Email 📬",
+    sentDescPrefix: "We've sent a 6-digit code to ",
+    sentDescSuffix: ". Enter that code below to enter your Workspace.",
+    sentHelpNote: "Didn't get it in a few minutes? Check your spam/promotions folder, or make sure the email above is correct — if you mistyped it, click \"Use a different email\" below.",
+    secrecyWarning: "🔒 This code is confidential — never share it with anyone, including anyone claiming to be from THE HIVE. Valid for 30 minutes.",
     codeInputLabel: "6-digit code from the email",
     codeInputPlaceholder: "123456",
-    codeSubmitButton: "Sign In With Code",
+    codeSubmitButton: "Sign In",
     codeVerifyingButton: "Verifying...",
-    codeInvalidError: "Wrong or expired code. Click \"Resend Link\" to get a new one.",
+    codeInvalidError: "Wrong or expired code. Click \"Resend Code\" to get a new one.",
+    resendButton: "Resend Code",
+    changeEmailButton: "Use a different email",
+    expiredLinkError: "That sign-in code has expired or was already used. Enter your email again to get a new one.",
   },
 
   chooseAnalysisType: {
@@ -1967,11 +1967,16 @@ const en: Translations = {
     askEmail: "Nice to meet you, {nama}! 😊 Could I get your email? Please make sure it's correct — you'll use it to activate your Workspace and access your analysis results.",
     askNoHp: "Thanks! Could I also get your phone/WhatsApp number? We'll use it to send important notifications about your business.",
     emailRecognizedMessage: "Looks like you've joined before with this email! Want to go straight to your existing Workspace, or continue with a new analysis?",
-    emailRecognizedSendButton: "Send Link to Workspace",
+    emailRecognizedSendButton: "Send Sign-In Code to Workspace",
     emailRecognizedSending: "Sending...",
-    emailRecognizedSent: "A sign-in link has been sent to your email. Check your inbox to continue to your Workspace.",
-    emailRecognizedError: "Failed to send the link. Please try again.",
+    emailRecognizedSent: "A 6-digit code has been sent to your email. Enter it below to continue to your Workspace.",
+    emailRecognizedError: "Failed to send the code. Please try again.",
     emailRecognizedContinueButton: "Continue with a new analysis",
+    emailRecognizedCodePlaceholder: "123456",
+    emailRecognizedCodeSubmitButton: "Sign In",
+    emailRecognizedCodeVerifyingButton: "Verifying...",
+    emailRecognizedCodeInvalidError: "Wrong or expired code. Click \"Resend\" to get a new one.",
+    emailRecognizedResendButton: "Resend",
     askProfesi: "Good. Now, what's your role in this business? (e.g. Founder, Owner, Manager)",
     askNamaBisnis: "Thank you, {profesi} — what's the name of your business or brand?",
     askJenisBisnis: "{namaBisnis}, a fitting name. What industry is this business in? (e.g. Coffee Shop, Retail, Consulting)",
