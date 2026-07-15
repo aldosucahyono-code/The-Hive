@@ -10,7 +10,7 @@
       "maxDuration": 90
     },
     "api/workspace.ts": {
-      "maxDuration": 180
+      "maxDuration": 300
     },
     "api/notification-handler.ts": {
       "maxDuration": 180
