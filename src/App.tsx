@@ -23,7 +23,7 @@ import NurtureUnsubscribePage from "./components/NurtureUnsubscribePage";
 function App() {
 
   const [start, setStart] = useState(false);
-  const { loading } = useAuth();
+  const { loading, user } = useAuth();
 
   const rawHashRaw = window.location.hash.replace("#", "");
 
@@ -50,7 +50,16 @@ function App() {
   const rawHash = hasHashToken ? "" : rawHashRaw;
 
   useEffect(() => {
-    if (isAuthCallback && !loading) {
+    // Bugfix Juli 2026 (bug nyata dialami lewat in-app browser Gmail di
+    // HP): SEBELUMNYA syaratnya cuma "isAuthCallback && !loading" -- kalau
+    // Supabase gagal menyimpan sesi dari token di URL (mis. localStorage
+    // tidak selalu bertahan lewat window.location.reload() di webview
+    // in-app tertentu), reload di bawah tetap dipaksa jalan dan mendarat
+    // di Workspace TANPA sesi -- pengguna cuma melihat guard "Kamu belum
+    // login" tanpa penjelasan apapun kenapa. Sekarang WAJIB "user" sudah
+    // benar-benar terisi dulu -- kalau tidak, effect di bawah (deteksi
+    // hashTokenSessionFailed) yang menangani, BUKAN reload buta ke sini.
+    if (isAuthCallback && !loading && user) {
       // Bersihkan ?code=xxxx / #access_token=... dari URL biar rapi DAN
       // supaya pengguna tidak bisa refresh/bookmark URL yang masih membawa
       // token mentah, lalu arahkan langsung ke Workspace-nya sendiri.
@@ -61,7 +70,7 @@ function App() {
       window.history.replaceState({}, "", window.location.pathname + "#workspace");
       window.location.reload();
     }
-  }, [isAuthCallback, loading]);
+  }, [isAuthCallback, loading, user]);
 
   // Audit Juli 2026 ("verifikasi magic link lintas perangkat" -- lihat
   // migrations/2026-07-14_login_relay.sql untuk alur lengkap): ini adalah
@@ -109,16 +118,30 @@ function App() {
   // ulang (lihat Navbar.tsx/AuthModal.tsx).
   const hasAuthErrorHash = rawHashRaw.includes("error_code=");
 
+  // Bugfix Juli 2026 (mode kegagalan KEDUA, ditemukan lewat laporan
+  // langsung + screenshot pemilik produk dari in-app browser Gmail di HP):
+  // link-nya VALID (hash punya access_token=, TANPA error_code= sama
+  // sekali), tapi setelah reload paksa ke #workspace di effect di atas,
+  // sesi ternyata TIDAK ada (user masih null) -- Workspace menampilkan
+  // guard "Kamu belum login" yang membingungkan, padahal link-nya sendiri
+  // sah. Kemungkinan besar localStorage/cookie sesi tidak selalu bertahan
+  // lewat window.location.reload() di webview in-app tertentu (Gmail,
+  // Instagram, dst berperilaku beda dari browser biasa). Diperlakukan SAMA
+  // seperti hasAuthErrorHash di atas -- buka AuthModal dengan pesan jelas
+  // + tombol kirim ulang, BUKAN reload buta ke Workspace yang gagal diam-diam.
+  const hashTokenSessionFailed = hasHashToken && !loading && !user;
+  const authError = hasAuthErrorHash || hashTokenSessionFailed;
+
   useEffect(() => {
-    if (!hasAuthErrorHash) return;
-    // Bersihkan hash error dari URL (query string ?rid=... SENGAJA
+    if (!authError) return;
+    // Bersihkan hash/token mentah dari URL (query string ?rid=... SENGAJA
     // dipertahankan -- kalau pengguna minta link baru dari modal yang baru
     // saja otomatis terbuka, alur relai lintas-perangkat yang sama tetap
     // bisa dipakai) supaya tidak bisa di-refresh/bookmark dengan hash
-    // mentah berisi pesan error Supabase.
+    // mentah/pesan error Supabase.
     window.history.replaceState({}, "", window.location.pathname + window.location.search);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authError]);
 
   const animateHero = rawHash === "";
 
@@ -210,7 +233,7 @@ function App() {
   if (unsubscribeToken) {
     return (
       <>
-        <Navbar authError={hasAuthErrorHash} />
+        <Navbar authError={authError} />
         <NurtureUnsubscribePage token={unsubscribeToken} />
         <Footer />
       </>
@@ -222,7 +245,7 @@ function App() {
   if (rawHash === "privasi" || rawHash === "syarat" || rawHash === "refund") {
     return (
       <>
-        <Navbar authError={hasAuthErrorHash} />
+        <Navbar authError={authError} />
         <LegalPage type={rawHash as "privasi" | "syarat" | "refund"} />
         <Footer />
       </>
@@ -232,7 +255,7 @@ function App() {
   if (rawHash === "ulasan-internal") {
     return (
       <>
-        <Navbar authError={hasAuthErrorHash} />
+        <Navbar authError={authError} />
         <FeedbackPage />
         <Footer />
       </>
@@ -246,7 +269,7 @@ function App() {
   if (rawHash === "kontak") {
     return (
       <>
-        <Navbar authError={hasAuthErrorHash} />
+        <Navbar authError={authError} />
         <ContactPage />
         <Footer />
       </>
@@ -264,7 +287,7 @@ function App() {
   if (window.location.pathname === `/${ADMIN_SECRET_PATH}`) {
     return (
       <>
-        <Navbar authError={hasAuthErrorHash} />
+        <Navbar authError={authError} />
         <AdminPage />
         <Footer />
       </>
@@ -274,7 +297,7 @@ function App() {
   if (rawHash === "referensi") {
     return (
       <>
-        <Navbar authError={hasAuthErrorHash} />
+        <Navbar authError={authError} />
         <ReferralPage />
         <Footer />
       </>
@@ -284,7 +307,7 @@ function App() {
   if (rawHash === "tentang-kami") {
     return (
       <>
-        <Navbar authError={hasAuthErrorHash} />
+        <Navbar authError={authError} />
         <TentangKami />
         <Footer />
       </>
@@ -300,7 +323,7 @@ function App() {
     // body tetap terbaca (body sendiri sekarang defaultnya terang).
     return (
       <div className="theme-dark">
-        <Navbar variant="dark" authError={hasAuthErrorHash} />
+        <Navbar variant="dark" authError={authError} />
         <Workspace />
         <Footer variant="dark" />
       </div>
@@ -317,7 +340,7 @@ function App() {
   if (rawHash === "mulai") {
     return (
       <>
-        <Navbar authError={hasAuthErrorHash} />
+        <Navbar authError={authError} />
         <ChatWizard />
         <Footer />
       </>
@@ -327,7 +350,7 @@ function App() {
   if (rawHash === "bayar-pro" || rawHash === "bayar-platinum") {
     return (
       <>
-        <Navbar authError={hasAuthErrorHash} />
+        <Navbar authError={authError} />
         <PaymentPage plan={rawHash === "bayar-pro" ? "pro" : "platinum"} />
         <Footer />
       </>
@@ -346,7 +369,7 @@ function App() {
   if (!start) {
     return (
       <div className="bg-white text-neutral-900">
-        <Navbar variant="light" authError={hasAuthErrorHash} />
+        <Navbar variant="light" authError={authError} />
         <Hero onStart={() => setStart(true)} animate={animateHero} />
         <Features animate={animateHero} />
         <HowItWorks animate={animateHero} />
@@ -359,7 +382,7 @@ function App() {
 
   return (
     <>
-      <Navbar authError={hasAuthErrorHash} />
+      <Navbar authError={authError} />
       <ChatWizard />
       <Footer />
     </>
