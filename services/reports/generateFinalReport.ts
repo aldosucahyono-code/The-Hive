@@ -221,7 +221,17 @@ async function callClaudeForFinalReport(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
       // terpasang lebih tua dari tipe web search tool, sama seperti catatan di
       // services/beemo/chat.ts dan generate-monthly-report.ts.
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }] as any,
+      //
+      // Diturunkan dari 5 -> 3 (audit Juli 2026, root-cause 504 "Task timed
+      // out after 300 seconds" di /api/workspace): tiap web_search menambah
+      // giliran bolak-balik (model mencari -> tunggu hasil -> lanjut
+      // menulis) sebelum respons akhir kembali, dan FINAL_REPORT_MAX_ATTEMPTS
+      // di bawah bisa mengulang SELURUH panggilan ini (termasuk semua
+      // pencarian) sampai 3x kalau JSON-nya gagal di-parse -- worst-case
+      // 5 pencarian x 3 percobaan gampang menembus 300 detik. 3 pencarian
+      // per percobaan tetap cukup untuk riset legalitas/pajak terkini tapi
+      // memangkas waktu terburuk secara signifikan.
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }] as any,
     });
 
     // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
