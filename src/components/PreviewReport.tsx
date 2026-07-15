@@ -83,6 +83,16 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
   // pengunjung kebetulan sudah login di tab lain) — di sini kita cuma
   // menambah pemicu login-nya untuk pengunjung anonim.
   const [showAuthModal, setShowAuthModal] = useState(false);
+  // BUGFIX Juli 2026 (QA: "OTP sudah diisi, harusnya langsung ke Workspace,
+  // bukan balik ke halaman laporan gratis + klik 'Buka Workspace' lagi").
+  // Ditandai TRUE hanya saat user SENGAJA klik CTA "Coba Gratis, Masuk ke
+  // Workspace" (bukan kasus pasif "kebetulan sudah login duluan" -- itu
+  // tetap pakai banner + tombol manual seperti sebelumnya, supaya orang
+  // yang cuma numpang lihat laporan gratis tidak tiba-tiba dilempar ke
+  // Workspace tanpa diminta). Begitu autoPromote di bawah selesai SUKSES,
+  // effect kedua di bawah langsung hardNavigate ke Workspace tanpa perlu
+  // klik tambahan -- menepati janji tombolnya sendiri ("Masuk ke Workspace").
+  const [explicitWorkspaceIntent, setExplicitWorkspaceIntent] = useState(false);
 
   useEffect(() => {
     // Tutup modal otomatis begitu login sukses (session tersinkron lewat
@@ -153,6 +163,20 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
     // reaktif ke preview/user/session, bukan `data` (WizardData berubah
     // identitas objeknya tiap render tapi isinya sama untuk preview yang sama).
   }, [preview, user, session?.access_token]);
+
+  // BUGFIX Juli 2026 (lihat komentar di explicitWorkspaceIntent): begitu
+  // autoPromote() di atas berhasil menyimpan bisnis ini (autoSavedBusinessId
+  // terisi) DAN user memang baru saja login lewat CTA "Coba Gratis" (bukan
+  // kebetulan sudah login sebelumnya), langsung pindah ke Workspace tanpa
+  // menunggu klik tombol "Buka Workspace" lagi. Kasus autoSaveCapped
+  // (batas usaha tercapai) SENGAJA tidak di-auto-redirect di sini -- itu
+  // pesan penting yang harus sempat dibaca user dulu sebelum dia pilih
+  // lanjut ke Workspace (usaha lamanya) secara manual.
+  useEffect(() => {
+    if (explicitWorkspaceIntent && autoSavedBusinessId) {
+      hardNavigate("workspace");
+    }
+  }, [explicitWorkspaceIntent, autoSavedBusinessId]);
 
   const analysisChecklist = t.previewReport.checklist.map((label, i) => ({
     label,
@@ -351,7 +375,10 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-700">{t.previewReport.freeCtaDesc}</p>
           <button
             onClick={() => {
-              if (!user) setShowAuthModal(true);
+              if (!user) {
+                setExplicitWorkspaceIntent(true);
+                setShowAuthModal(true);
+              }
             }}
             disabled={autoSaving}
             className="mt-4 rounded-xl bg-primary px-7 py-3 text-sm font-bold text-black shadow-[0_0_20px_-6px_rgba(255,152,0,0.6)] transition-transform hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
