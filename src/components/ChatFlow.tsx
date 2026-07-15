@@ -88,7 +88,24 @@ type Question = {
   validate: (value: string) => boolean;
   invalidNudge: string;
   phase: PhaseKey;
+  // Revisi UX Juli 2026 (arahan PO "Evaluasi Flow & UX THE HIVE" — Phase 1):
+  // pesan singkat Beemo yang tampil sebagai bubble TERPISAH tepat sebelum
+  // pertanyaan ini, khusus untuk pertanyaan PERTAMA di tiap tahap baru
+  // (string statis) ATAU pertanyaan yang bereaksi ke jawaban SEBELUMNYA
+  // (fungsi, mis. reaksi berdasar jenisBisnis — lihat industryReaction()).
+  // Sengaja dipisah dari `prompt` (bukan digabung jadi satu string) supaya
+  // questionText yang dikirim ke checkSemanticMatch() tetap murni teks
+  // pertanyaan aslinya, tidak ikut tercampur narasi transisi/reaksi ini.
+  transitionBefore?: string | ((d: WizardData) => string);
 };
+
+/** Ambil teks transitionBefore final — mendukung bentuk string statis
+ * (pesan transisi antar-tahap) maupun fungsi (reaksi dinamis berdasarkan
+ * jawaban sebelumnya, mis. jenis bisnis). */
+function resolveTransitionBefore(tb: Question["transitionBefore"], d: WizardData): string | undefined {
+  if (!tb) return undefined;
+  return typeof tb === "function" ? tb(d) : tb;
+}
 
 const todayString = getTodayString();
 
@@ -130,31 +147,41 @@ function frozenPrompt(q: Question, data: WizardData): string {
 // panggilan AI baru, supaya tidak ada jeda loading tepat sebelum
 // pertanyaan ini tampil (beda dengan dynamicQuestions yang punya banyak
 // waktu di background sebelum dipakai).
-const PRODUK_JASA_EXAMPLE_MAP: Array<{ keywords: string[]; id: [string, string]; en: [string, string] }> = [
+const PRODUK_JASA_EXAMPLE_MAP: Array<{ keywords: string[]; id: [string, string]; en: [string, string]; reactionId: string; reactionEn: string }> = [
   {
     keywords: ["makan", "kuliner", "resto", "warung", "catering", "bakso", "sate", "nasi", "ayam", "seafood", "food"],
     id: ["Bakso urat komplit", "Ayam geprek sambal matah"],
     en: ["Full bakso meatball bowl", "Spicy sambal fried chicken"],
+    reactionId: "Biasanya bisnis kuliner sangat dipengaruhi lokasi dan pelanggan yang datang kembali.",
+    reactionEn: "Food businesses are usually heavily influenced by location and repeat customers.",
   },
   {
     keywords: ["kopi", "kedai", "cafe", "kafe", "coffee"],
     id: ["Kopi susu gula aren", "Es kopi kenangan"],
     en: ["Palm sugar milk coffee", "Iced signature coffee"],
+    reactionId: "Bisnis kopi biasanya soal repeat order dan suasana tempatnya.",
+    reactionEn: "Coffee businesses usually run on repeat orders and the vibe of the place.",
   },
   {
     keywords: ["fashion", "pakaian", "baju", "distro", "hijab", "konveksi", "clothing"],
     id: ["Kaos distro custom", "Hijab instan motif bunga"],
     en: ["Custom graphic t-shirts", "Ready-to-wear floral hijab"],
+    reactionId: "Fashion biasanya soal tren yang bergerak cepat.",
+    reactionEn: "Fashion is usually about trends that move fast.",
   },
   {
     keywords: ["jasa", "servis", "service", "konsultasi", "reparasi", "cuci"],
     id: ["Jasa reparasi AC rumah", "Konsultasi pajak UMKM"],
     en: ["Home AC repair service", "SME tax consulting"],
+    reactionId: "Bisnis jasa biasanya soal kepercayaan pelanggan.",
+    reactionEn: "Service businesses usually run on customer trust.",
   },
   {
     keywords: ["salon", "spa", "kecantikan", "beauty", "skincare"],
     id: ["Perawatan facial wajah", "Creambath rambut rileksasi"],
     en: ["Facial skin treatment", "Relaxing hair creambath"],
+    reactionId: "Bisnis kecantikan biasanya soal kepercayaan dan pengalaman pelanggan.",
+    reactionEn: "Beauty businesses are usually about trust and the customer experience.",
   },
   {
     // Toko HP/gadget/elektronik — kategori baru (QA Juli 2026: sebelumnya
@@ -163,27 +190,70 @@ const PRODUK_JASA_EXAMPLE_MAP: Array<{ keywords: string[]; id: [string, string];
     keywords: ["hp", "handphone", "ponsel", "gadget", "elektronik", "aksesoris", "laptop", "komputer", "gawai", "phone", "electronic"],
     id: ["Case & pelindung layar HP", "Charger dan aksesoris original"],
     en: ["Phone case & screen protector", "Original chargers & accessories"],
+    reactionId: "Toko gadget/elektronik biasanya soal harga bersaing dan kelengkapan barang.",
+    reactionEn: "Gadget/electronics stores usually compete on price and product range.",
   },
   {
     keywords: ["motor", "mobil", "otomotif", "bengkel", "onderdil", "spare part", "ban", "automotive"],
     id: ["Servis rutin motor matic", "Spare part & oli mesin mobil"],
     en: ["Routine scooter servicing", "Car spare parts & engine oil"],
+    reactionId: "Bisnis otomotif biasanya soal kepercayaan teknis pelanggan.",
+    reactionEn: "Automotive businesses usually run on customers' technical trust.",
   },
   {
     keywords: ["pendidikan", "les", "kursus", "bimbel", "sekolah", "pelatihan", "education", "tutoring"],
     id: ["Kelas les privat matematika", "Modul & materi kursus online"],
     en: ["Private math tutoring class", "Online course materials"],
+    reactionId: "Bisnis pendidikan biasanya soal reputasi dan hasil nyata buat muridnya.",
+    reactionEn: "Education businesses usually run on reputation and real results for students.",
   },
 ];
 const DEFAULT_PRODUK_JASA_EXAMPLE: { id: [string, string]; en: [string, string] } = {
   id: ["Nasi goreng gerobak keliling", "Kopi susu gula aren"],
   en: ["Mobile cart fried rice", "Palm sugar milk coffee"],
 };
+const DEFAULT_INDUSTRY_REACTION = {
+  id: "Aku mulai kebayang gambaran bisnismu.",
+  en: "I'm starting to get a picture of your business.",
+};
 
 function produkJasaExamples(jenisBisnis: string, lang: "id" | "en"): [string, string] {
   const lower = (jenisBisnis || "").toLowerCase();
   const match = PRODUK_JASA_EXAMPLE_MAP.find((entry) => entry.keywords.some((k) => lower.includes(k)));
   return match ? match[lang] : DEFAULT_PRODUK_JASA_EXAMPLE[lang];
+}
+
+// Revisi UX Juli 2026 (review PO Phase 1, poin 1-2: "Beemo harus terlihat
+// sedang berpikir", "respons jangan statis, cukup if-else berdasar jenis
+// bisnis, tidak perlu AI"): reaksi singkat berdasarkan kategori jenisBisnis
+// yang BARU SAJA dijawab, ditampilkan sebagai transitionBefore pada
+// pertanyaan produkJasa (pertanyaan berikutnya) — reuse kategori yang sama
+// dengan PRODUK_JASA_EXAMPLE_MAP supaya kata kunci tidak dobel-didefinisikan
+// di dua tempat yang bisa saling berbeda seiring waktu.
+function industryReaction(jenisBisnis: string, lang: "id" | "en", isBaru: boolean): string {
+  const raw = (jenisBisnis || "").trim();
+  const lower = raw.toLowerCase();
+  const match = PRODUK_JASA_EXAMPLE_MAP.find((entry) => entry.keywords.some((k) => lower.includes(k)));
+  const insight = match ? (lang === "id" ? match.reactionId : match.reactionEn) : DEFAULT_INDUSTRY_REACTION[lang];
+  // Polishing pass (review ketiga, poin 2): echo balik teks jenisBisnis
+  // PERSIS seperti yang diketik pengguna (bukan cuma "Menarik." generik),
+  // supaya terasa didengar. Lalu penutup dibedakan bisnis baru vs eksisting
+  // sesuai reminder PO ("tetap bedakan mana bisnis baru mana eksisting").
+  const echo = raw
+    ? lang === "id"
+      ? `${raw} ya, menarik 😊`
+      : `${raw}, interesting 😊`
+    : lang === "id"
+    ? "Menarik 😊"
+    : "Interesting 😊";
+  const closing = isBaru
+    ? lang === "id"
+      ? "Nanti aku perhatikan ini pas nyusun rencana buat kamu."
+      : "I'll keep this in mind when I put your plan together."
+    : lang === "id"
+    ? "Ini yang bakal aku bandingkan dengan kondisi kamu sekarang."
+    : "I'll compare this with your current situation.";
+  return `${echo} ${insight} ${closing}`;
 }
 
 function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
@@ -377,15 +447,21 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       validate: (v: string) => isValidFreeText(v, 3, 1),
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "kenal",
+      // Revisi UX Juli 2026 (review PO): reaksi ke jenisBisnis yang BARU SAJA
+      // dijawab, sebelum bertanya produkJasa — supaya Beemo terasa "berpikir"
+      // soal bisnisnya, bukan cuma lanjut ke pertanyaan berikutnya begitu
+      // saja. if-else murni berdasar kata kunci (bukan panggilan AI baru).
+      transitionBefore: (d) => industryReaction(d.jenisBisnis, lang, isBaru),
     },
     {
       field: "lokasi",
-      prompt: () => (isBaru ? t.chatFlow.askLokasiNew : t.chatFlow.askLokasiRunning),
+      prompt: (d) => fill(isBaru ? t.chatFlow.askLokasiNew : t.chatFlow.askLokasiRunning, d),
       inputType: "text",
       placeholder: t.stepTwo.lokasiPlaceholder,
       validate: isValidLocation,
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "kondisi",
+      transitionBefore: t.chatFlow.transitionToKondisi,
     },
     ...(isBaru
       ? ([
@@ -461,6 +537,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       validate: (v: string) => isValidFreeText(v),
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "target",
+      transitionBefore: t.chatFlow.transitionToTarget,
     },
     {
       field: "target",
@@ -479,14 +556,37 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       validate: (v: string) => isValidFreeText(v, 40, 10),
       invalidNudge: t.chatFlow.invalidNudge,
       phase: "strategi",
+      transitionBefore: (d) => fill(t.chatFlow.transitionToStrategi, d),
     },
   ];
 
-  const [answeredCount, setAnsweredCount] = useState(0);
+  // Revisi UX Juli 2026 (review PO: "jangan ada jawaban user yang hilang"
+  // saat back/refresh) — kalau `data` datang sudah terisi sebagian (dipulihkan
+  // dari localStorage oleh ChatWizard.tsx), lanjutkan dari pertanyaan pertama
+  // yang BELUM terjawab, bukan mulai dari 0 lagi. Dihitung SEKALI saat mount
+  // (lazy initializer) — perubahan `data` sesudahnya (lewat jawaban baru)
+  // tetap lewat setAnsweredCount biasa, bukan dihitung ulang di sini.
+  const [answeredCount, setAnsweredCount] = useState<number>(() => {
+    let count = 0;
+    for (const q of questions) {
+      const val = data[q.field];
+      if (typeof val === "string" && val.trim().length > 0) {
+        count += 1;
+      } else {
+        break;
+      }
+    }
+    return count;
+  });
   const [inputValue, setInputValue] = useState("");
   const [showError, setShowError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [botError, setBotError] = useState(false);
+  // Revisi UX Juli 2026 (review PO: "Reflection" — sebelum Loading, Beemo
+  // merangkum poin kunci yang sudah diceritakan pengguna). Murni baca ulang
+  // `data` yang sudah ada, TIDAK ada panggilan AI baru. Ditampilkan sebentar
+  // (REFLECTION_DISPLAY_MS) sebelum benar-benar pindah ke layar Loading.
+  const [showingReflection, setShowingReflection] = useState(false);
   const [editingField, setEditingField] = useState<keyof WizardData | null>(null);
   // "Kenali email yang sudah pernah gabung" — murni fitur UX, bukan gerbang
   // akses. Kalau email dikenali, tawarkan kirim kode masuk 6 digit
@@ -518,6 +618,13 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const MAX_SEMANTIC_ATTEMPTS = 2;
   const scrollRef = useRef<HTMLDivElement>(null);
   const currencyInputRef = useRef<HTMLInputElement>(null);
+  // Revisi UX Juli 2026 (review PO Phase 1, poin 4: "jangan hardcode estimasi
+  // waktu, kalau bisa hitung dari average answer time") — lacak durasi nyata
+  // antar-jawaban pengguna SENDIRI di sesi ini (bukan angka tetap), lalu
+  // pakai rata-ratanya untuk memperkirakan sisa waktu. Murni state
+  // presentasi di browser, tidak dikirim/disimpan ke manapun.
+  const lastAnswerTimestampRef = useRef<number>(startTime);
+  const answerDurationsMsRef = useRef<number[]>([]);
 
   const allAnswered = answeredCount >= questions.length;
   const activeQuestion = editingField
@@ -724,6 +831,16 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       return;
     }
 
+    // Catat durasi jawab pertanyaan ini (dipakai untuk estimasi waktu
+    // tersisa yang benar-benar dihitung dari kecepatan pengguna sendiri —
+    // lihat lastAnswerTimestampRef/answerDurationsMsRef di atas). Dibatasi
+    // 2 detik–2 menit supaya jeda tidak wajar (mis. pengguna pindah tab lama)
+    // tidak merusak estimasi, tapi tidak perlu presisi sempurna.
+    const now = Date.now();
+    const durationMs = Math.min(Math.max(now - lastAnswerTimestampRef.current, 2000), 120000);
+    answerDurationsMsRef.current = [...answerDurationsMsRef.current, durationMs].slice(-6);
+    lastAnswerTimestampRef.current = now;
+
     const isEmailField = activeQuestion.field === "email";
     setAnsweredCount((prev) => prev + 1);
     setInputValue("");
@@ -793,6 +910,8 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     setShowError(false);
   }
 
+  const REFLECTION_DISPLAY_MS = 2400;
+
   function handleProses() {
     const elapsed = Date.now() - startTime;
     const looksLikeBot = data.honeypot.trim().length > 0 || elapsed < 5000;
@@ -801,8 +920,44 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       return;
     }
     setBotError(false);
-    setLoading(true);
-    onSuccess();
+    // Tampilkan Reflection dulu sebentar, baru benar-benar pindah ke Loading
+    // (onSuccess) — supaya terasa Beemo "berhenti sejenak merangkum",
+    // bukan langsung lompat ke layar loading generik.
+    setShowingReflection(true);
+    window.setTimeout(() => {
+      setLoading(true);
+      onSuccess();
+    }, REFLECTION_DISPLAY_MS);
+  }
+
+  /** Ringkasan hangat ("Reflection") berisi highlight jawaban yang sudah
+   * diberikan — MURNI membaca field yang sudah ada di `data`, tidak ada
+   * pemanggilan AI/API baru. Maksimal 5 baris supaya tetap ringkas dibaca
+   * dalam beberapa detik sebelum pindah ke Loading. Teks bebas (tantangan/
+   * target) dipotong kalau terlalu panjang — pure string slicing, bukan
+   * diringkas AI. */
+  function buildReflectionHighlights(): { label: string; value: string }[] {
+    const items: { label: string; value: string }[] = [];
+    const truncate = (s: string, max = 60) => (s.length > max ? s.slice(0, max).trim() + "…" : s);
+
+    // Polishing pass (review ketiga, poin 7): format "label: value" persis
+    // seperti dicontohkan PO ("✅ Nama usaha: Kopi Susu Cak Do"), reuse label
+    // yang sama dengan tabel ringkasan edit (t.chatFlow.xLabel) supaya tidak
+    // ada dua sumber teks label yang bisa berbeda seiring waktu. Hanya field
+    // yang SUDAH terisi yang muncul -- tidak ada placeholder kosong.
+    if (data.namaBisnis) items.push({ label: t.chatFlow.namaBisnisLabel, value: data.namaBisnis });
+    if (data.jenisBisnis) items.push({ label: t.chatFlow.jenisBisnisLabel, value: data.jenisBisnis });
+    if (data.produkJasa) items.push({ label: t.chatFlow.produkJasaLabel, value: truncate(data.produkJasa) });
+    if (data.lokasi) items.push({ label: t.chatFlow.lokasiLabel, value: data.lokasi });
+    if (isBaru && data.targetPelanggan) {
+      items.push({ label: t.chatFlow.targetPelangganLabel, value: truncate(data.targetPelanggan) });
+    } else if (!isBaru && data.sejakKapan) {
+      items.push({ label: t.chatFlow.sejakKapanLabel, value: data.sejakKapan });
+    }
+    if (data.tantangan) items.push({ label: t.chatFlow.tantanganLabel, value: truncate(data.tantangan) });
+    if (data.target) items.push({ label: t.chatFlow.targetLabel, value: truncate(data.target) });
+
+    return items.slice(0, 6);
   }
 
   function renderInput(question: Question) {
@@ -920,15 +1075,73 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     : activeQuestion
       ? phaseLabels[activeQuestion.phase]
       : "";
+  // Revisi UX Juli 2026 (review PO Phase 1, poin 3: progress bar tampilkan
+  // "Tahap X dari Y" juga, bukan cuma persen+nama tahap).
+  const PHASE_ORDER: PhaseKey[] = ["kenal", "kondisi", "target", "strategi"];
+  const currentStageNumber = allAnswered
+    ? PHASE_ORDER.length
+    : activeQuestion
+      ? PHASE_ORDER.indexOf(activeQuestion.phase) + 1
+      : 1;
+  const stageLabelText = t.chatFlow.stageLabel
+    .replace("{current}", String(currentStageNumber))
+    .replace("{total}", String(PHASE_ORDER.length));
   const progressPercent = Math.round((answeredCount / questions.length) * 100);
+  // Revisi UX Juli 2026 (review PO Phase 1, poin 4: "jangan hardcode, kalau
+  // bisa hitung dari average answer time") — rata-rata durasi jawaban NYATA
+  // pengguna ini sejauh ini (lihat answerDurationsMsRef), bukan angka tetap.
+  // Sebelum ada data (pertanyaan pertama), pakai asumsi awal 20 detik yang
+  // segera digantikan begitu ada jawaban pertama.
+  const DEFAULT_AVG_SECONDS = 20;
+  const recordedDurations = answerDurationsMsRef.current;
+  const averageAnswerSeconds =
+    recordedDurations.length > 0
+      ? recordedDurations.reduce((sum, ms) => sum + ms, 0) / recordedDurations.length / 1000
+      : DEFAULT_AVG_SECONDS;
+  const remainingQuestionsCount = Math.max(0, questions.length - answeredCount);
+  const estimatedMinutesLeft = Math.max(1, Math.ceil((remainingQuestionsCount * averageAnswerSeconds) / 60));
+  const showEstimatedTime = !allAnswered && remainingQuestionsCount > 0;
+  // Revisi UX Juli 2026 (review PO Phase 1, poin terakhir: checklist "Data
+  // yang sudah kukenal") — subset field yang SELALU ada baik untuk usaha
+  // baru maupun berjalan (targetPelanggan/sejakKapan berbeda tergantung
+  // isBaru, jadi sengaja tidak diikutkan supaya daftar ini konsisten untuk
+  // kedua jalur). Baca-saja dari `data` yang sudah ada, tidak ada field baru.
+  const knownDataChecklist: { field: keyof WizardData; label: string }[] = [
+    { field: "namaBisnis", label: t.chatFlow.namaBisnisLabel },
+    { field: "jenisBisnis", label: t.chatFlow.jenisBisnisLabel },
+    { field: "produkJasa", label: t.chatFlow.produkJasaLabel },
+    { field: "lokasi", label: t.chatFlow.lokasiLabel },
+    { field: "tantangan", label: t.chatFlow.tantanganLabel },
+    { field: "target", label: t.chatFlow.targetLabel },
+  ];
+  // Polishing pass (review ketiga, poin 3): tampilkan VALUE-nya ("Nama usaha
+  // 'Kopi Susu Cak Do'"), bukan sekadar label kosong -- dan hanya field yang
+  // SUDAH terisi yang muncul (tidak ada lagi placeholder "○ belum diisi").
+  const knownDataEntries = knownDataChecklist
+    .map((c) => ({ label: c.label, value: ((data[c.field] as string) || "").trim() }))
+    .filter((c) => c.value.length > 0)
+    .map((c) => ({ ...c, value: c.value.length > 28 ? c.value.slice(0, 28).trim() + "…" : c.value }));
 
   return (
     <div className="flex h-[75dvh] max-h-[720px] min-h-[420px] flex-col">
       {/* Progress bar persisten — menggantikan teks "Step X dari Y" supaya
-          terasa seperti aplikasi AI modern, bukan formulir/wizard. */}
-      <div className="mb-3 flex-none">
+          terasa seperti aplikasi AI modern, bukan formulir/wizard. Revisi
+          Juli 2026 (review PO Phase 1): tambah label "Tahap X dari Y" dan
+          checklist ringkas data yang sudah dikenal. */}
+      <div className="mb-2 flex-none">
+        <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+          <span>{allAnswered ? "✅" : "🟡"}</span>
+          <span>{stageLabelText}</span>
+        </div>
         <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-neutral-600">
-          <span>{currentPhaseLabel}</span>
+          <span>
+            {currentPhaseLabel}
+            {showEstimatedTime && (
+              <span className="ml-2 font-normal text-neutral-400">
+                · {t.chatFlow.estimatedTimeRemaining.replace("{menit}", String(estimatedMinutesLeft)).replace("{minutes}", String(estimatedMinutesLeft))}
+              </span>
+            )}
+          </span>
           <span>{progressPercent}%</span>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200">
@@ -937,6 +1150,16 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
             style={{ width: `${progressPercent}%` }}
           ></div>
         </div>
+        {!allAnswered && knownDataEntries.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 border-t border-neutral-100 pt-2 text-[11px] text-neutral-500">
+            <span className="font-medium text-neutral-400">{t.chatFlow.knownDataLabel}</span>
+            {knownDataEntries.map((c) => (
+              <span key={c.label} className="text-emerald-600">
+                ✓ {c.label}: <span className="font-medium text-neutral-600">{c.value}</span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
@@ -954,12 +1177,16 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
       {/* Area pesan — bisa di-scroll, composer di bawah selalu terlihat */}
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-1 pb-2 pr-2">
-        {questions.slice(0, answeredCount).map((q) => (
-          <div key={q.field as string} className="space-y-2">
-            <ChatBubble role="bot" text={frozenPrompt(q, data)} />
-            <ChatBubble role="user" text={(data[q.field] as string) || ""} />
-          </div>
-        ))}
+        {questions.slice(0, answeredCount).map((q) => {
+          const transitionText = resolveTransitionBefore(q.transitionBefore, data);
+          return (
+            <div key={q.field as string} className="space-y-2">
+              {transitionText && <ChatBubble role="bot" text={transitionText} />}
+              <ChatBubble role="bot" text={frozenPrompt(q, data)} />
+              <ChatBubble role="user" text={(data[q.field] as string) || ""} />
+            </div>
+          );
+        })}
 
         {allAnswered && !editingField && (
           <div className="space-y-2">
@@ -968,7 +1195,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
             ) : (
               <ChatBubble role="bot" text={currentBotFullText.slice(0, revealedLength)} />
             )}
-            {typingDone && (
+            {typingDone && !showingReflection && (
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 sm:p-5">
                 {groupedSummary.map((g) => (
                   <div key={g.group} className="mb-4 last:mb-0">
@@ -994,11 +1221,41 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
                 ))}
               </div>
             )}
+            {/* Reflection (revisi UX Juli 2026, review PO) — muncul begitu
+                pengguna klik Proses, menggantikan tabel edit di atas untuk
+                sesaat sebelum benar-benar pindah ke layar Loading. Murni
+                baca ulang `data` (lihat buildReflectionHighlights), tidak
+                ada AI/panggilan baru. */}
+            {typingDone && showingReflection && (
+              <div className="space-y-2">
+                <ChatBubble role="bot" text={t.chatFlow.reflectionIntro} />
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+                  <ul className="space-y-1.5 text-sm text-neutral-800">
+                    {buildReflectionHighlights().map((item, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="flex-none text-emerald-600">✅</span>
+                        <span>
+                          <strong className="font-semibold">{item.label}:</strong> {item.value}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <ChatBubble role="bot" text={t.chatFlow.reflectionClosing} />
+              </div>
+            )}
           </div>
         )}
 
         {activeQuestion && (!allAnswered || editingField) && (
           <div className="space-y-1.5">
+            {/* Bubble transisi tahap (statis, tidak ikut animasi mengetik) —
+                hanya tampil untuk pertanyaan pertama di tahap baru, dan tidak
+                di mode edit (mengedit jawaban lama bukan "memasuki tahap
+                baru"). Lihat transitionBefore di deklarasi questions[]. */}
+            {!editingField && !semanticChecking && semanticRetryField !== activeQuestion.field && resolveTransitionBefore(activeQuestion.transitionBefore, data) && (
+              <ChatBubble role="bot" text={resolveTransitionBefore(activeQuestion.transitionBefore, data)!} />
+            )}
             {showTypingDots || waitingForProdukJasa ? (
               <TypingDots />
             ) : (
@@ -1080,7 +1337,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
           </div>
         )}
 
-        {allAnswered && !editingField && typingDone && (
+        {allAnswered && !editingField && typingDone && !showingReflection && (
           <div className="pt-1">
             {botError && <p className="mb-3 text-sm text-red-600">{t.chatFlow.botError}</p>}
             <button

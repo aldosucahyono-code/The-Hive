@@ -194,21 +194,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { wizardData, lang } = req.body as { wizardData: WizardPayload; lang?: "id" | "en" };
   const activeLang: "id" | "en" = lang === "en" ? "en" : "id";
 
-  // Audit red-team Juli 2026: endpoint paling mahal di antara ketiga endpoint
-  // anonim (max_tokens 3000 + email) — pengguna sah hanya perlu memanggil
-  // ini sekali (mungkin dua kali kalau retry), jadi 5x/jam per IP aman untuk
-  // pengalaman normal tapi menutup abuse-cost dari spam otomatis.
-  const ip = getClientIp(req);
-  const rl = await checkRateLimit(`generate-preview:${ip}`, 5, 3600);
-  if (!rl.allowed) {
-    return res.status(429).json({ error: activeLang === "en" ? RATE_LIMIT_MESSAGE_EN : RATE_LIMIT_MESSAGE_ID });
-  }
-
-  if (!wizardData?.namaBisnis || !wizardData?.tantangan || !wizardData?.target) {
-    return res.status(400).json({ error: "Data tidak lengkap." });
-  }
-
+  // Bugfix Juli 2026 (laporan PO: "submit gagal, muncul 'Terjadi kesalahan
+  // jaringan'" di production) — sebelumnya checkRateLimit() dan validasi
+  // input dipanggil DI LUAR try/catch. Kalau salah satu melempar exception
+  // tak terduga (mis. RPC Supabase gagal dengan cara yang tidak sekadar
+  // mengembalikan {error}, tapi benar-benar throw), Vercel mengembalikan
+  // halaman error HTML/generik (bukan JSON) — lalu `response.json()` di
+  // ChatWizard.tsx gagal parse, jatuh ke catch client dan salah ditampilkan
+  // sebagai "kesalahan jaringan" padahal sebenarnya request SAMPAI ke server.
+  // Sekarang seluruh handler dibungkus satu try/catch supaya SEMUA kegagalan
+  // selalu pulang sebagai JSON {error} yang valid, tidak pernah exception
+  // mentah. Tidak mengubah kontrak data (tetap {error: string} yang sama).
   try {
+    // Audit red-team Juli 2026: endpoint paling mahal di antara ketiga endpoint
+    // anonim (max_tokens 3000 + email) — pengguna sah hanya perlu memanggil
+    // ini sekali (mungkin dua kali kalau retry), jadi 5x/jam per IP aman untuk
+    // pengalaman normal tapi menutup abuse-cost dari spam otomatis.
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(`generate-preview:${ip}`, 5, 3600);
+    if (!rl.allowed) {
+      return res.status(429).json({ error: activeLang === "en" ? RATE_LIMIT_MESSAGE_EN : RATE_LIMIT_MESSAGE_ID });
+    }
+
+    if (!wizardData?.namaBisnis || !wizardData?.tantangan || !wizardData?.target) {
+      return res.status(400).json({ error: "Data tidak lengkap." });
+    }
+
     const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
       model: "claude-sonnet-5",

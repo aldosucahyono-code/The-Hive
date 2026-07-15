@@ -45,6 +45,48 @@ export type WizardData = {
   honeypot: string;
 };
 
+// Revisi UX Juli 2026 (review PO: "jangan ada jawaban user yang hilang"
+// saat back/refresh) — draft percakapan yang BELUM selesai disimpan ke
+// localStorage BROWSER (murni sisi klien, sama sekali TIDAK menyentuh
+// wizard_drafts di database maupun endpoint manapun). Kalau localStorage
+// tidak bisa dipakai (mode privat/kuota penuh), degradasi jujur: progres
+// tetap ada selama tab tidak ditutup (React state biasa), pengguna diberi
+// peringatan lewat draftSaveWarning supaya tahu untuk tidak me-refresh.
+const WIZARD_DRAFT_STORAGE_KEY = "hive_wizard_draft_inprogress";
+const WIZARD_DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 jam -- draft lebih lama dianggap basi, mulai dari nol lagi
+
+type SavedWizardDraft = { data: WizardData; step: number; startTime: number; savedAt: number };
+
+function loadSavedWizardDraft(): { data: WizardData; step: number; startTime: number } | null {
+  try {
+    const raw = window.localStorage.getItem(WIZARD_DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SavedWizardDraft> | null;
+    if (!parsed || typeof parsed !== "object" || !parsed.data) return null;
+    if (typeof parsed.savedAt !== "number" || Date.now() - parsed.savedAt > WIZARD_DRAFT_MAX_AGE_MS) return null;
+    // Hanya step 1 (percakapan) yang aman dipulihkan -- step 0 (belum pilih
+    // jenis analisa) tidak ada progres untuk disimpan, dan step 6/7
+    // bergantung pada hasil API sebelumnya yang sudah tidak relevan lagi.
+    const restoredStep = parsed.step === 1 && parsed.data.jenisAnalisis ? 1 : 0;
+    // startTime ASLI (bukan waktu mount ulang ini) dipulihkan juga --
+    // dipakai ChatFlow.tsx untuk deteksi bot ("submit < 5 detik sejak
+    // wizard dimulai"). Kalau tidak dipulihkan, submit tepat setelah resume
+    // draft bisa salah dianggap bot padahal wizard sudah dimulai sejak lama.
+    const restoredStartTime = typeof parsed.startTime === "number" ? parsed.startTime : Date.now();
+    return { data: { ...initialData, ...parsed.data }, step: restoredStep, startTime: restoredStartTime };
+  } catch {
+    return null;
+  }
+}
+
+function clearSavedWizardDraft() {
+  try {
+    window.localStorage.removeItem(WIZARD_DRAFT_STORAGE_KEY);
+  } catch {
+    // no-op -- localStorage memang tidak tersedia, tidak ada yang perlu dibersihkan
+  }
+}
+
 const initialData: WizardData = {
   jenisAnalisis: "",
   nama: "",
@@ -76,9 +118,16 @@ const initialData: WizardData = {
 function ChatWizard() {
   const { lang, t } = useLanguage();
   const { user, loading: authLoading } = useAuth();
-  const [step, setStep] = useState(0);
-  const [data, setData] = useState<WizardData>(initialData);
-  const [startTime] = useState(() => Date.now());
+  // Revisi UX Juli 2026 (review PO: jangan hilangkan jawaban user saat
+  // back/refresh) — dicoba dipulihkan SEKALI saat mount (lazy initializer),
+  // dari localStorage browser. Kalau tidak ada draft valid, mulai dari nol
+  // seperti biasa.
+  const [restoredDraft] = useState(() => loadSavedWizardDraft());
+  const [step, setStep] = useState(() => restoredDraft?.step ?? 0);
+  const [data, setData] = useState<WizardData>(() => restoredDraft?.data ?? initialData);
+  const [startTime] = useState(() => restoredDraft?.startTime ?? Date.now());
+  const [draftWasRestored] = useState(() => !!restoredDraft);
+  const [draftSaveFailed, setDraftSaveFailed] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
@@ -96,12 +145,32 @@ function ChatWizard() {
   }
 
   function restart() {
+    clearSavedWizardDraft();
     setData(initialData);
     setPreviewData(null);
     setPreviewError(null);
     setPreviewReady(false);
     setStep(0);
   }
+
+  // Revisi UX Juli 2026 (review PO: jangan hilangkan jawaban user) — simpan
+  // draft ke localStorage tiap kali `data` berubah, TAPI hanya selama masih
+  // di percakapan (step 1). Step 0 belum ada apapun untuk disimpan; step 6/7
+  // sudah diproses lewat generate-preview (server), draft klien tidak
+  // relevan lagi di titik itu.
+  useEffect(() => {
+    if (step !== 1) return;
+    try {
+      window.localStorage.setItem(
+        WIZARD_DRAFT_STORAGE_KEY,
+        JSON.stringify({ data, step, startTime, savedAt: Date.now() })
+      );
+      if (draftSaveFailed) setDraftSaveFailed(false);
+    } catch {
+      setDraftSaveFailed(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, step]);
 
   async function runPreviewAnalysis() {
     setPreviewReady(false);
@@ -121,12 +190,31 @@ function ChatWizard() {
         body: JSON.stringify({ wizardData: data, lang }),
         signal: controller.signal,
       });
-      const json = await response.json();
+
+      // Bugfix Juli 2026 (laporan PO: submit gagal, muncul "Terjadi
+      // kesalahan jaringan" padahal request sebenarnya sampai ke server) —
+      // sebelumnya response.json() dipanggil langsung di try yang sama
+      // dengan fetch(), jadi kalau server membalas body yang BUKAN JSON
+      // valid (mis. halaman error generik dari platform saat function
+      // crash sebelum sempat balas JSON), error parse itu jatuh ke catch
+      // paling luar dan SALAH dilabeli sebagai error jaringan (padahal
+      // request-nya sukses terkirim). Sekarang parse JSON dipisah supaya
+      // bisa dibedakan dengan jelas dari kegagalan fetch/koneksi asli.
+      let json: { preview?: PreviewData; error?: string } | null = null;
+      try {
+        json = await response.json();
+      } catch (parseErr) {
+        console.error("runPreviewAnalysis: respons server bukan JSON valid:", parseErr, "status:", response.status);
+        setPreviewError(t.chatWizard.previewErrorGeneric);
+        setPreviewData(null);
+        return;
+      }
+
       if (!response.ok) {
-        setPreviewError(json.error || t.chatWizard.previewErrorGeneric);
+        setPreviewError(json?.error || t.chatWizard.previewErrorGeneric);
         setPreviewData(null);
       } else {
-        setPreviewData(json.preview as PreviewData);
+        setPreviewData((json?.preview as PreviewData) ?? null);
       }
     } catch (err) {
       console.error("runPreviewAnalysis error:", err);
@@ -195,12 +283,23 @@ function ChatWizard() {
   // step === 1: seluruh percakapan
   return (
     <section className="mx-auto max-w-2xl px-6 py-10 sm:py-16">
+      {draftWasRestored && (
+        <p className="mb-3 text-center text-xs font-medium text-neutral-500">{t.chatWizard.draftRestoredNotice}</p>
+      )}
+      {draftSaveFailed && (
+        <p className="mb-3 text-center text-xs font-medium text-amber-600">{t.chatWizard.draftSaveWarning}</p>
+      )}
       <div className="rounded-3xl border border-neutral-200 bg-white p-4 sm:p-6">
         <ChatFlow
           data={data}
           updateField={updateField}
           startTime={startTime}
-          onSuccess={() => setStep(6)}
+          onSuccess={() => {
+            // Wizard selesai -- draft klien tidak relevan lagi (jawaban
+            // sudah dikirim ke generate-preview/wizard_drafts server-side).
+            clearSavedWizardDraft();
+            setStep(6);
+          }}
         />
       </div>
     </section>

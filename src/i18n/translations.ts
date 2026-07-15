@@ -63,6 +63,15 @@ const id = {
     previewErrorGeneric: "Gagal membuat preview.",
     previewErrorTimeout: "Analisis memakan waktu terlalu lama. Coba lagi.",
     previewErrorNetwork: "Terjadi kesalahan jaringan. Coba lagi.",
+    // Revisi UX Juli 2026 (review PO: "jangan ada jawaban user yang hilang"
+    // saat back/refresh) — draft percakapan disimpan otomatis ke
+    // localStorage browser (murni sisi klien, tidak menyentuh wizard_drafts
+    // di database). draftRestoredNotice tampil sekali begitu progres lama
+    // berhasil dipulihkan; draftSaveWarning tampil kalau localStorage
+    // ternyata tidak bisa dipakai (mis. mode privat/penyimpanan penuh),
+    // supaya pengguna tahu untuk tidak me-refresh sebelum selesai.
+    draftRestoredNotice: "↩️ Melanjutkan wizard yang belum selesai sebelumnya.",
+    draftSaveWarning: "⚠️ Progres wizard tidak bisa disimpan otomatis di perangkat ini — hindari me-refresh sebelum selesai.",
   },
 
   stepOne: {
@@ -177,12 +186,23 @@ const id = {
   },
 
   loadingAI: {
-    title: "Beemo sedang menganalisis bisnis Anda",
-    steps: [
-      "Menganalisis kondisi bisnis...",
-      "Membandingkan dengan kompetitor...",
-      "Mencari peluang pasar...",
-      "Menyusun rekomendasi strategi...",
+    // Revisi UX Juli 2026 (review PO: loading jangan cuma "Loading...", tampil
+    // sebagai checklist yang terasa hidup — lihat rendering baru di
+    // LoadingAI.tsx). Sengaja ditulis sebagai FRASA SELESAI ("... dikenali",
+    // bukan "sedang menganalisis...") supaya pas dicentang ✓ terasa seperti
+    // pencapaian, bukan aktivitas yang belum tentu kelar.
+    title: "Sedang memahami model bisnismu...",
+    steps: ["Profil usaha dikenali", "Tantangan & target dipahami", "Kompetitor & peluang pasar diperiksa"],
+    // Polishing pass (review kedua, poin 6): begitu checklist di atas
+    // selesai tapi hasil API masih belum datang (mis. analisa Claude
+    // memang butuh beberapa detik lebih), baris terakhir ini berputar
+    // (setiap ~1.8 detik) supaya terasa "masih bekerja", bukan macet diam.
+    // Murni timer, tidak mencerminkan progres asli tahap-per-tahap.
+    workingSteps: [
+      "Menyusun analisa awal...",
+      "Menyusun rekomendasi pemasaran...",
+      "Menyusun SWOT...",
+      "Menyiapkan laporan...",
     ],
   },
 
@@ -488,9 +508,9 @@ const id = {
 
   chatFlow: {
     greeting:
-      "👋 Halo! Saya Beemo AI dari THE HIVE. Siap membantu kamu memahami bisnis, menganalisis kompetitor, dan menemukan peluang terbaik.\n\nSebelum mulai, boleh kenalan dulu? Siapa nama kamu?",
+      "👋 Halo! Saya Beemo AI dari THE HIVE. Siap membantu kamu memahami bisnis, menganalisis kompetitor, dan menemukan peluang terbaik.\n\nAku akan jadi konsultan bisnismu — semakin lengkap cerita yang kamu kasih nanti, semakin akurat analisaku. 😊\n\nSebelum mulai, boleh kenalan dulu? Siapa nama kamu?",
     askEmail: "Senang kenalan denganmu, {nama}! 😊 Boleh minta emailmu? Pastikan diisi dengan benar ya — email ini yang nanti dipakai untuk mengaktifkan Workspace dan mengakses hasil analisismu.",
-    askNoHp: "Terima kasih! Boleh minta juga nomor HP/WhatsApp kamu? Ini nanti dipakai untuk mengirim notifikasi penting soal bisnismu.",
+    askNoHp: "Sip! Boleh minta juga nomor HP/WhatsApp kamu? Ini nanti dipakai untuk mengirim notifikasi penting soal bisnismu.",
     emailRecognizedMessage: "Sepertinya kamu sudah pernah gabung dengan email ini! Mau langsung masuk ke Workspace yang sudah ada, atau lanjutkan analisis baru?",
     emailRecognizedSendButton: "Kirim Kode Masuk ke Workspace",
     emailRecognizedSending: "Mengirim...",
@@ -505,13 +525,13 @@ const id = {
     emailRecognizedCodeVerifyingButton: "Memverifikasi...",
     emailRecognizedCodeInvalidError: "Kode salah atau sudah kedaluwarsa. Klik \"Kirim Ulang\" untuk minta yang baru.",
     emailRecognizedResendButton: "Kirim Ulang",
-    askProfesi: "Baik. Sekarang, kamu berperan sebagai apa di bisnis ini? (misalnya Founder, Owner, Manager)",
-    askNamaBisnis: "Terima kasih, {profesi} — apa nama bisnis atau brand kamu?",
-    askJenisBisnis: "{namaBisnis}, nama yang menarik. Bisnis ini bergerak di bidang apa? (misalnya Coffee Shop, Retail, Jasa Konsultasi)",
+    askProfesi: "Oke. Sekarang, kamu berperan sebagai apa di bisnis ini? (misalnya Founder, Owner, Manager)",
+    askNamaBisnis: "Sip, {profesi} — apa nama bisnis atau brand kamu?",
+    askJenisBisnis: "{namaBisnis}, nama yang menarik 😊 Bisnis ini bergerak di bidang apa? (misalnya Coffee Shop, Retail, Jasa Konsultasi)",
     askProdukJasa: "Lebih spesifiknya, produk atau jasa utama apa yang kamu jual? (misalnya \"{contoh1}\" atau \"{contoh2}\")",
-    askLokasiNew: "Baik. Sekarang soal lokasi — di mana rencana lokasi bisnis kamu?",
-    askLokasiRunning: "Baik. Sekarang soal lokasi — di mana lokasi bisnis kamu sekarang?",
-    askTargetPelanggan: "Siapa target pelanggan utama yang kamu bidik?",
+    askLokasiNew: "Sip 👍 Sekarang soal lokasi — kalau {namaBisnis} nanti buka, rencananya di mana?",
+    askLokasiRunning: "Sip 👍 Sekarang soal lokasi — {namaBisnis} sekarang lokasinya di mana?",
+    askTargetPelanggan: "Aku ingin memahami siapa pelangganmu — biasanya siapa yang paling sering membeli produk/jasamu?",
     askRencanaLaunching: "Kira-kira kapan rencana launching-nya? Perkiraan saja tidak apa-apa.",
     askSejakKapan: "Sejak kapan bisnis ini mulai berjalan?",
     askModalAwal: "Berapa estimasi modal awal yang kamu siapkan?",
@@ -522,17 +542,45 @@ const id = {
       "Soal legalitas usaha kamu sekarang, izinnya sudah lengkap atau masih ada kendala tertentu?",
     dynamicFallbackGenericQuestion2:
       "Ada hal lain yang menurut kamu penting saya tahu soal kondisi bisnis ini sebelum saya analisis?",
-    askTantanganNew: "Sekarang bagian penting — apa tantangan terbesar yang kamu hadapi dalam merintis {namaBisnis}?",
-    askTantanganRunning: "Sekarang bagian penting — apa tantangan terbesar {namaBisnis} saat ini?",
+    askTantanganNew: "Dari semua yang kamu rasakan dalam merintis {namaBisnis} sejauh ini, apa yang paling bikin kamu pusing?",
+    askTantanganRunning: "Dari semua yang kamu jalani di {namaBisnis} sekarang, apa yang paling bikin kamu pusing menjalankannya?",
     askTarget: "Dimengerti. Apa target atau harapan besar kamu untuk bisnis ini dalam 6-12 bulan ke depan?",
     askCeritaVisi:
-      "Terakhir, {nama} — boleh cerita lebih personal? Ceritakan kondisi kamu saat ini, impian terbesar yang ingin dicapai, dan bagaimana kamu memandang bisnis ini. Dari cerita kamu, saya akan bantu susun strategi yang paling sesuai.",
+      "Terakhir, {nama} — sebelum aku mulai menganalisa {namaBisnis}, boleh cerita lebih personal? Ceritakan kondisi kamu saat ini, impian terbesar yang ingin dicapai, dan bagaimana kamu memandang bisnis ini.",
     summaryIntro: "Terima kasih banyak, {nama}. 🙏 Ceritamu sangat membantu. Ini ringkasan yang saya tangkap — cek dulu sebelum saya mulai analisis:",
     phaseKenal: "Mengenal Bisnis",
     phaseKondisi: "Memahami Kondisi",
     phaseTarget: "Menentukan Target",
     phaseStrategi: "Menyusun Strategi",
     phaseSelesai: "Menyelesaikan Analisis",
+    // Revisi UX Juli 2026 (review PO Phase 1, poin 3): label "Tahap X dari Y"
+    // di atas nama tahap + persen, dan label kecil untuk checklist "Data
+    // yang sudah kukenal" di bawah progress bar.
+    stageLabel: "Tahap {current} dari {total}",
+    knownDataLabel: "Data yang sudah kukenal:",
+    // Revisi UX Juli 2026 (arahan PO "Evaluasi Flow & UX THE HIVE" — Phase 1
+    // Chat Wizard Experience): pesan transisi singkat yang tampil TEPAT
+    // SEBELUM pertanyaan pertama di tahap baru, supaya wizard terasa seperti
+    // Beemo "berhenti sejenak dan merespons" alih-alih 15 pertanyaan
+    // beruntun. TIDAK mengubah jumlah/field pertanyaan, hanya narasi
+    // tambahan di antaranya (lihat transitionBefore di ChatFlow.tsx).
+    // Revisi UX Juli 2026 (polishing pass, review PO poin 4: "bubble AI
+    // terlalu panjang, jangan 3 paragraf") — dipersingkat jadi maksimal 2
+    // baris pendek, langsung ke pertanyaan berikutnya, bukan menjelaskan
+    // panjang lebar dulu.
+    transitionToKondisi: "Sip, dicatat 👍 Ini nanti membantu aku cari kompetitor yang relevan.\nSekarang aku mau tahu lokasi bisnismu.",
+    transitionToTarget: "Oke, gambaran bisnismu mulai jelas.\nSekarang cerita dong soal tantangan & targetmu.",
+    transitionToStrategi: "Hampir selesai! 🙌 Satu pertanyaan lagi, agak panjang tapi penting buat {namaBisnis}.",
+    estimatedTimeRemaining: "~{menit} menit lagi",
+    // Revisi UX Juli 2026 (review PO: "Reflection" — sebelum Loading, Beemo
+    // merangkum poin-poin kunci yang sudah diceritakan pengguna, murni baca
+    // ulang field yang sudah diisi, TIDAK ada panggilan AI baru sama sekali.
+    // Polishing pass (review kedua, poin 3 & 7): ditampilkan sebagai daftar
+    // label:nilai ("✅ Nama usaha: Kopi Susu Cak Do"), bukan kalimat naratif
+    // — reuse label yang SUDAH ADA (namaBisnisLabel, dst di ChatFlow.tsx),
+    // jadi tidak perlu template kalimat terpisah lagi di sini.
+    reflectionIntro: "Terima kasih. Yang aku pahami sejauh ini:",
+    reflectionClosing: "Sekarang, izinkan aku menganalisa semuanya untukmu. 🙏",
     progressLabel: "Pertanyaan {current} dari {total}",
     editLabel: "Edit",
     sendPlaceholder: "Ketik jawabanmu di sini...",
@@ -1602,6 +1650,8 @@ const en: Translations = {
     previewErrorGeneric: "Failed to generate preview.",
     previewErrorTimeout: "Analysis took too long. Please try again.",
     previewErrorNetwork: "A network error occurred. Please try again.",
+    draftRestoredNotice: "↩️ Continuing your unfinished wizard session.",
+    draftSaveWarning: "⚠️ Wizard progress can't be auto-saved on this device — avoid refreshing before you're done.",
   },
 
   stepOne: {
@@ -1716,12 +1766,13 @@ const en: Translations = {
   },
 
   loadingAI: {
-    title: "Beemo is analyzing your business",
-    steps: [
-      "Analyzing business condition...",
-      "Comparing with competitors...",
-      "Finding market opportunities...",
-      "Building strategy recommendations...",
+    title: "Understanding your business model...",
+    steps: ["Business profile recognized", "Challenges & goals understood", "Competitors & market opportunities checked"],
+    workingSteps: [
+      "Building the initial analysis...",
+      "Drafting marketing recommendations...",
+      "Working through the SWOT...",
+      "Preparing the report...",
     ],
   },
 
@@ -1999,9 +2050,9 @@ const en: Translations = {
 
   chatFlow: {
     greeting:
-      "👋 Hi! I'm Beemo AI from THE HIVE. Ready to help you understand your business, analyze competitors, and find the best opportunities.\n\nBefore we start, let's get acquainted — what's your name?",
+      "👋 Hi! I'm Beemo AI from THE HIVE. Ready to help you understand your business, analyze competitors, and find the best opportunities.\n\nI'll be your business consultant — the more complete the story you share, the more accurate my analysis will be. 😊\n\nBefore we start, let's get acquainted — what's your name?",
     askEmail: "Nice to meet you, {nama}! 😊 Could I get your email? Please make sure it's correct — you'll use it to activate your Workspace and access your analysis results.",
-    askNoHp: "Thanks! Could I also get your phone/WhatsApp number? We'll use it to send important notifications about your business.",
+    askNoHp: "Cool! Could I also get your phone/WhatsApp number? We'll use it to send important notifications about your business.",
     emailRecognizedMessage: "Looks like you've joined before with this email! Want to go straight to your existing Workspace, or continue with a new analysis?",
     emailRecognizedSendButton: "Send Sign-In Code to Workspace",
     emailRecognizedSending: "Sending...",
@@ -2013,13 +2064,13 @@ const en: Translations = {
     emailRecognizedCodeVerifyingButton: "Verifying...",
     emailRecognizedCodeInvalidError: "Wrong or expired code. Click \"Resend\" to get a new one.",
     emailRecognizedResendButton: "Resend",
-    askProfesi: "Good. Now, what's your role in this business? (e.g. Founder, Owner, Manager)",
-    askNamaBisnis: "Thank you, {profesi} — what's the name of your business or brand?",
-    askJenisBisnis: "{namaBisnis}, a fitting name. What industry is this business in? (e.g. Coffee Shop, Retail, Consulting)",
+    askProfesi: "Okay. Now, what's your role in this business? (e.g. Founder, Owner, Manager)",
+    askNamaBisnis: "Cool, {profesi} — what's the name of your business or brand?",
+    askJenisBisnis: "{namaBisnis}, a fitting name 😊 What industry is this business in? (e.g. Coffee Shop, Retail, Consulting)",
     askProdukJasa: "More specifically, what's the main product or service you sell? (e.g. \"{contoh1}\" or \"{contoh2}\")",
-    askLokasiNew: "Good. Now about location — where's your business planned to be located?",
-    askLokasiRunning: "Good. Now about location — where is your business located right now?",
-    askTargetPelanggan: "Who's your main target customer?",
+    askLokasiNew: "Nice 👍 Now about location — where's {namaBisnis} planned to be located?",
+    askLokasiRunning: "Nice 👍 Now about location — where is {namaBisnis} located right now?",
+    askTargetPelanggan: "I want to understand who your customers are — who usually buys your product/service the most?",
     askRencanaLaunching: "When are you planning to launch? An estimate is fine.",
     askSejakKapan: "Since when has this business been running?",
     askModalAwal: "What's your estimated starting capital?",
@@ -2030,17 +2081,26 @@ const en: Translations = {
       "How's it going with your business permits right now — all sorted, or still some obstacles?",
     dynamicFallbackGenericQuestion2:
       "Anything else you think I should know about this business's situation before I dive into the analysis?",
-    askTantanganNew: "Now for the important part — what's the biggest challenge you're facing in starting {namaBisnis}?",
-    askTantanganRunning: "Now for the important part — what's the biggest challenge {namaBisnis} is facing right now?",
+    askTantanganNew: "Out of everything you've experienced starting {namaBisnis} so far, what's been giving you the biggest headache?",
+    askTantanganRunning: "Out of everything going on at {namaBisnis} right now, what's been giving you the biggest headache running it?",
     askTarget: "Understood. What's your biggest target or hope for this business in the next 6-12 months?",
     askCeritaVisi:
-      "Last one, {nama} — mind sharing something more personal? Tell me about your current situation, the biggest dream you want to achieve, and how you see business. From your story, I'll help craft the strategy that fits you best.",
+      "Last one, {nama} — before I start analyzing {namaBisnis}, mind sharing something more personal? Tell me about your current situation, the biggest dream you want to achieve, and how you see this business.",
     summaryIntro: "Thank you very much, {nama}. 🙏 Your story really helps. Here's what I've gathered — please review it before I start the analysis:",
     phaseKenal: "Getting to Know Your Business",
     phaseKondisi: "Understanding the Situation",
     phaseTarget: "Defining the Target",
     phaseStrategi: "Building the Strategy",
     phaseSelesai: "Finishing the Analysis",
+    stageLabel: "Stage {current} of {total}",
+    knownDataLabel: "What I've learned so far:",
+    // UX revision July 2026 (mirrors ID block above — see comment there).
+    transitionToKondisi: "Got it, noted 👍 This'll help me find competitors that are actually relevant.\nNow I'd like to know your business's location.",
+    transitionToTarget: "Okay, your business is starting to come into focus.\nNow tell me about your challenges & goals.",
+    transitionToStrategi: "Almost done! 🙌 One more question — a bit longer, but important for {namaBisnis}.",
+    estimatedTimeRemaining: "~{minutes} min left",
+    reflectionIntro: "Thank you. Here's what I've learned so far:",
+    reflectionClosing: "Now, let me analyze all of this for you. 🙏",
     progressLabel: "Question {current} of {total}",
     editLabel: "Edit",
     sendPlaceholder: "Type your answer here...",
