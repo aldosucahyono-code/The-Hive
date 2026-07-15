@@ -94,6 +94,32 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Audit Juli 2026 (bug nyata dilaporkan pemilik produk: klik link login
+  // di email -> "belum Login" di HP, landing page tanpa penjelasan di
+  // laptop). Supabase mengembalikan #error=access_denied&error_code=
+  // otp_expired&error_description=... kalau token magic link SUDAH
+  // dipakai/kedaluwarsa SEBELUM pengguna benar-benar mengklik secara
+  // manual -- penyebab paling umum: pemindai keamanan email (Gmail/
+  // Outlook Safe Links dsb) "mengunjungi" link itu duluan di server
+  // mereka untuk pemindaian, menghabiskan token sekali-pakainya. Hash ini
+  // TIDAK cocok rute manapun (bukan "workspace"/dst) dan sebelumnya jatuh
+  // diam-diam ke landing page biasa tanpa penjelasan apapun -- sekarang
+  // dideteksi eksplisit lewat "error_code=" dan diteruskan ke Navbar
+  // supaya AuthModal otomatis terbuka dengan pesan jelas + tombol kirim
+  // ulang (lihat Navbar.tsx/AuthModal.tsx).
+  const hasAuthErrorHash = rawHashRaw.includes("error_code=");
+
+  useEffect(() => {
+    if (!hasAuthErrorHash) return;
+    // Bersihkan hash error dari URL (query string ?rid=... SENGAJA
+    // dipertahankan -- kalau pengguna minta link baru dari modal yang baru
+    // saja otomatis terbuka, alur relai lintas-perangkat yang sama tetap
+    // bisa dipakai) supaya tidak bisa di-refresh/bookmark dengan hash
+    // mentah berisi pesan error Supabase.
+    window.history.replaceState({}, "", window.location.pathname + window.location.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const animateHero = rawHash === "";
 
   useEffect(() => {
@@ -184,7 +210,7 @@ function App() {
   if (unsubscribeToken) {
     return (
       <>
-        <Navbar />
+        <Navbar authError={hasAuthErrorHash} />
         <NurtureUnsubscribePage token={unsubscribeToken} />
         <Footer />
       </>
@@ -196,7 +222,7 @@ function App() {
   if (rawHash === "privasi" || rawHash === "syarat" || rawHash === "refund") {
     return (
       <>
-        <Navbar />
+        <Navbar authError={hasAuthErrorHash} />
         <LegalPage type={rawHash as "privasi" | "syarat" | "refund"} />
         <Footer />
       </>
@@ -206,7 +232,7 @@ function App() {
   if (rawHash === "ulasan-internal") {
     return (
       <>
-        <Navbar />
+        <Navbar authError={hasAuthErrorHash} />
         <FeedbackPage />
         <Footer />
       </>
@@ -220,7 +246,7 @@ function App() {
   if (rawHash === "kontak") {
     return (
       <>
-        <Navbar />
+        <Navbar authError={hasAuthErrorHash} />
         <ContactPage />
         <Footer />
       </>
@@ -238,7 +264,7 @@ function App() {
   if (window.location.pathname === `/${ADMIN_SECRET_PATH}`) {
     return (
       <>
-        <Navbar />
+        <Navbar authError={hasAuthErrorHash} />
         <AdminPage />
         <Footer />
       </>
@@ -248,7 +274,7 @@ function App() {
   if (rawHash === "referensi") {
     return (
       <>
-        <Navbar />
+        <Navbar authError={hasAuthErrorHash} />
         <ReferralPage />
         <Footer />
       </>
@@ -258,7 +284,7 @@ function App() {
   if (rawHash === "tentang-kami") {
     return (
       <>
-        <Navbar />
+        <Navbar authError={hasAuthErrorHash} />
         <TentangKami />
         <Footer />
       </>
@@ -274,7 +300,7 @@ function App() {
     // body tetap terbaca (body sendiri sekarang defaultnya terang).
     return (
       <div className="theme-dark">
-        <Navbar variant="dark" />
+        <Navbar variant="dark" authError={hasAuthErrorHash} />
         <Workspace />
         <Footer variant="dark" />
       </div>
@@ -291,7 +317,7 @@ function App() {
   if (rawHash === "mulai") {
     return (
       <>
-        <Navbar />
+        <Navbar authError={hasAuthErrorHash} />
         <ChatWizard />
         <Footer />
       </>
@@ -301,7 +327,7 @@ function App() {
   if (rawHash === "bayar-pro" || rawHash === "bayar-platinum") {
     return (
       <>
-        <Navbar />
+        <Navbar authError={hasAuthErrorHash} />
         <PaymentPage plan={rawHash === "bayar-pro" ? "pro" : "platinum"} />
         <Footer />
       </>
@@ -320,7 +346,7 @@ function App() {
   if (!start) {
     return (
       <div className="bg-white text-neutral-900">
-        <Navbar variant="light" />
+        <Navbar variant="light" authError={hasAuthErrorHash} />
         <Hero onStart={() => setStart(true)} animate={animateHero} />
         <Features animate={animateHero} />
         <HowItWorks animate={animateHero} />
@@ -333,7 +359,7 @@ function App() {
 
   return (
     <>
-      <Navbar />
+      <Navbar authError={hasAuthErrorHash} />
       <ChatWizard />
       <Footer />
     </>

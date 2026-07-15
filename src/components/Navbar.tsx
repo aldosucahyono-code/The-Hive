@@ -19,13 +19,21 @@ type NavbarProps = {
   // semua rute lain (homepage, ChatWizard, halaman legal/tentang-kami/
   // pembayaran/dst) otomatis terang tanpa perlu diset satu-satu.
   variant?: "dark" | "light";
+  // Audit Juli 2026 (bug nyata: klik magic link di email tapi tetap
+  // "belum Login" / landing page tanpa penjelasan): App.tsx mendeteksi
+  // redirect error dari Supabase (#error=access_denied&error_code=
+  // otp_expired, biasanya karena email client memindai link duluan dan
+  // menghabiskan token sekali-pakainya) dan meneruskan sinyal ini --
+  // modal login otomatis terbuka dengan pesan jelas alih-alih pengguna
+  // mendarat diam-diam tanpa penjelasan apapun.
+  authError?: boolean;
 };
 
-function Navbar({ variant = "light" }: NavbarProps) {
+function Navbar({ variant = "light", authError = false }: NavbarProps) {
   const currentHash = window.location.hash.replace("#", "");
   const { lang, toggleLang, t } = useLanguage();
   const { user } = useAuth();
-  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(authError);
   const isLight = variant === "light";
 
   // Audit Juli 2026 ("verifikasi magic link lintas perangkat" -- lihat
@@ -178,7 +186,7 @@ function Navbar({ variant = "light" }: NavbarProps) {
         </nav>
       </div>
 
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} initialError={authError} />}
     </header>
   );
 }

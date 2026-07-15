@@ -34,6 +34,7 @@ const id = {
     // lihat migrations/2026-07-14_login_relay.sql untuk alur lengkapnya.
     crossDeviceWaitingLabel: "Buka link di email itu dari perangkat manapun (HP, laptop lain, dsb) — begitu diklik, kamu otomatis masuk di sini.",
     crossDeviceExpiredLabel: "Link ini sudah kedaluwarsa atau belum juga diklik. Klik \"Kirim Ulang Link\" untuk minta yang baru.",
+    expiredLinkError: "Link login itu sudah kedaluwarsa atau sudah pernah dipakai (sering terjadi kalau aplikasi email kamu memindai link itu duluan). Masukkan emailmu lagi untuk minta link baru.",
   },
 
   chooseAnalysisType: {
@@ -1537,6 +1538,7 @@ const en: Translations = {
     sendButton: "Send Activation Link",
     crossDeviceWaitingLabel: "Open that email link from any device (phone, another laptop, etc.) — once clicked, you'll be signed in here automatically.",
     crossDeviceExpiredLabel: "This link has expired or hasn't been clicked yet. Click \"Resend Link\" to get a new one.",
+    expiredLinkError: "That sign-in link has expired or was already used (this often happens if your email app scans the link first). Enter your email again to get a new one.",
   },
 
   chooseAnalysisType: {

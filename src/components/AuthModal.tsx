@@ -10,6 +10,12 @@ interface AuthModalProps {
   // saat mengisi wizard, yang sebelumnya menyebabkan bisnisnya "salah
   // nempel" ke akun lain (lihat guard emailMismatch di promoteDraft.ts).
   defaultEmail?: string
+  // Audit Juli 2026 (bug nyata: klik magic link tapi tetap "belum Login" /
+  // landing page tanpa penjelasan -- lihat App.tsx untuk deteksi lengkap
+  // #error=access_denied&error_code=otp_expired dari Supabase). Kalau true,
+  // modal ini langsung tampil dengan pesan error jelas + form kirim ulang,
+  // bukan form kosong seperti biasa.
+  initialError?: boolean
 }
 
 type ModalState = 'idle' | 'sending' | 'sent' | 'error'
@@ -67,12 +73,12 @@ function friendlyAuthError(rawMessage: string, lang: 'id' | 'en'): string {
   return rawMessage
 }
 
-export default function AuthModal({ onClose, defaultEmail }: AuthModalProps) {
+export default function AuthModal({ onClose, defaultEmail, initialError }: AuthModalProps) {
   const { signInWithMagicLink, waitForCrossDeviceLogin } = useAuth()
   const { t, lang } = useLanguage()
   const [email, setEmail] = useState(defaultEmail || '')
-  const [state, setState] = useState<ModalState>('idle')
-  const [errorMsg, setErrorMsg] = useState('')
+  const [state, setState] = useState<ModalState>(initialError ? 'error' : 'idle')
+  const [errorMsg, setErrorMsg] = useState(initialError ? t.authModal.expiredLinkError : '')
   const [cooldown, setCooldown] = useState(0)
   const [relayState, setRelayState] = useState<RelayUiState>('idle')
   const cooldownIntervalRef = useRef<number | null>(null)
