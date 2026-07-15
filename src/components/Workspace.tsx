@@ -4184,6 +4184,18 @@ function Workspace() {
   const [scoreHistory, setScoreHistory] = useState<Array<{ date: string; score: number | null }>>([]);
   const [newlyUnlocked, setNewlyUnlocked] = useState<Array<Record<string, unknown>>>([]);
   const [dataLoading, setDataLoading] = useState(true);
+  // Bugfix Juli 2026 (laporan nyata pengguna: video menunjukkan Workspace
+  // dan wizard "#mulai" bergantian berulang-ulang setelah OTP berhasil --
+  // ternyata SEBELUM ini, kalau query business_profiles gagal (gangguan
+  // jaringan/Supabase sesaat, BUKAN akun yang benar-benar kosong),
+  // dataLoading tetap diset false dengan `businesses` tetap [] -- kondisi
+  // itu 100% SAMA dengan "akun baru belum punya bisnis", jadi NoBusinessYet
+  // auto-redirect ke #mulai walau bisnisnya sebenarnya ADA. State terpisah
+  // ini membedakan "genuinely kosong" dari "gagal dimuat", supaya
+  // pengguna lama TIDAK PERNAH diarahkan ke wizard hanya karena satu query
+  // gagal -- ditampilkan pesan jelas + tombol coba lagi.
+  const [businessesLoadError, setBusinessesLoadError] = useState(false);
+  const [businessesReloadTick, setBusinessesReloadTick] = useState(0);
   const [businessDataLoading, setBusinessDataLoading] = useState(true);
   // Audit Juli 2026 (directive PO: "user ketika login lagi, sebelum alamat
   // workspace, wajib diberi keterangan untuk hapus salah satu bisninsya,
@@ -4251,6 +4263,7 @@ function Workspace() {
 
     async function loadBusinesses() {
       setDataLoading(true);
+      setBusinessesLoadError(false);
 
       const [profilesRes, prefsRes, deletedCountRes] = await Promise.all([
         supabase
@@ -4274,6 +4287,13 @@ function Workspace() {
 
       if (profilesRes.error) {
         console.error("Gagal memuat business_profiles:", profilesRes.error);
+        // JANGAN biarkan `businesses` diam-diam tetap [] di sini -- kalau
+        // begitu, blok render di bawah (!dataLoading && businesses.length
+        // === 0) akan salah mengira akun ini "belum pernah punya bisnis"
+        // dan auto-redirect ke wizard #mulai lewat NoBusinessYet, PADAHAL
+        // bisnisnya ada, cuma query ini yang gagal sesaat. Tandai sebagai
+        // error eksplisit supaya UI menampilkan pesan + tombol coba lagi.
+        setBusinessesLoadError(true);
         setDataLoading(false);
         return;
       }
@@ -4310,7 +4330,12 @@ function Workspace() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+    // businessesReloadTick sengaja ditambah ke dependency HANYA supaya
+    // tombol "Coba Lagi" (lihat render businessesLoadError di bawah) bisa
+    // memicu ulang fetch ini -- nilainya sendiri tidak pernah dibaca di
+    // dalam effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, businessesReloadTick]);
 
   // Gate wajib begitu login (lihat overLimitBlocked di atas) — dicek SEKALI
   // begitu daftar bisnis selesai dimuat, terpisah dari pengecekan cap di
@@ -5374,6 +5399,25 @@ function Workspace() {
   async function handleSignOut() {
     await signOut();
     hardNavigate("");
+  }
+
+  // HARUS dicek SEBELUM blok NoBusinessYet di bawah -- lihat catatan di
+  // definisi businessesLoadError di atas (bugfix Juli 2026, laporan video
+  // pengguna nyata). Query gagal sesaat TIDAK BOLEH diperlakukan sama
+  // seperti "akun ini memang belum punya bisnis".
+  if (!dataLoading && businessesLoadError) {
+    return (
+      <section className="mx-auto max-w-lg px-6 py-20 text-center">
+        <h1 className="text-2xl font-extrabold">{t.workspace.loadErrorTitle}</h1>
+        <p className="mt-3 text-sm text-neutral-400">{t.workspace.loadErrorDesc}</p>
+        <button
+          onClick={() => setBusinessesReloadTick((n) => n + 1)}
+          className="mt-6 rounded-full bg-primary px-6 py-3 text-sm font-bold text-black hover:opacity-90"
+        >
+          {t.workspace.loadErrorRetryButton}
+        </button>
+      </section>
+    );
   }
 
   if (!dataLoading && businesses.length === 0) {
