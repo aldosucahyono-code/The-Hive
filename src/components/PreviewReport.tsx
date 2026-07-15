@@ -52,6 +52,22 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
   // (lihat goToPayment di bawah / PaymentPage.tsx), supaya tidak membuat
   // business_profile permanen untuk orang yang cuma coba-coba gratis.
   const [autoSavedBusinessId, setAutoSavedBusinessId] = useState<string | null>(null);
+  // BUGFIX Juli 2026 (audit end-to-end: "Unlock PLATINUM sesaat setelah
+  // draft auto-save sukses -> gagal dengan 'Slot usaha di akunmu sudah
+  // penuh'"). Root cause: goToPayment() di bawah SELALU memanggil
+  // /api/save-submission lagi untuk membuat wizard_draft BARU (draftId
+  // baru, status "pending"), padahal draft yang SAMA sudah lebih dulu
+  // dipromosikan jadi business_profile oleh effect autoPromote di atas
+  // (kalau user kebetulan sudah login saat preview gratis ini muncul).
+  // promoteDraft() di backend memang idempotent KALAU diberi draftId yang
+  // SAMA (early-return business_profile yang sudah ada) -- tapi draft yang
+  // baru dibuat di goToPayment tidak "tahu" itu, jadi lolos ke pengecekan
+  // checkBusinessCap dan dihitung sebagai usaha ke-3 (padahal cuma re-promosi
+  // usaha yang sama), sehingga salah ditolak walau akun belum benar-benar
+  // penuh. Simpan draftId yang sudah berhasil dipromosikan di sini supaya
+  // goToPayment bisa memakai ulang draftId yang SAMA (bukan bikin baru)
+  // ketika auto-save sudah lebih dulu berhasil.
+  const [autoSavedDraftId, setAutoSavedDraftId] = useState<string | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
   // Batas jumlah usaha per akun (services/business/checkBusinessCap.ts) —
   // kalau user sudah di batas, auto-promote tidak membuat business_profile
@@ -105,6 +121,10 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
         const promoteJson = await promoteRes.json();
         if (!cancelled && promoteRes.ok && promoteJson.businessProfileId) {
           setAutoSavedBusinessId(promoteJson.businessProfileId);
+          // Simpan draftId yang barusan sukses dipromosikan (lihat komentar
+          // di deklarasi autoSavedDraftId) supaya goToPayment tidak membuat
+          // draft baru yang tidak perlu kalau user lanjut ke checkout.
+          setAutoSavedDraftId(saveJson.id);
         } else if (!cancelled && promoteJson.capExceeded) {
           setAutoSaveCapped(true);
         } else if (!cancelled && promoteJson.emailMismatch) {
@@ -148,23 +168,34 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
     // pembayaran. save-submission tidak butuh token sama sekali (memang
     // dirancang bisa dipanggil tanpa login).
     let draftId: string | null = null;
-    try {
-      const response = await fetch("/api/save-submission", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wizardData: data, preview, lang }),
-      });
-      const json = await response.json();
-      if (response.ok) {
-        draftId = json.id;
-      } else {
-        console.error("save-submission gagal:", json.error);
+    // BUGFIX Juli 2026 (lihat komentar di autoSavedDraftId): kalau draft ini
+    // SUDAH berhasil auto-save + dipromosikan jadi business_profile (user
+    // kebetulan sudah login saat preview gratis ini tampil), pakai ULANG
+    // draftId yang sama itu -- JANGAN bikin wizard_draft baru. Draft baru
+    // akan dianggap "usaha ke-3" oleh checkBusinessCap padahal cuma
+    // re-promosi usaha yang sama, sehingga salah ditolak dengan "Slot usaha
+    // sudah penuh" walau akun belum benar-benar di batas.
+    if (autoSavedDraftId) {
+      draftId = autoSavedDraftId;
+    } else {
+      try {
+        const response = await fetch("/api/save-submission", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ wizardData: data, preview, lang }),
+        });
+        const json = await response.json();
+        if (response.ok) {
+          draftId = json.id;
+        } else {
+          console.error("save-submission gagal:", json.error);
+        }
+      } catch (err) {
+        console.error("save-submission error:", err);
+        // Tidak menghalangi user lanjut ke pembayaran walau gagal simpan —
+        // draftId akan null, PaymentPage akan minta user isi ulang data
+        // secara manual (kurang ideal, tapi tidak fatal).
       }
-    } catch (err) {
-      console.error("save-submission error:", err);
-      // Tidak menghalangi user lanjut ke pembayaran walau gagal simpan —
-      // draftId akan null, PaymentPage akan minta user isi ulang data
-      // secara manual (kurang ideal, tapi tidak fatal).
     }
 
     try {
