@@ -148,8 +148,12 @@ function frozenPrompt(q: Question, data: WizardData): string {
 /** Pasangan frozenPrompt() untuk teks transitionBefore di riwayat -- HANYA
  * produkJasa yang transitionBefore-nya dinamis (reaksi industri AI-generated,
  * lihat dynamicIndustryReaction), field lain statis/template biasa jadi aman
- * dipanggil ulang. Bugfix sama dengan frozenPrompt() di atas. */
-function frozenTransitionText(q: Question, data: WizardData): string | undefined {
+ * dipanggil ulang. Bugfix sama dengan frozenPrompt() di atas.
+ * Bugfix build (nama sempat bentrok dengan state frozenTransitionText milik
+ * komponen ChatFlow di bawah -- state itu men-shadow fungsi modul-level ini
+ * di dalam body komponen, jadi pemanggilannya di riwayat gagal compile.
+ * Diberi nama beda supaya tidak ambigu.) */
+function frozenHistoryTransitionText(q: Question, data: WizardData): string | undefined {
   if (q.field === "produkJasa" && data.produkJasaReaction) return data.produkJasaReaction;
   return resolveTransitionBefore(q.transitionBefore, data);
 }
@@ -1323,7 +1327,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       {/* Area pesan — bisa di-scroll, composer di bawah selalu terlihat */}
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-1 pb-2 pr-2">
         {questions.slice(0, answeredCount).map((q) => {
-          const transitionText = frozenTransitionText(q, data);
+          const transitionText = frozenHistoryTransitionText(q, data);
           return (
             <div key={q.field as string} className="space-y-2">
               {transitionText && <ChatBubble role="bot" text={transitionText} />}
