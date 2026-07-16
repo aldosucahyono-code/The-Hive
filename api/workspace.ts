@@ -48,6 +48,7 @@ import { generateLeadReferrals } from "../services/workspace/leads/generateLeadR
 import { listLeadReferrals } from "../services/workspace/leads/listLeadReferrals.js";
 import { generateActionPlan } from "../services/workspace/actionPlan/generateActionPlan.js";
 import { listActionPlan, toggleActionPlanItem } from "../services/workspace/actionPlan/actionPlan.js";
+import { getChatStarters } from "../services/workspace/chat/getChatStarters.js";
 import { recordPresence, extractVercelGeo } from "../services/admin/recordPresence.js";
 import { adminRequestChallenge } from "../services/admin/auth/requestChallenge.js";
 import { adminVerifyEmailToken } from "../services/admin/auth/verifyEmailToken.js";
@@ -283,6 +284,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       break;
     case "toggleActionPlanItem":
       result = await toggleActionPlanItem(userId, payload);
+      break;
+    case "getChatStarters":
+      result = await getChatStarters(userId, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });

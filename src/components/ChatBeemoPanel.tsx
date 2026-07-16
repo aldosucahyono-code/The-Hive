@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import type { Translations } from "../i18n/translations";
 import {
@@ -88,10 +88,45 @@ function ChatBeemoPanel({
   // Business Context: pertanyaan pancingan berbeda untuk mentor "membuka
   // usaha" vs "mengembangkan usaha" — reuse satu komponen Chat yang sama,
   // hanya kontennya yang menyesuaikan (bukan dua implementasi Chat).
-  const suggestions =
+  const staticSuggestions =
     businessType === "start"
       ? [t.workspace.chatSuggestion1Start, t.workspace.chatSuggestion2Start, t.workspace.chatSuggestion3Start]
       : [t.workspace.chatSuggestion1, t.workspace.chatSuggestion2, t.workspace.chatSuggestion3];
+
+  // Phase 5 (Chat Beemo Experience, directive PO: "personalisasi penuh via
+  // AI"): starter yang BENAR-BENAR dipikirkan Beemo dari Business Memory
+  // bisnis ini (nama/tantangan/target/produk), bukan 3 pertanyaan tetap
+  // yang sama untuk semua bisnis. Di-cache di server (14 hari, lihat
+  // services/workspace/chat/getChatStarters.ts) -- fetch ini murni baca
+  // cache paling sering, bukan panggilan AI baru tiap kali tab dibuka.
+  // Fallback ke staticSuggestions selama belum siap/gagal, supaya empty
+  // state tidak pernah kosong.
+  const [dynamicStarters, setDynamicStarters] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (tier === "free" || !businessProfileId || !session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/workspace", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ action: "getChatStarters", businessProfileId, lang }),
+        });
+        const json = await response.json();
+        if (!cancelled && response.ok && Array.isArray(json.starters) && json.starters.length > 0) {
+          setDynamicStarters(json.starters as string[]);
+        }
+      } catch (err) {
+        console.error("getChatStarters error:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessProfileId, tier, session?.access_token, lang]);
+
+  const suggestions = dynamicStarters && dynamicStarters.length > 0 ? dynamicStarters : staticSuggestions;
 
   if (tier === "free") {
     return (
