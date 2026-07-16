@@ -390,8 +390,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Data tidak lengkap." });
   }
 
-  try {
-    const client = new Anthropic({ apiKey });
+  // Bugfix Juli 2026 (500 di production, "SyntaxError: Expected ',' or ']'
+  // after array element" -- kasus nyata "parfum dadali"): panggilan +
+  // parsing diekstrak ke fungsi supaya bisa DICOBA ULANG sekali tanpa web
+  // search kalau parsing gagal (lihat pemanggilan di bawah). Root cause: web
+  // search tool (aturan #3/#7 di system prompt) kadang membuat Claude
+  // membalas lebih dari satu blok teks -- teks pendek sebelum/di antara
+  // pencarian, baru JSON final di blok TERAKHIR. Menggabung SEMUA blok teks
+  // mentah-mentah (cocok untuk balasan chat bebas di services/beemo/chat.ts,
+  // tapi TIDAK cocok di sini karena endpoint ini wajib balas JSON murni) bisa
+  // menyisipkan teks itu ke tengah JSON dan merusak sintaksnya.
+  async function generateOnce(withSearch: boolean) {
+    const client = new Anthropic({ apiKey: apiKey as string });
     const message = await client.messages.create({
       model: "claude-sonnet-5",
       max_tokens: 700,
@@ -400,11 +410,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Riset ringan opsional — cek reputasi/tren brand kalau nama bisnis
       // terdengar seperti franchise/brand yang sudah dikenal (lihat aturan
       // #3 di system prompt). max_uses kecil supaya latency di tengah
-      // percakapan tetap wajar.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
-      // terpasang lebih tua dari tipe web search tool, lihat catatan sama
-      // di services/beemo/chat.ts.
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 2 }] as any,
+      // percakapan tetap wajar. Dimatikan pada percobaan ulang (withSearch
+      // = false) supaya balasan pasti 1 blok teks JSON murni, tanpa risiko
+      // pola gagal-parse yang sama terulang.
+      ...(withSearch
+        ? {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK
+            // terpasang lebih tua dari tipe web search tool, lihat catatan sama
+            // di services/beemo/chat.ts.
+            tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 2 }] as any,
+          }
+        : {}),
     });
 
     // Biaya AI sungguhan (Juli 2026, "tidak boleh ada data palsu") — fire
@@ -413,27 +429,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const usage = extractUsage(message);
     void logClaudeUsage({ businessProfileId: null, action: "wizard_questions", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
 
-    const raw = message.content
+    // Coba parse dari blok teks TERAKHIR dulu (biasanya JSON final murni ada
+    // di sini kalau web search kepicu), baru fallback ke gabungan semua blok
+    // (perilaku lama) kalau itu gagal juga -- supaya kasus tanpa web search
+    // (mayoritas request) tidak berubah perilakunya sama sekali.
+    const textBlocks = message.content
       .filter((b) => b.type === "text")
-      .map((b) => ("text" in b ? b.text : ""))
-      .join("");
-    let cleaned = raw.replace(/```json|```/g, "").trim();
+      .map((b) => ("text" in b ? b.text : ""));
+    const lastBlock = textBlocks[textBlocks.length - 1] || "";
+    const joinedBlocks = textBlocks.join("");
+    const candidates = lastBlock !== joinedBlocks ? [lastBlock, joinedBlocks] : [joinedBlocks];
 
     // Bugfix Juli 2026: respons SEKARANG berbentuk objek {questions,
     // produkJasaExamples} (bukan array bare seperti sebelumnya) supaya bisa
     // membawa produkJasaExamples sekaligus tanpa panggilan API terpisah.
     // Tetap terima bentuk array LAMA sebagai fallback kompatibilitas kalau
     // suatu saat model membalas format lama (fail-open, bukan fail 500).
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
-      const objMatch = cleaned.match(/\{[\s\S]*\}/);
-      const arrMatch = cleaned.match(/\[[\s\S]*\]/);
-      const match = objMatch || arrMatch;
-      if (!match) throw parseErr;
-      parsed = JSON.parse(match[0]);
+    let parsed: unknown = undefined;
+    let parseErr: unknown = null;
+    for (const raw of candidates) {
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      try {
+        parsed = JSON.parse(cleaned);
+        parseErr = null;
+        break;
+      } catch (err) {
+        parseErr = err;
+        const objMatch = cleaned.match(/\{[\s\S]*\}/);
+        const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+        const match = objMatch || arrMatch;
+        if (match) {
+          try {
+            parsed = JSON.parse(match[0]);
+            parseErr = null;
+            break;
+          } catch (err2) {
+            parseErr = err2;
+          }
+        }
+      }
     }
+    if (parseErr) throw parseErr;
 
     let questions: DynamicQuestion[];
     let produkJasaExamples: DynamicProdukJasaExamples | null = null;
@@ -468,7 +504,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error("Jumlah pertanyaan yang dihasilkan tidak sesuai (harus tepat 2).");
     }
 
-    return res.status(200).json({ questions, produkJasaExamples, industryReaction });
+    return { questions, produkJasaExamples, industryReaction };
+  }
+
+  try {
+    let result;
+    try {
+      result = await generateOnce(true);
+    } catch (firstErr) {
+      console.error("generate-wizard-questions error (percobaan 1, dengan web search):", firstErr);
+      // Percobaan ulang SEKALI tanpa web search -- kalau penyebabnya memang
+      // pola multi-blok teks di atas, percobaan ini akan selalu balas 1 blok
+      // JSON murni dan berhasil. Kalau gagal juga, baru betul-betul 500.
+      result = await generateOnce(false);
+    }
+    return res.status(200).json(result);
   } catch (err) {
     console.error("generate-wizard-questions error:", err);
     return res.status(500).json({ error: "Gagal membuat pertanyaan tambahan." });
