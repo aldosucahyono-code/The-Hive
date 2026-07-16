@@ -222,9 +222,37 @@ ATURAN 2 PERTANYAAN BARU:
    "Penyedia Pasir Besi" dengan nama "Dunia Pasir", contohnya SEHARUSNYA
    seperti "Pasir besi curah per truk"/"Pasir cor bangunan siap kirim" --
    BUKAN "Nasi goreng"/"Kopi susu" yang sama sekali tidak nyambung).
-7. Balas HANYA dengan JSON OBJECT valid, tanpa markdown, tanpa teks lain,
+7. SELAIN itu, buat juga "industryReaction": SATU reaksi singkat Beemo
+   (maksimal 2 kalimat pendek, gaya mentor santai ngobrol -- BUKAN bahasa
+   CS formal) atas jenis bisnis yang baru saja disebutkan pengguna. Ini
+   ditampilkan sebagai bubble chat TERPISAH sebelum pertanyaan berikutnya,
+   jadi harus terasa seperti Beemo BENAR-BENAR memikirkan bisnis spesifik
+   ini -- BUKAN template/kategori umum yang bisa dipakai bisnis apa pun.
+   Susunannya WAJIB:
+   a. Awali dengan meng-echo balik jenis bisnis PERSIS seperti yang ditulis
+      pengguna (mis. kalau pengguna menulis "Jual Parfum", mulai dengan
+      "Jual Parfum ya" -- jangan diparafrase/diformalkan).
+   b. Satu insight yang SPESIFIK dan nyata soal bisnis jenis ini -- pikirkan
+      sendiri dari pengetahuan Anda faktor kunci yang biasanya penting untuk
+      kategori bisnis SPESIFIK ini (contoh pola pikir, JANGAN disalin
+      mentah: bisnis kuliner soal lokasi & pelanggan balik lagi; bisnis
+      kepercayaan/produk personal seperti parfum/kecantikan soal kecocokan &
+      loyalitas pelanggan; bisnis jasa teknis soal kepercayaan hasil kerja;
+      distributor/supplier bahan baku soal volume & harga bersaing) --
+      dirumuskan sendiri sesuai kategori ini, JANGAN generik ("menarik, aku
+      mulai kebayang gambaran bisnismu" saja TIDAK CUKUP, itu template).
+   c. Tutup dengan SATU kalimat pendek yang beda tergantung tahap bisnis
+      (ikuti aturan tahap yang sama seperti pertanyaan 1 di atas): kalau
+      bisnis BARU/belum berjalan, tutup dengan versi natural dari "nanti aku
+      perhatikan ini pas nyusun rencana buat kamu"; kalau bisnis SUDAH
+      BERJALAN, tutup dengan versi natural dari "ini yang bakal aku
+      bandingkan dengan kondisi kamu sekarang" -- supaya jelas Beemo tahu
+      persis sedang bicara dengan pemilik usaha baru atau usaha berjalan.
+   Total tetap terasa seperti didengar sungguhan oleh manusia, bukan
+   disambung dari template tetap.
+8. Balas HANYA dengan JSON OBJECT valid, tanpa markdown, tanpa teks lain,
    format persis:
-{"questions": [{ "question": string, "placeholder": string }, { "question": string, "placeholder": string }], "produkJasaExamples": [string, string]}`;
+{"questions": [{ "question": string, "placeholder": string }, { "question": string, "placeholder": string }], "produkJasaExamples": [string, string], "industryReaction": string}`;
 
 const SYSTEM_EN = `You are Beemo AI, THE HIVE's business consultant. Your only job here is to
 create EXACTLY 2 additional mandatory questions for the landing page chat
@@ -268,9 +296,37 @@ RULES FOR THE 2 NEW QUESTIONS:
    Pasir", examples SHOULD look like "Bulk iron sand by truckload"/"Ready-
    to-ship construction sand" -- NOT "Fried rice"/"Milk coffee" which is
    completely unrelated).
-7. Reply with ONLY a valid JSON OBJECT, no markdown, no other text, in
+7. ALSO produce "industryReaction": ONE short Beemo reaction (max 2 short
+   sentences, casual mentor tone -- NOT formal customer-service language) to
+   the business type the user just gave. This is shown as a separate chat
+   bubble right before the next question, so it must feel like Beemo
+   genuinely thought about THIS specific business -- NOT a generic
+   template/category that could apply to any business. Required structure:
+   a. Open by echoing the business type back EXACTLY as the user wrote it
+      (e.g. if the user wrote "Selling Perfume", start with "Selling
+      perfume, nice" -- don't paraphrase or formalize it).
+   b. One SPECIFIC, real insight about this kind of business -- reason it
+      out yourself from your own knowledge of the key factor that usually
+      matters for THIS specific category (pattern to reason from, don't
+      copy verbatim: food businesses are about location & repeat customers;
+      trust/personal-choice products like perfume/beauty are about fit &
+      customer loyalty; technical services are about trust in the work
+      quality; raw-material suppliers/distributors are about volume &
+      competitive pricing) -- reasoned specifically for this category, do
+      NOT be generic ("interesting, I'm starting to picture your business"
+      alone is NOT enough, that's a template).
+   c. Close with ONE short sentence that differs by business stage (follow
+      the same stage rule as question 1 above): if the business is NEW/not
+      yet running, close with a natural version of "I'll keep this in mind
+      when I put your plan together"; if the business is ALREADY RUNNING,
+      close with a natural version of "I'll compare this with your current
+      situation" -- so it's clear Beemo knows exactly whether it's talking
+      to a new or an existing business owner.
+   The whole thing must still read like a real person genuinely listening,
+   not a template being stitched together.
+8. Reply with ONLY a valid JSON OBJECT, no markdown, no other text, in
    exactly this format:
-{"questions": [{ "question": string, "placeholder": string }, { "question": string, "placeholder": string }], "produkJasaExamples": [string, string]}`;
+{"questions": [{ "question": string, "placeholder": string }, { "question": string, "placeholder": string }], "produkJasaExamples": [string, string], "industryReaction": string}`;
 
 function buildUserPrompt(data: Payload, lang: "id" | "en"): string {
   const isBaru = data.jenisAnalisis === "baru";
@@ -381,11 +437,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let questions: DynamicQuestion[];
     let produkJasaExamples: DynamicProdukJasaExamples | null = null;
+    // Fitur baru Juli 2026 (directive PO: "kita akan menghadapi ratusan,
+    // ribuan, jutaan kategori usaha... Claude adalah Beemo, bukan semuanya
+    // template") — reaksi industri (transitionBefore sebelum pertanyaan
+    // produkJasa di ChatFlow.tsx) sekarang DIPIKIRKAN Beemo AI sungguhan,
+    // bukan cuma cocokkan kata kunci ke peta kategori statis (yang tidak
+    // akan pernah menutup semua jenis usaha). String opsional: kalau model
+    // tidak mengembalikannya (respons lama/gagal), ChatFlow.tsx tetap
+    // fallback ke fungsi keyword yang sudah ada -- alur tidak pernah macet.
+    let industryReaction: string | null = null;
 
     if (Array.isArray(parsed)) {
       questions = parsed as DynamicQuestion[];
     } else {
-      const obj = parsed as { questions?: DynamicQuestion[]; produkJasaExamples?: unknown };
+      const obj = parsed as { questions?: DynamicQuestion[]; produkJasaExamples?: unknown; industryReaction?: unknown };
       questions = Array.isArray(obj.questions) ? obj.questions : [];
       if (
         Array.isArray(obj.produkJasaExamples) &&
@@ -394,13 +459,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ) {
         produkJasaExamples = obj.produkJasaExamples as DynamicProdukJasaExamples;
       }
+      if (typeof obj.industryReaction === "string" && obj.industryReaction.trim().length > 0) {
+        industryReaction = obj.industryReaction.trim();
+      }
     }
 
     if (!Array.isArray(questions) || questions.length !== 2) {
       throw new Error("Jumlah pertanyaan yang dihasilkan tidak sesuai (harus tepat 2).");
     }
 
-    return res.status(200).json({ questions, produkJasaExamples });
+    return res.status(200).json({ questions, produkJasaExamples, industryReaction });
   } catch (err) {
     console.error("generate-wizard-questions error:", err);
     return res.status(500).json({ error: "Gagal membuat pertanyaan tambahan." });

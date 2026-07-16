@@ -208,6 +208,10 @@ const id = {
 
   previewReport: {
     eyebrow: "Hasil Analisa (Gratis)",
+    // Phase 2 (Preview Experience, review PO "reward" & "WOW moment") —
+    // badge pencapaian singkat di atas skor, murni copy + emoji, tanpa efek
+    // visual berat. {namaBisnis} disubstitusi lewat fill() di PreviewReport.tsx.
+    rewardBadge: "🎉 Analisa pertamamu untuk {namaBisnis} selesai!",
     errorFallback: "Analisis AI belum berhasil dibuat.",
     errorNote: "Kami tidak menampilkan hasil karangan — silakan coba lagi.",
     retryButton: "🔄 Coba Analisis Lagi",
@@ -1778,6 +1782,7 @@ const en: Translations = {
 
   previewReport: {
     eyebrow: "Free Analysis Result",
+    rewardBadge: "🎉 Your first analysis for {namaBisnis} is done!",
     errorFallback: "The AI analysis couldn't be generated.",
     errorNote: "We won't show made-up results — please try again.",
     retryButton: "🔄 Try Analysis Again",

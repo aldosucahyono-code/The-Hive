@@ -297,6 +297,14 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   // API gagal/belum siap saat pengguna sampai ke pertanyaan produkJasa,
   // produkJasaExamples() di bawah tetap fallback ke peta keyword statis.
   const [dynamicProdukJasaExamples, setDynamicProdukJasaExamples] = useState<[string, string] | null>(null);
+  // Fitur baru Juli 2026 (directive PO: "kita akan menghadapi ratusan, ribuan,
+  // jutaan kategori usaha... Claude adalah Beemo, bukan semuanya template") —
+  // reaksi industri (dulu murni cocokkan kata kunci ke PRODUK_JASA_EXAMPLE_MAP
+  // lewat industryReaction(), yang selalu jatuh ke fallback generik untuk
+  // kategori di luar 8 daftar tetap, mis. "parfum") sekarang DIPIKIRKAN Beemo
+  // AI sungguhan lewat endpoint yang SAMA (tidak ada panggilan/latency
+  // tambahan) — lihat industryReaction di api/generate-wizard-questions.ts.
+  const [dynamicIndustryReaction, setDynamicIndustryReaction] = useState<string | null>(null);
   const [dynamicFetchStarted, setDynamicFetchStarted] = useState(false);
 
   useEffect(() => {
@@ -327,6 +335,9 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
           json.produkJasaExamples.every((ex: unknown) => typeof ex === "string" && ex.trim().length > 0)
         ) {
           setDynamicProdukJasaExamples(json.produkJasaExamples as [string, string]);
+        }
+        if (res.ok && typeof json.industryReaction === "string" && json.industryReaction.trim().length > 0) {
+          setDynamicIndustryReaction(json.industryReaction.trim());
         }
       } catch (err) {
         console.error("generate-wizard-questions error:", err);
@@ -450,8 +461,13 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       // Revisi UX Juli 2026 (review PO): reaksi ke jenisBisnis yang BARU SAJA
       // dijawab, sebelum bertanya produkJasa — supaya Beemo terasa "berpikir"
       // soal bisnisnya, bukan cuma lanjut ke pertanyaan berikutnya begitu
-      // saja. if-else murni berdasar kata kunci (bukan panggilan AI baru).
-      transitionBefore: (d) => industryReaction(d.jenisBisnis, lang, isBaru),
+      // saja. Sejak fitur "Beemo AI, bukan template" (Juli 2026): pakai
+      // reaksi yang benar-benar DIPIKIRKAN AI (dynamicIndustryReaction, dari
+      // panggilan yang sama dengan dynamicProdukJasaExamples, jadi sudah
+      // siap di waktu yang sama -- lihat produkJasaExamplesReady di bawah)
+      // kalau tersedia; fallback ke fungsi keyword statis kalau API gagal/
+      // timeout, supaya alur tidak pernah macet.
+      transitionBefore: (d) => dynamicIndustryReaction || industryReaction(d.jenisBisnis, lang, isBaru),
     },
     {
       field: "lokasi",
@@ -1252,8 +1268,14 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
             {/* Bubble transisi tahap (statis, tidak ikut animasi mengetik) —
                 hanya tampil untuk pertanyaan pertama di tahap baru, dan tidak
                 di mode edit (mengedit jawaban lama bukan "memasuki tahap
-                baru"). Lihat transitionBefore di deklarasi questions[]. */}
-            {!editingField && !semanticChecking && semanticRetryField !== activeQuestion.field && resolveTransitionBefore(activeQuestion.transitionBefore, data) && (
+                baru"). Lihat transitionBefore di deklarasi questions[].
+                Bugfix Juli 2026 (pola sama dengan waitingForProdukJasa di
+                atas): SENGAJA disembunyikan selama waitingForProdukJasa,
+                supaya reaksi industri yang AI-generated (dynamicIndustryReaction)
+                tidak sempat tampil dulu pakai fallback keyword lalu "berubah
+                sendiri" begitu API-nya selesai -- pengguna cukup lihat
+                indikator mengetik sampai teksnya benar-benar final. */}
+            {!editingField && !semanticChecking && !waitingForProdukJasa && semanticRetryField !== activeQuestion.field && resolveTransitionBefore(activeQuestion.transitionBefore, data) && (
               <ChatBubble role="bot" text={resolveTransitionBefore(activeQuestion.transitionBefore, data)!} />
             )}
             {showTypingDots || waitingForProdukJasa ? (

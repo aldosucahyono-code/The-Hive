@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { WizardData } from "./ChatWizard";
 import { hardNavigate } from "../utils/navigate";
-import { useLanguage } from "../i18n/LanguageContext";
+import { useLanguage, fillTemplate } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import AuthModal from "./AuthModal";
 import PricingCards from "./PricingCards";
@@ -183,6 +183,33 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
     done: i < 3,
   }));
 
+  // Phase 2 (Preview Experience, review PO "WOW moment") — skor "menghitung
+  // naik" dari 0 ke angka aslinya begitu preview muncul, dibarengi progress
+  // ring yang ikut terisi. Murni animasi sisi klien (requestAnimationFrame),
+  // TIDAK ada angka yang dikarang -- target akhirnya tetap persis
+  // preview.businessHealthScore dari Claude. Hook ini harus tetap dipanggil
+  // tanpa syarat (sebelum early-return error di bawah) sesuai aturan Hooks.
+  const [displayScore, setDisplayScore] = useState(0);
+  useEffect(() => {
+    const target = preview?.businessHealthScore;
+    if (typeof target !== "number") {
+      setDisplayScore(0);
+      return;
+    }
+    const durationMs = 1400;
+    const startTime = performance.now();
+    let frameId: number;
+    function tick(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / durationMs);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      setDisplayScore(Math.round(eased * target));
+      if (progress < 1) frameId = requestAnimationFrame(tick);
+    }
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [preview?.businessHealthScore]);
+
   async function goToPayment(plan: "pro" | "platinum") {
     setPreparingPlan(plan);
 
@@ -271,7 +298,6 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
     );
   }
 
-  const score = preview.businessHealthScore;
   const status = preview.statusLabel;
   const findings = preview.findings.slice(0, 3);
 
@@ -307,15 +333,23 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
         </div>
       )}
 
+      {/* Reward badge (Phase 2, review PO "reward") — pesan pencapaian
+          singkat, murni copy + emoji, tanpa efek visual berat. */}
+      <div className="mb-4 text-center">
+        <span className="inline-block rounded-full bg-primary/10 px-4 py-1.5 text-sm font-semibold text-primary">
+          {fillTemplate(t.previewReport.rewardBadge, { namaBisnis })}
+        </span>
+      </div>
+
       {/* Business Health/Readiness Score */}
       <div className="mb-6 rounded-2xl border border-primary/30 bg-white p-6 text-center">
         <p className="text-sm text-neutral-600">{scoreLabel}</p>
         <p className="mt-1 text-5xl font-black text-primary">
-          {score}<span className="text-xl text-neutral-500">/100</span>
+          {displayScore}<span className="text-xl text-neutral-500">/100</span>
         </p>
         <p className="mt-2 text-sm font-semibold text-amber-700">{status}</p>
         <div className="mx-auto mt-4 h-2 w-full max-w-xs overflow-hidden rounded-full bg-neutral-200">
-          <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${score}%` }}></div>
+          <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${displayScore}%` }}></div>
         </div>
       </div>
 
