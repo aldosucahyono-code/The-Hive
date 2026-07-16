@@ -196,6 +196,12 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
       setDisplayScore(0);
       return;
     }
+    // Bugfix (Vercel build gagal, TS18048): narrowing "typeof target ===
+    // number" di atas TIDAK ikut terbawa ke dalam function declaration
+    // bersarang (tick) -- TypeScript menganalisa isinya terpisah dari CFA
+    // titik deklarasi. Re-bind ke const baru dengan tipe eksplisit supaya
+    // tidak ambigu number|undefined lagi di dalam closure manapun.
+    const targetScore: number = target;
     const durationMs = 1400;
     const startTime = performance.now();
     let frameId: number;
@@ -203,7 +209,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / durationMs);
       const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-      setDisplayScore(Math.round(eased * target));
+      setDisplayScore(Math.round(eased * targetScore));
       if (progress < 1) frameId = requestAnimationFrame(tick);
     }
     frameId = requestAnimationFrame(tick);
