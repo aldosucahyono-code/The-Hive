@@ -542,6 +542,10 @@ const id = {
     emailRecognizedCodeVerifyingButton: "Memverifikasi...",
     emailRecognizedCodeInvalidError: "Kode salah atau sudah kedaluwarsa. Klik \"Kirim Ulang\" untuk minta yang baru.",
     emailRecognizedResendButton: "Kirim Ulang",
+    // Bugfix Juli 2026 (QA users: tampilkan keterangan eksplisit selama
+    // Beemo menunggu hasil AI, bukan cuma titik-titik animasi tanpa
+    // konteks) — dipakai bareng TypingDots selama waitingForProdukJasa.
+    beemoThinking: "Beemo sedang berpikir...",
     askProfesi: "Oke. Sekarang, kamu berperan sebagai apa di bisnis ini? (misalnya Founder, Owner, Manager)",
     askNamaBisnis: "Sip, {profesi} — apa nama bisnis atau brand kamu?",
     askJenisBisnis: "{namaBisnis}, nama yang menarik 😊 Bisnis ini bergerak di bidang apa? (misalnya Coffee Shop, Retail, Jasa Konsultasi)",
@@ -1293,6 +1297,19 @@ const id = {
     todayChecklistTitle: "Checklist Hari Ini",
     todayChecklistCount: "{done}/{total} selesai",
     todayChecklistSessionNote: "Progresmu tersimpan otomatis — checklist ini juga jadi salah satu sinyal tahap bisnismu berikutnya.",
+    // Bugfix Juli 2026 (QA users: "checklist harus benar-benar sesuai
+    // dengan analisamu, apa saja kesulitan users, olah datanya dan beri
+    // solusi") — checklist rutin di bawah ini SENGAJA tetap items tetap
+    // (lihat catatan panjang di CHECKLIST_DIMENSION_MAP: item & keynya
+    // menggerakkan dimensi Business Health Score secara deterministik,
+    // tidak bisa diganti-ganti AI tanpa merusak integritas skor). Yang
+    // benar-benar dipikirkan Beemo AI berdasarkan tantangan/target bisnis
+    // ini ADALAH item hari-ini dari Rencana Aksi Beemo (lihat
+    // services/workspace/actionPlan/generateActionPlan.ts) -- baris ini
+    // menariknya ke atas supaya pengguna langsung lihat analisa nyata
+    // SEBELUM checklist rutin, bukan setelah scroll melewatinya.
+    todayChecklistBeemoInsightPrefix: "💡 Fokus Beemo buat kamu hari ini:",
+    todayChecklistBeemoInsightNote: "Dari analisa tantangan & target bisnismu — bukan template.",
     // Visual Priority (Phase 4) — badge kecil di sidebar untuk 4 menu inti
     // (Today/Score/Target/Chat), lihat CORE_MENU_KEYS di Workspace.tsx.
     navFocusBadge: "Fokus",
@@ -1376,11 +1393,18 @@ const id = {
     todayFocusDecisionFollowUp: "Bagaimana perkembangan rencana yang kamu ajukan: \"{question}\"?",
     todayFocusTargetStalled: "Target minggu depanmu belum berubah selama 2 minggu terakhir. Saatnya evaluasi apakah targetnya masih realistis atau perlu langkah baru.",
     todayFocusNewCompetitorDetected: "Kompetitor baru terdeteksi di sekitarmu: {name}. Ini bisa jadi peluang atau sinyal untuk waspada.",
+    // Bugfix Juli 2026 (QA users: headline sebelumnya salah bunyi "Kami
+    // belum menerima perkembangan bisnismu selama 0 hari" untuk bisnis yang
+    // BELUM PERNAH sekalipun mengisi Business Update -- lihat computeSnapshot.ts
+    // "neverUpdatedYet" vs "inactivityWarning". Sekarang ajakan positif,
+    // bukan pernyataan "0 hari" yang membingungkan.
+    todayFocusNeverUpdatedYet: "Yuk mulai Business Update pertamamu hari ini — biar rekomendasi Beemo makin nyambung sama kondisi bisnismu yang sebenarnya, bukan tebakan awal.",
     // Why Card — penjelasan "mengapa ini penting", ditampilkan sebagai
     // expandable di bawah tiap item Mission/Prioritas/Risiko/Peluang.
     whyStartFirstUpdate: "Business Update pertamamu adalah titik awal semua perhitungan Beemo — Business Score, Journey, dan rekomendasi baru bisa muncul setelah ada data nyata tentang bisnismu, bukan tebakan.",
     whyFillBusinessUpdate: "Sudah {days} hari sejak update terakhirmu. Semakin lama tanpa update, semakin besar kemungkinan rekomendasi Beemo ketinggalan dari kondisi bisnismu yang sebenarnya sekarang.",
     whyInactivityWarning: "Data yang sudah {days} hari lebih tidak lagi mencerminkan kondisi bisnismu hari ini. Beemo butuh info terbaru supaya saran yang diberikan tetap relevan, bukan berdasarkan kondisi lama.",
+    whyNeverUpdatedYet: "Beemo belum punya satu pun data nyata soal bisnismu — semua rekomendasi baru bisa mulai dipersonalisasi setelah Business Update pertamamu masuk.",
     whyFocusWeakDimension: "{dimension} adalah dimensi dengan skor terendah saat ini ({score}). Memperbaiki dimensi yang paling lemah biasanya memberi dampak terbesar ke Business Score dibanding memperbaiki dimensi yang sudah kuat.",
     whyAchievementNudge: "Kamu tinggal {remaining} langkah lagi untuk mencapai pencapaian berikutnya — momentum sekarang adalah waktu paling tepat untuk menyelesaikannya sebelum semangatnya menurun.",
     whyKeepGoing: "Semua indikator bisnismu dalam kondisi baik minggu ini. Konsistensi adalah kunci — pertahankan pola yang sudah berjalan supaya momentum ini tidak hilang.",
@@ -2112,6 +2136,7 @@ const en: Translations = {
     emailRecognizedCodeVerifyingButton: "Verifying...",
     emailRecognizedCodeInvalidError: "Wrong or expired code. Click \"Resend\" to get a new one.",
     emailRecognizedResendButton: "Resend",
+    beemoThinking: "Beemo is thinking...",
     askProfesi: "Okay. Now, what's your role in this business? (e.g. Founder, Owner, Manager)",
     askNamaBisnis: "Cool, {profesi} — what's the name of your business or brand?",
     askJenisBisnis: "{namaBisnis}, a fitting name 😊 What industry is this business in? (e.g. Coffee Shop, Retail, Consulting)",
@@ -2830,6 +2855,8 @@ const en: Translations = {
     todayChecklistTitle: "Today's Checklist",
     todayChecklistCount: "{done}/{total} done",
     todayChecklistSessionNote: "Your progress is saved automatically — this checklist also signals your business's next stage.",
+    todayChecklistBeemoInsightPrefix: "💡 Beemo's focus for you today:",
+    todayChecklistBeemoInsightNote: "From an analysis of your business's challenges & target — not a template.",
     navFocusBadge: "Focus",
     actionPlanTitle: "Beemo's Plan This Week",
     actionPlanSubtitle: "Built by Beemo specifically for your business — not a generic template.",
@@ -2905,11 +2932,13 @@ const en: Translations = {
     todayFocusDecisionFollowUp: "How's the plan you raised coming along: \"{question}\"?",
     todayFocusTargetStalled: "Your next-week target hasn't changed in the last 2 weeks. Time to evaluate whether it's still realistic or needs a new approach.",
     todayFocusNewCompetitorDetected: "A new competitor was detected nearby: {name}. This could be an opportunity or a signal to stay alert.",
+    todayFocusNeverUpdatedYet: "Let's start your first Business Update today — so Beemo's recommendations actually match your real situation, not a first guess.",
     // Why Card — "why this matters" explanations, shown as an expandable
     // section under each Mission/Priority/Risk/Opportunity item.
     whyStartFirstUpdate: "Your first Business Update is the starting point for all of Beemo's calculations — Business Score, Journey, and new recommendations can only appear once there's real data about your business, not guesswork.",
     whyFillBusinessUpdate: "It's been {days} days since your last update. The longer you go without one, the more likely Beemo's recommendations fall behind your business's actual current condition.",
     whyInactivityWarning: "Data that's {days}+ days old no longer reflects your business today. Beemo needs fresh info to keep its advice relevant, instead of basing it on outdated conditions.",
+    whyNeverUpdatedYet: "Beemo doesn't have any real data about your business yet — recommendations can only start getting personalized once your first Business Update comes in.",
     whyFocusWeakDimension: "{dimension} currently has the lowest score ({score}). Improving your weakest dimension usually has the biggest impact on your overall Business Score compared to improving one that's already strong.",
     whyAchievementNudge: "You're just {remaining} steps away from your next achievement — this momentum is the best time to finish it before the motivation fades.",
     whyKeepGoing: "All your business indicators look good this week. Consistency is key — keep the current pattern going so this momentum isn't lost.",

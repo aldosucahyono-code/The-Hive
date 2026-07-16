@@ -67,6 +67,7 @@ const WHY_KEY: Record<string, string> = {
   startFirstUpdate: "whyStartFirstUpdate",
   fillBusinessUpdate: "whyFillBusinessUpdate",
   inactivityWarning: "whyInactivityWarning",
+  neverUpdatedYet: "whyNeverUpdatedYet",
   focusWeakDimension: "whyFocusWeakDimension",
   achievementNudge: "whyAchievementNudge",
   keepGoing: "whyKeepGoing",
@@ -298,8 +299,21 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
     // contoh PO ("Sudah 10 hari tidak ada Business Update...") dipakai di
     // >=10 hari (bukan cuma pengingat umum). 7-9 hari tetap dapat pengingat
     // yang lebih lembut.
-    if (daysSinceUpdate === null || daysSinceUpdate >= 10) {
-      priorities.push({ key: "inactivityWarning", params: { days: daysSinceUpdate ?? 0 } });
+    //
+    // Bugfix Juli 2026 (QA users, screenshot: headline Mission Today
+    // berbunyi "Kami belum menerima perkembangan bisnismu selama 0 hari" —
+    // untuk bisnis yang BELUM PERNAH update sama sekali, daysSinceUpdate
+    // null "??  0" tadinya dianggap sama dengan "sudah 0 hari tidak update",
+    // padahal artinya beda total (belum pernah punya data vs data basi).
+    // SEBELUM ini keduanya salah dipetakan ke template "inactivityWarning"
+    // yang sama (X hari). Sekarang dipisah: never-updated dapat template
+    // AJAKAN pertama kali (bukan X hari), directive PO: "dari pada
+    // memberikan informasi [...] lebih baik dirubah menjadi ajakan untuk
+    // segera update".
+    if (daysSinceUpdate === null) {
+      priorities.push({ key: "neverUpdatedYet" });
+    } else if (daysSinceUpdate >= 10) {
+      priorities.push({ key: "inactivityWarning", params: { days: daysSinceUpdate } });
     } else if (daysSinceUpdate > 7) {
       priorities.push({ key: "fillBusinessUpdate", params: { days: daysSinceUpdate } });
     }

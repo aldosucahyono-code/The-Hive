@@ -684,6 +684,27 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
   const [revealedLength, setRevealedLength] = useState(0);
   const [showTypingDots, setShowTypingDots] = useState(false);
+  // Bugfix Juli 2026 (QA users: "jangan keluar chat wizard terus begitu
+  // sudah keluar lalu tulisannya berubah" — laporan pengguna nyata,
+  // ditemukan di pertanyaan bucketAnswer1/2 & reaksi industri sebelum
+  // produkJasa). Root cause: SEBELUM ini, teks yang dirender
+  // (currentBotFullText & transitionBefore) dihitung ULANG lewat
+  // getCurrentBotText()/resolveTransitionBefore() di SETIAP render --
+  // sedangkan animasi reveal-nya sendiri sudah "membekukan" fullTextValue
+  // di closure efek di bawah. Kalau dynamicQuestions/dynamicIndustryReaction
+  // baru selesai di-fetch SETELAH pesan sudah tampil (mis. API lambat,
+  // lewat dari timeout 8 detik produkJasa, baru selesai saat pengguna sudah
+  // di pertanyaan berikutnya), render berikutnya memakai teks BARU padahal
+  // revealedLength masih dari teks LAMA -- pengguna melihat tulisan yang
+  // sudah tampil tiba-tiba berubah sendiri. Fix: bekukan teks bot & teks
+  // transisi SEKALI di titik yang sama dengan mulainya animasi reveal
+  // (efek yang keyed ke typingKey di bawah), lalu render SELALU pakai nilai
+  // beku ini -- bukan panggilan ulang ke getCurrentBotText()/
+  // resolveTransitionBefore() -- supaya pesan yang sudah tampil ke pengguna
+  // dijamin tidak akan pernah berubah sendiri, apa pun yang terjadi ke
+  // fetch di background.
+  const [frozenBotText, setFrozenBotText] = useState<string | null>(null);
+  const [frozenTransitionText, setFrozenTransitionText] = useState<string | undefined>(undefined);
   const typingIntervalRef = useRef<number | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
   // Bugfix Juli 2026 (directive PO: "saya tidak mau ada bug dalam chat
@@ -753,6 +774,11 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
     const fullText = getCurrentBotText();
     setRevealedLength(0);
+    // Bekukan teks bot & transisi PERSIS di titik ini (sekali per
+    // typingKey) -- lihat catatan panjang di deklarasi frozenBotText di
+    // atas. resolveTransitionBefore null-safe untuk activeQuestion null.
+    setFrozenBotText(fullText);
+    setFrozenTransitionText(activeQuestion ? resolveTransitionBefore(activeQuestion.transitionBefore, data) : undefined);
 
     if (fullText === null) {
       setShowTypingDots(false);
@@ -817,7 +843,10 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typingKey]);
 
-  const currentBotFullText = getCurrentBotText() || "";
+  // Pakai teks yang sudah dibekukan (lihat frozenBotText di atas) -- BUKAN
+  // getCurrentBotText() langsung -- supaya tidak pernah berubah sendiri
+  // setelah tampil ke pengguna.
+  const currentBotFullText = frozenBotText || "";
   const typingDone = !showTypingDots && !waitingForProdukJasa && revealedLength >= currentBotFullText.length;
 
   useEffect(() => {
@@ -1349,12 +1378,16 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
                 supaya reaksi industri yang AI-generated (dynamicIndustryReaction)
                 tidak sempat tampil dulu pakai fallback keyword lalu "berubah
                 sendiri" begitu API-nya selesai -- pengguna cukup lihat
-                indikator mengetik sampai teksnya benar-benar final. */}
-            {!editingField && !semanticChecking && !waitingForProdukJasa && semanticRetryField !== activeQuestion.field && resolveTransitionBefore(activeQuestion.transitionBefore, data) && (
-              <ChatBubble role="bot" text={resolveTransitionBefore(activeQuestion.transitionBefore, data)!} />
+                indikator mengetik sampai teksnya benar-benar final.
+                Bugfix lanjutan (lihat frozenTransitionText di atas): dulu
+                dipanggil ulang resolveTransitionBefore(...) di sini setiap
+                render, sekarang pakai nilai yang sudah dibekukan sejak
+                pesan ini pertama tampil. */}
+            {!editingField && !semanticChecking && !waitingForProdukJasa && semanticRetryField !== activeQuestion.field && frozenTransitionText && (
+              <ChatBubble role="bot" text={frozenTransitionText} />
             )}
             {showTypingDots || waitingForProdukJasa ? (
-              <TypingDots />
+              <TypingDots label={waitingForProdukJasa ? t.chatFlow.beemoThinking : undefined} />
             ) : (
               <ChatBubble role="bot" text={currentBotFullText.slice(0, revealedLength)} />
             )}
@@ -1473,16 +1506,23 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   );
 }
 
-function TypingDots() {
+// Bugfix Juli 2026 (QA users: "kalau jawaban belum relevan biar loading
+// dulu, bisa dikasih keterangan/animasi beemo sedang berfikir") — label
+// opsional supaya penantian yang agak lama (mis. waitingForProdukJasa,
+// bisa sampai 8 detik) terasa jelas Beemo sedang bekerja, bukan macet.
+function TypingDots({ label }: { label?: string }) {
   return (
     <div className="flex items-end gap-2">
       <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-primary/30 bg-neutral-100 text-sm">
         🤖
       </div>
-      <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-neutral-100 px-4 py-3.5">
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:0ms]"></span>
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:150ms]"></span>
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:300ms]"></span>
+      <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-neutral-100 px-4 py-3.5">
+        <div className="flex items-center gap-1">
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:0ms]"></span>
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:150ms]"></span>
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:300ms]"></span>
+        </div>
+        {label && <span className="text-xs text-neutral-500">{label}</span>}
       </div>
     </div>
   );

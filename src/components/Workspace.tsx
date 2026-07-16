@@ -2144,7 +2144,12 @@ function LeadReferralsPanel({
     <WorkspaceSection>
       <SectionHeader
         title="Referensi Pelanggan Baru"
-        description="Calon pelanggan (perusahaan/perorangan) yang relevan dengan produk atau jasamu, dicari lewat pencarian web sungguhan — bukan karangan."
+        // Bugfix Juli 2026 (QA users: copy lama terlalu teknis/kaku — "dicari
+        // lewat pencarian web sungguhan, bukan karangan" -- ganti jadi
+        // kalimat yang lebih mudah dipahami & menarik, sekaligus menonjolkan
+        // insentif upgrade sesuai quotaLabel di atas (free:1, pro:2,
+        // platinum:5) tanpa mengubah cara kerja fiturnya sama sekali).
+        description="Kami menemukan calon pelanggan potensial di sekitar lokasimu — hasil pencarian web nyata, bukan karangan. Upgrade ke PRO/PLATINUM buat dapat lebih banyak referensi setiap kali cari."
       />
 
       <WorkspaceCard>
@@ -3297,7 +3302,9 @@ function TodayPanel({
           ? t.workspace.todayFocusFillBusinessUpdate
           : item.key === "inactivityWarning"
             ? t.workspace.todayFocusInactivityWarning
-            : item.key === "celebrateAchievement"
+            : item.key === "neverUpdatedYet"
+              ? t.workspace.todayFocusNeverUpdatedYet
+              : item.key === "celebrateAchievement"
               ? t.workspace.todayFocusCelebrateAchievement
               : item.key === "decisionFollowUp"
                 ? t.workspace.todayFocusDecisionFollowUp
@@ -3693,6 +3700,30 @@ function TodayPanel({
                   {fillTemplate(t.workspace.todayChecklistCount, { done: checklistDoneCount, total: checklistKeys.length })}
                 </span>
               </div>
+              {/* Bugfix Juli 2026 (QA users, lihat catatan panjang di
+                  todayChecklistBeemoInsightPrefix): item hari-ini dari
+                  Rencana Aksi Beemo (AI, digrounded ke tantangan/target
+                  bisnis ini) ditarik ke atas checklist rutin -- supaya
+                  hal PERTAMA yang dilihat pengguna di sini adalah analisa
+                  nyata, bukan daftar rutin generik. actionPlanItems sudah
+                  di-fetch untuk panel Rencana Aksi di bawah, jadi tidak ada
+                  panggilan AI/loading tambahan di sini. */}
+              {actionPlanItems.some((it) => it.day_offset === 0) && (
+                <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
+                  <p className="text-xs font-semibold text-primary">{t.workspace.todayChecklistBeemoInsightPrefix}</p>
+                  <ul className="mt-1.5 space-y-1">
+                    {actionPlanItems
+                      .filter((it) => it.day_offset === 0)
+                      .map((it) => (
+                        <li key={it.id} className="text-sm text-neutral-200">
+                          <span className="font-medium">{it.title}</span>
+                          {it.description && <span className="text-neutral-400"> — {it.description}</span>}
+                        </li>
+                      ))}
+                  </ul>
+                  <p className="mt-1.5 text-[11px] text-neutral-600">{t.workspace.todayChecklistBeemoInsightNote}</p>
+                </div>
+              )}
               <div className="space-y-1">
                 {checklistKeys.map((key) => {
                   const done = checkedItems.has(key);
