@@ -5654,8 +5654,25 @@ function Workspace() {
     if ((activeMenu === "history" || activeMenu === "settings") && tier !== "free" && !reportsLoaded && !reportsLoading) {
       loadReports();
     }
+    // Audit Juli 2026 ("cari celah, dan perbaiki"): bug nyata ditemukan lewat
+    // QA production langsung -- efek ini SEBELUMNYA hanya bergantung pada
+    // [activeMenu]. Karena "today" adalah tab default saat komponen pertama
+    // kali mount, efek ini jalan SEKALI di awal render, tepat saat
+    // activeBusinessId/session?.access_token bisa jadi BELUM siap (restore
+    // sesi Supabase + daftar bisnis sama-sama async). loadActionPlan() dan
+    // loadMacroSnapshot() punya guard "if (!activeBusinessId || !session...)
+    // return" -- jadi diam-diam batal tanpa menandai fetched/error apa pun.
+    // Karena activeMenu tidak pernah berubah lagi (pengguna tetap di tab
+    // Today), efek ini TIDAK PERNAH jalan ulang -- hasilnya "Rencana Beemo
+    // Minggu Ini" & "Kondisi Ekonomi Hari Ini" macet permanen di pesan error/
+    // kosong walau data sebenarnya ada di server (dibuktikan lewat panggilan
+    // API langsung yang berhasil). Menambahkan activeBusinessId &
+    // session?.access_token ke dependency array supaya efek ini otomatis
+    // jalan ulang begitu keduanya benar-benar siap -- aman dari loop tak
+    // berkesudahan karena tiap pemanggilan di dalam sudah dijaga guard
+    // "belum pernah dimuat/tidak sedang memuat" masing-masing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMenu]);
+  }, [activeMenu, activeBusinessId, session?.access_token]);
 
   if (loading) {
     return (
