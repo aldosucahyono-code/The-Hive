@@ -2498,7 +2498,14 @@ function SocialMediaSection({
 // Hari Ini" di dalam TodayPanel. MacroSnapshotData tetap dipakai sebagai
 // tipe data untuk prop `macro` di TodayPanel.
 
-const INSIGHT_PRIORITY_LABEL: Record<NonNullable<FormattedInsightData["priority"]>, keyof Translations["workspace"]> = {
+// Hanya key di Translations["workspace"] yang nilainya string (bukan object/array)
+// yang boleh dipakai di sini -- mencegah TS2322 kalau ada key baru berupa object
+// (mis. quickStartSteps) yang bikin union type t.workspace[key] melebar ke ReactNode.
+type WorkspaceStringKeys = {
+  [K in keyof Translations["workspace"]]: Translations["workspace"][K] extends string ? K : never;
+}[keyof Translations["workspace"]];
+
+const INSIGHT_PRIORITY_LABEL: Record<NonNullable<FormattedInsightData["priority"]>, WorkspaceStringKeys> = {
   critical: "competitorPriorityCritical",
   high: "competitorPriorityHigh",
   medium: "competitorPriorityMedium",

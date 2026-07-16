@@ -25,7 +25,14 @@ type UpdateInsight = {
   actionKey: string;
 };
 
-const ACTION_KEY_MAP: Record<UpdateInsight["actionKey"], keyof Translations["workspace"]> = {
+// Hanya key di Translations["workspace"] yang nilainya string (bukan object/array)
+// yang boleh dipakai di sini -- mencegah TS2322 kalau ada key baru berupa object
+// (mis. quickStartSteps) yang bikin union type t.workspace[key] melebar ke ReactNode.
+type WorkspaceStringKeys = {
+  [K in keyof Translations["workspace"]]: Translations["workspace"][K] extends string ? K : never;
+}[keyof Translations["workspace"]];
+
+const ACTION_KEY_MAP: Record<UpdateInsight["actionKey"], WorkspaceStringKeys> = {
   updateActionSales: "updateActionSales",
   updateActionMarketing: "updateActionMarketing",
   updateActionFinance: "updateActionFinance",
@@ -34,7 +41,7 @@ const ACTION_KEY_MAP: Record<UpdateInsight["actionKey"], keyof Translations["wor
   updateActionBrand: "updateActionBrand",
 };
 
-const SEVERITY_LABEL_MAP: Record<UpdateInsight["severity"], keyof Translations["workspace"]> = {
+const SEVERITY_LABEL_MAP: Record<UpdateInsight["severity"], WorkspaceStringKeys> = {
   low: "updateSeverityLow",
   medium: "updateSeverityMedium",
   high: "updateSeverityHigh",
