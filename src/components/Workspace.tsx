@@ -36,6 +36,19 @@ type MenuKey =
   | "businessUpdates"
   | "decisionJournal";
 
+// Visual Priority (Phase 4, directive PO: "Mission Today/Score/Target/Chat
+// Beemo diprioritaskan" — TAPI lewat visual hierarchy, BUKAN feature gating.
+// PO secara eksplisit mengoreksi: "Saya TIDAK bermaksud membuat fitur
+// di-gate... yang saya maksud adalah Visual Hierarchy, bukan Feature
+// Gating"). SET TETAP, tidak bergantung stageDetail/tebakan "lagi di tahap
+// mana" — dicoba dulu pemetaan dinamis ke STAGE_GROUPS berdasar stageDetail,
+// tapi itu rapi untuk bisnis baru (linear) dan tidak untuk bisnis berjalan
+// (stage-nya soal performa, bukan urutan aktivitas relevansi menu). Semua
+// menu di sini maupun di luar sini TETAP 100% bisa diklik — ini murni
+// penekanan visual (ikon/teks lebih terang, aksen kiri, badge "Fokus"),
+// tidak ada yang disembunyikan/dikunci. Lihat render di sidebar STAGE_GROUPS.
+const CORE_MENU_KEYS = new Set<MenuKey>(["today", "score", "target", "chat"]);
+
 // --- Tipe data mengikuti skema Domain Model (Tahap 1, 1.5, 1.6) ---
 // Catatan penting: Workspace sekarang mendukung BANYAK business_profile per
 // akun (Active Business Context), bukan lagi asumsi "1 user = 1 bisnis".
@@ -6052,24 +6065,38 @@ function Workspace() {
                 </p>
                 {group.items.map((item) => {
                   const isActive = activeMenu === item.key;
+                  // Visual Priority (Phase 4) — lihat komentar CORE_MENU_KEYS
+                  // di atas. Murni tampilan: aksen kiri + teks lebih terang +
+                  // badge "Fokus" untuk 4 menu inti saat TIDAK aktif (begitu
+                  // aktif, treatment bg-primary yang sudah ada sudah paling
+                  // menonjol, tidak perlu badge tambahan). Menu lain sedikit
+                  // diredupkan (bukan disembunyikan) supaya kontrasnya terasa.
+                  const isCore = CORE_MENU_KEYS.has(item.key);
                   return (
                     <button
                       key={item.key}
                       onClick={() => setActiveMenu(item.key)}
                       className={
-                        "flex flex-shrink-0 items-center gap-3 rounded-2xl px-4 py-2.5 text-left transition-all duration-200 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:flex-shrink " +
+                        "flex flex-shrink-0 items-center gap-3 rounded-2xl border-l-2 px-4 py-2.5 text-left transition-all duration-200 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:flex-shrink " +
                         (isActive
-                          ? "bg-primary text-black shadow-[0_0_16px_-2px_rgba(255,152,0,0.5)]"
-                          : "text-neutral-400 hover:translate-x-0.5 hover:bg-white/[0.06] hover:text-white motion-reduce:hover:translate-x-0")
+                          ? "border-transparent bg-primary text-black shadow-[0_0_16px_-2px_rgba(255,152,0,0.5)]"
+                          : isCore
+                            ? "border-primary/70 bg-primary/[0.08] text-neutral-200 hover:translate-x-0.5 hover:bg-primary/[0.14] hover:text-white motion-reduce:hover:translate-x-0"
+                            : "border-transparent text-neutral-500 hover:translate-x-0.5 hover:bg-white/[0.06] hover:text-white motion-reduce:hover:translate-x-0")
                       }
                     >
                       <MenuIcon name={item.key} />
-                      <span className="leading-tight">
-                        <span className="block text-sm font-bold">{item.label}</span>
-                        <span className={`hidden text-[11px] font-medium md:block ${isActive ? "text-black/60" : "text-neutral-500"}`}>
+                      <span className="min-w-0 flex-1 leading-tight">
+                        <span className={"block text-sm font-bold " + (!isActive && !isCore ? "font-semibold" : "")}>{item.label}</span>
+                        <span className={`hidden text-[11px] font-medium md:block ${isActive ? "text-black/60" : isCore ? "text-primary/80" : "text-neutral-600"}`}>
                           {item.subtitle}
                         </span>
                       </span>
+                      {isCore && !isActive && (
+                        <span className="hidden flex-shrink-0 text-[9px] font-bold uppercase tracking-wide text-primary/80 md:block">
+                          {t.workspace.navFocusBadge}
+                        </span>
+                      )}
                     </button>
                   );
                 })}

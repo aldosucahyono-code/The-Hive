@@ -1272,6 +1272,9 @@ const id = {
     todayChecklistTitle: "Checklist Hari Ini",
     todayChecklistCount: "{done}/{total} selesai",
     todayChecklistSessionNote: "Progresmu tersimpan otomatis — checklist ini juga jadi salah satu sinyal tahap bisnismu berikutnya.",
+    // Visual Priority (Phase 4) — badge kecil di sidebar untuk 4 menu inti
+    // (Today/Score/Target/Chat), lihat CORE_MENU_KEYS di Workspace.tsx.
+    navFocusBadge: "Fokus",
     // Rencana Aksi Beemo (Phase 3, Juli 2026, directive PO: "user tau apa
     // saja yang harus dilakukan hari ini, besok, lusa dst... jadi kita
     // benar2 menjadi mentor") — lihat services/workspace/actionPlan/*.ts.
@@ -2800,6 +2803,7 @@ const en: Translations = {
     todayChecklistTitle: "Today's Checklist",
     todayChecklistCount: "{done}/{total} done",
     todayChecklistSessionNote: "Your progress is saved automatically — this checklist also signals your business's next stage.",
+    navFocusBadge: "Focus",
     actionPlanTitle: "Beemo's Plan This Week",
     actionPlanSubtitle: "Built by Beemo specifically for your business — not a generic template.",
     actionPlanRegenerateButton: "🔄 Rebuild Plan",
