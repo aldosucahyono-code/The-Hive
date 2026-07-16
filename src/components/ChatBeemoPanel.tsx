@@ -138,6 +138,34 @@ function ChatBeemoPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessProfileId, tier, session?.access_token, lang]);
 
+  // WOW Moment onboarding (masukan GPT yang kami saring jadi versi murah):
+  // daripada langsung menampilkan kalimat pembuka Beemo begitu data siap,
+  // sapaan muncul bertahap (sapa dulu -> "sedang meninjau" -> baru kalimat
+  // personal) supaya terasa seperti Beemo benar-benar sedang bekerja, bukan
+  // template statis. TIDAK ada API call tambahan -- cuma urutan tampil dari
+  // 2 kalimat statis (baru) + 1 kalimat yang sudah di-generate (openingLine).
+  // 0 = belum ada apa-apa, 1 = sapaan, 2 = "sedang meninjau", 3 = selesai
+  // (kalimat personal + pertanyaan starter tampil).
+  const [greetingStage, setGreetingStage] = useState(0);
+  useEffect(() => {
+    if (tier === "free") return;
+    const t1 = window.setTimeout(() => setGreetingStage((s) => Math.max(s, 1)), 150);
+    const t2 = window.setTimeout(() => setGreetingStage((s) => Math.max(s, 2)), 900);
+    // Fallback: kalau opening line gagal/lambat, tetap lanjut ke tahap akhir
+    // supaya user tidak terjebak melihat "sedang meninjau..." selamanya.
+    const tFallback = window.setTimeout(() => setGreetingStage((s) => Math.max(s, 3)), 3000);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(tFallback);
+    };
+  }, [tier]);
+  useEffect(() => {
+    if (openingLine === null || greetingStage !== 2) return;
+    const t3 = window.setTimeout(() => setGreetingStage(3), 700);
+    return () => window.clearTimeout(t3);
+  }, [openingLine, greetingStage]);
+
   const suggestions = dynamicStarters && dynamicStarters.length > 0 ? dynamicStarters : staticSuggestions;
 
   if (tier === "free") {
@@ -212,14 +240,35 @@ function ChatBeemoPanel({
         >
           {messages.length === 0 && (
             <>
-              {openingLine ? (
+              {greetingStage < 3 ? (
+                // WOW Moment: sapaan bertahap sebelum kalimat personal
+                // muncul (lihat effect greetingStage di atas). Tiap bubble
+                // pakai animate-fade-up yang sudah dipakai di landing page,
+                // jadi tidak menambah animasi/dependency baru.
+                <div className="space-y-2">
+                  {greetingStage >= 1 && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[80%] animate-fade-up rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm leading-relaxed text-neutral-200">
+                        {t.workspace.chatGreetingWave}
+                      </div>
+                    </div>
+                  )}
+                  {greetingStage >= 2 && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[80%] animate-fade-up rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm italic text-neutral-500">
+                        {t.workspace.chatGreetingThinking}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : openingLine ? (
                 // Beemo menyapa duluan (bukan cuma judul + deskripsi
                 // generik) -- ditampilkan PERSIS seperti bubble balasan
                 // biasa supaya terasa seperti Beemo benar-benar sudah
                 // melihat bisnis ini dan punya sesuatu untuk disampaikan,
                 // bukan menunggu diajak bicara.
                 <div className="flex justify-start">
-                  <div className="max-w-[80%] rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm leading-relaxed text-neutral-200">
+                  <div className="max-w-[80%] animate-fade-up rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm leading-relaxed text-neutral-200">
                     {renderChatContent(openingLine)}
                   </div>
                 </div>
@@ -231,17 +280,19 @@ function ChatBeemoPanel({
                   description={t.workspace.chatEmptyState}
                 />
               )}
-              <div className="mx-auto mt-4 flex max-w-md flex-wrap justify-center gap-2">
-                {suggestions.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setInput(s)}
-                    className="rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-neutral-300 transition-colors duration-150 hover:border-primary/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+              {greetingStage >= 3 && (
+                <div className="mx-auto mt-4 flex max-w-md flex-wrap animate-fade-up justify-center gap-2">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setInput(s)}
+                      className="rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-neutral-300 transition-colors duration-150 hover:border-primary/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </>
           )}
           {messages.map((m, i) => (
