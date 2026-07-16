@@ -1737,6 +1737,20 @@ type MacroSnapshotData = {
   };
 };
 
+/** Rencana Aksi Beemo (Phase 3) — satu item aksi untuk satu hari (dayOffset
+ * 0 = hari ini), lihat migrations/2026-07-16_business_action_plan.sql &
+ * services/workspace/actionPlan/*.ts. */
+type ActionPlanItemData = {
+  id: string;
+  batch_id: string;
+  day_offset: number;
+  title: string;
+  description: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  generated_at: string;
+};
+
 /** Lonceng Notifikasi (Juli 2026) — lihat services/notifications/getNotifications.ts
  * untuk bagaimana daftar ini dihitung (on-the-fly dari achievement/decision/
  * report/subscription-expiring/update-reminder, bukan tabel notifikasi
@@ -3017,6 +3031,17 @@ function checklistLabel(t: Translations, key: string): string {
   return map[key] || key;
 }
 
+/** Rencana Aksi Beemo (Phase 3) — label hari untuk dayOffset (0 = hari ini),
+ * dipakai untuk mengelompokkan item rencana di TodayPanel. Murni presentasi,
+ * bukan tanggal kalender sungguhan (rencana dibuat relatif terhadap kapan
+ * di-generate, bukan dijadwalkan ulang tiap tengah malam). */
+function actionPlanDayLabel(t: Translations, dayOffset: number): string {
+  if (dayOffset === 0) return t.workspace.actionPlanDayToday;
+  if (dayOffset === 1) return t.workspace.actionPlanDayTomorrow;
+  if (dayOffset === 2) return t.workspace.actionPlanDayAfterTomorrow;
+  return fillTemplate(t.workspace.actionPlanDayInNDays, { n: dayOffset });
+}
+
 /** TODAY — halaman utama Business Command Center (Fase 1). Tidak menghitung
  * apapun sendiri: seluruh angka datang dari today_snapshot (Today Engine),
  * yang membaca Business Engine lewat service yang sudah ada. Lihat
@@ -3041,6 +3066,11 @@ function TodayPanel({
   macroLoading,
   macroError,
   onRetryMacro,
+  actionPlanItems,
+  actionPlanLoading,
+  actionPlanError,
+  onRegenerateActionPlan,
+  onToggleActionPlanItem,
 }: {
   t: Translations;
   lang: "id" | "en";
@@ -3069,6 +3099,14 @@ function TodayPanel({
   macroLoading: boolean;
   macroError: boolean;
   onRetryMacro: () => void;
+  // Rencana Aksi Beemo (Phase 3): rencana multi-hari AI-generated, terpisah
+  // dari Mission Today (rule engine, hari ini saja) di atas — lihat
+  // services/workspace/actionPlan/*.ts.
+  actionPlanItems: ActionPlanItemData[];
+  actionPlanLoading: boolean;
+  actionPlanError: string | null;
+  onRegenerateActionPlan: () => void;
+  onToggleActionPlanItem: (itemId: string, completed: boolean) => void;
 }) {
   const { session } = useAuth();
   const [missionDone, setMissionDone] = useState(false);
@@ -3526,6 +3564,90 @@ function TodayPanel({
                 {fillTemplate(t.workspace.todayChecklistCount, { done: checklistDoneCount, total: checklistKeys.length })}
               </div>
             </div>
+          </div>
+
+          {/* Rencana Aksi Beemo (Phase 3, directive PO: "user tau apa saja
+              yang harus dilakukan hari ini, besok, lusa dst... jadi kita
+              benar2 menjadi mentor") — AI-generated, multi-hari, terpisah
+              dari Mission Today di atas (rule engine, hari ini saja). Lihat
+              services/workspace/actionPlan/*.ts. Ditaruh langsung setelah
+              Mission Today (bukan tab terpisah) supaya jadi hal kedua yang
+              dilihat pengguna begitu buka Workspace. */}
+          <div className="mt-6 rounded-3xl border border-neutral-200 bg-white p-6 sm:p-8">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-neutral-900">🗓️ {t.workspace.actionPlanTitle}</h3>
+                <p className="mt-1 text-sm text-neutral-500">{t.workspace.actionPlanSubtitle}</p>
+              </div>
+              {actionPlanItems.length > 0 && (
+                <button
+                  onClick={onRegenerateActionPlan}
+                  disabled={actionPlanLoading}
+                  className="rounded-full border border-neutral-200 px-4 py-2 text-xs font-semibold text-neutral-600 transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {actionPlanLoading ? t.workspace.actionPlanRegenerating : t.workspace.actionPlanRegenerateButton}
+                </button>
+              )}
+            </div>
+
+            {actionPlanLoading && actionPlanItems.length === 0 ? (
+              <div className="space-y-2">
+                <div className="h-4 w-2/3 animate-pulse rounded bg-neutral-100" />
+                <div className="h-4 w-1/2 animate-pulse rounded bg-neutral-100" />
+                <div className="h-4 w-3/5 animate-pulse rounded bg-neutral-100" />
+                <p className="pt-2 text-xs text-neutral-400">{t.workspace.actionPlanGenerating}</p>
+              </div>
+            ) : actionPlanError && actionPlanItems.length === 0 ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {actionPlanError}{" "}
+                <button onClick={onRegenerateActionPlan} className="font-semibold underline">
+                  {t.workspace.actionPlanRetryButton}
+                </button>
+              </div>
+            ) : actionPlanItems.length === 0 ? (
+              <p className="text-sm text-neutral-500">{t.workspace.actionPlanEmpty}</p>
+            ) : (
+              <div className="space-y-4">
+                {Array.from(new Set(actionPlanItems.map((it) => it.day_offset)))
+                  .sort((a, b) => a - b)
+                  .map((dayOffset) => {
+                    const dayItems = actionPlanItems.filter((it) => it.day_offset === dayOffset);
+                    return (
+                      <div key={dayOffset}>
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-primary">
+                          {actionPlanDayLabel(t, dayOffset)}
+                        </p>
+                        <ul className="space-y-2">
+                          {dayItems.map((item) => (
+                            <li key={item.id} className="flex items-start gap-3 rounded-xl border border-neutral-100 bg-neutral-50 p-3">
+                              <button
+                                onClick={() => onToggleActionPlanItem(item.id, !item.completed)}
+                                className={
+                                  "mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-md border text-xs " +
+                                  (item.completed ? "border-primary bg-primary text-black" : "border-neutral-300 text-transparent")
+                                }
+                                aria-label={item.completed ? t.workspace.actionPlanMarkIncomplete : t.workspace.actionPlanMarkComplete}
+                              >
+                                ✓
+                              </button>
+                              <div className="min-w-0">
+                                <p className={"text-sm font-semibold " + (item.completed ? "text-neutral-400 line-through" : "text-neutral-800")}>
+                                  {item.title}
+                                </p>
+                                {item.description && (
+                                  <p className={"mt-0.5 text-xs " + (item.completed ? "text-neutral-300" : "text-neutral-500")}>
+                                    {item.description}
+                                  </p>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
 
           {/* Checklist + Yang Berubah berdampingan (fase persiapan hanya
@@ -4182,6 +4304,18 @@ function Workspace() {
   // baris/hari — bukan lagi dummy chart. Diambil bersamaan dengan Today
   // Snapshot lewat action getBusinessOS yang sama (lihat getBusinessOS.ts).
   const [scoreHistory, setScoreHistory] = useState<Array<{ date: string; score: number | null }>>([]);
+  // Rencana Aksi Beemo (Phase 3, directive PO: "user tau apa saja yang
+  // harus dilakukan hari ini, besok, lusa dst"). Dipisah dari todaySnapshot
+  // (rule engine, hari ini saja) — ini AI-generated, multi-hari, lihat
+  // services/workspace/actionPlan/generateActionPlan.ts. actionPlanFetched
+  // menandai "sudah pernah dicoba dimuat sekali" (bukan `items.length===0`)
+  // supaya auto-generate hanya terpicu SEKALI, bukan berulang tiap render
+  // kalau memang hasilnya genuinely kosong.
+  const [actionPlanItems, setActionPlanItems] = useState<ActionPlanItemData[]>([]);
+  const [actionPlanFetched, setActionPlanFetched] = useState(false);
+  const [actionPlanLoading, setActionPlanLoading] = useState(false);
+  const [actionPlanGenerating, setActionPlanGenerating] = useState(false);
+  const [actionPlanError, setActionPlanError] = useState<string | null>(null);
   const [newlyUnlocked, setNewlyUnlocked] = useState<Array<Record<string, unknown>>>([]);
   const [dataLoading, setDataLoading] = useState(true);
   // Bugfix Juli 2026 (laporan nyata pengguna: video menunjukkan Workspace
@@ -4743,6 +4877,9 @@ function Workspace() {
     setReportsError(false);
     setNotifications([]);
     setNotificationsUnreadCount(0);
+    setActionPlanItems([]);
+    setActionPlanFetched(false);
+    setActionPlanError(null);
   }
 
   async function handleSwitchBusiness(id: string) {
@@ -5216,6 +5353,86 @@ function Workspace() {
     setMacroLoading(false);
   }
 
+  // Rencana Aksi Beemo (Phase 3) — dimuat begitu tab Today dibuka (useEffect
+  // di bawah). Kalau belum pernah ada rencana untuk bisnis ini (hasPlan
+  // false), langsung susun otomatis SEKALI supaya pengguna tidak perlu klik
+  // apa pun untuk melihat rencana pertamanya (lihat generateActionPlanNow).
+  async function loadActionPlan() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setActionPlanLoading(true);
+    setActionPlanError(null);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "listActionPlan", businessProfileId: activeBusinessId }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setActionPlanItems((json.items as ActionPlanItemData[]) || []);
+        setActionPlanFetched(true);
+        if (!json.hasPlan) {
+          await generateActionPlanNow();
+        }
+      } else {
+        console.error("listActionPlan error:", json.error);
+        setActionPlanFetched(true);
+      }
+    } catch (err) {
+      console.error("listActionPlan error:", err);
+      setActionPlanFetched(true);
+    }
+    setActionPlanLoading(false);
+  }
+
+  async function generateActionPlanNow() {
+    if (!activeBusinessId || !session?.access_token) return;
+    setActionPlanGenerating(true);
+    setActionPlanError(null);
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "generateActionPlan", businessProfileId: activeBusinessId, lang }),
+      });
+      const json = await response.json();
+      if (response.ok) {
+        setActionPlanItems((json.items as ActionPlanItemData[]) || []);
+      } else {
+        setActionPlanError(json.error || t.workspace.actionPlanGenericError);
+      }
+    } catch (err) {
+      console.error("generateActionPlan error:", err);
+      setActionPlanError(t.workspace.actionPlanGenericError);
+    }
+    setActionPlanGenerating(false);
+  }
+
+  // Optimistic toggle (langsung terlihat dicentang), dibatalkan kalau
+  // ternyata gagal tersimpan di server — pola sama dengan toggleChecklistItem
+  // di TodayPanel.
+  async function toggleActionPlanItemNow(itemId: string, completed: boolean) {
+    setActionPlanItems((prev) =>
+      prev.map((it) => (it.id === itemId ? { ...it, completed, completed_at: completed ? new Date().toISOString() : null } : it))
+    );
+    if (!activeBusinessId || !session?.access_token) return;
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "toggleActionPlanItem", businessProfileId: activeBusinessId, itemId, completed }),
+      });
+      if (!response.ok) {
+        setActionPlanItems((prev) =>
+          prev.map((it) => (it.id === itemId ? { ...it, completed: !completed, completed_at: !completed ? new Date().toISOString() : null } : it))
+        );
+      }
+    } catch (err) {
+      console.error("toggleActionPlanItem error:", err);
+      setActionPlanItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, completed: !completed } : it)));
+    }
+  }
+
   // Lonceng Notifikasi — dimuat begitu activeBusinessId siap (useEffect di
   // bawah), bukan cuma saat dropdown dibuka, supaya badge unread langsung
   // terlihat begitu Workspace dibuka. Gagal diam-diam (log saja) — lonceng
@@ -5360,6 +5577,9 @@ function Workspace() {
     }
     if (activeMenu === "today" && !macroSnapshot && !macroLoading) {
       loadMacroSnapshot();
+    }
+    if (activeMenu === "today" && !actionPlanFetched && !actionPlanLoading) {
+      loadActionPlan();
     }
     if (activeMenu === "businessUpdates" && !showUpdateHistory && updateHistory.length === 0 && !updateHistoryLoading) {
       loadUpdateHistory();
@@ -5926,6 +6146,11 @@ function Workspace() {
               macroLoading={macroLoading}
               macroError={macroError}
               onRetryMacro={loadMacroSnapshot}
+              actionPlanItems={actionPlanItems}
+              actionPlanLoading={actionPlanLoading || actionPlanGenerating}
+              actionPlanError={actionPlanError}
+              onRegenerateActionPlan={generateActionPlanNow}
+              onToggleActionPlanItem={toggleActionPlanItemNow}
             />
           ) : activeMenu === "history" ? (
             <FinalReportsList
