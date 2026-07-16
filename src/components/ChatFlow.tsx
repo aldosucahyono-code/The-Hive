@@ -758,6 +758,14 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       setShowTypingDots(false);
       return;
     }
+    // Bugfix (Vercel build gagal, TS18047 — pola sama persis dengan bugfix
+    // TS18048 di PreviewReport.tsx Juli 2026): narrowing "fullText !== null"
+    // di atas TIDAK ikut terbawa ke dalam function declaration/closure
+    // bersarang (arrow function setTimeout, apalagi function applyElapsedProgress
+    // yang bersarang DUA level) -- TypeScript menganalisa isinya terpisah
+    // dari titik deklarasi. Re-bind ke const baru dengan tipe eksplisit
+    // supaya tidak ambigu string|null lagi di closure manapun.
+    const fullTextValue: string = fullText;
 
     setShowTypingDots(true);
     typingTimeoutRef.current = window.setTimeout(() => {
@@ -765,18 +773,18 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
 
       const revealStartedAt = Date.now();
       const CHARS_PER_MS = 3 / 16; // kecepatan sama seperti sebelumnya (~187 char/detik)
-      const totalRevealMs = fullText.length / CHARS_PER_MS;
+      const totalRevealMs = fullTextValue.length / CHARS_PER_MS;
 
       function applyElapsedProgress() {
         const elapsed = Date.now() - revealStartedAt;
-        const next = Math.min(fullText.length, Math.ceil(elapsed * CHARS_PER_MS));
+        const next = Math.min(fullTextValue.length, Math.ceil(elapsed * CHARS_PER_MS));
         setRevealedLength(next);
         return next;
       }
 
       typingIntervalRef.current = window.setInterval(() => {
         const next = applyElapsedProgress();
-        if (next >= fullText.length && typingIntervalRef.current) {
+        if (next >= fullTextValue.length && typingIntervalRef.current) {
           window.clearInterval(typingIntervalRef.current);
           typingIntervalRef.current = null;
         }
@@ -789,7 +797,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       typingVisibilityHandlerRef.current = handleVisibility;
 
       typingHardTimeoutRef.current = window.setTimeout(() => {
-        setRevealedLength(fullText.length);
+        setRevealedLength(fullTextValue.length);
         if (typingIntervalRef.current) {
           window.clearInterval(typingIntervalRef.current);
           typingIntervalRef.current = null;
