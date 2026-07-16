@@ -31,9 +31,14 @@ type PreviewReportProps = {
   error: string | null;
   onRetry: () => void;
   onRestart: () => void;
+  // Audit Juli 2026 (hasil preview kini disimpan segera ke wizard_drafts
+  // lewat save-submission di ChatWizard.tsx, lihat komentar di sana) — kalau
+  // id ini sudah ada, autoPromote di bawah cukup panggil promoteDraft
+  // langsung, TIDAK perlu save-submission kedua kalinya.
+  draftId?: string | null;
 };
 
-function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewReportProps) {
+function PreviewReport({ data, preview, error, onRetry, onRestart, draftId }: PreviewReportProps) {
   const { t, lang } = useLanguage();
   const { user, session } = useAuth();
   const namaBisnis = data.namaBisnis || "Bisnis Anda";
@@ -92,15 +97,24 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
     async function autoPromote() {
       setAutoSaving(true);
       try {
-        const saveRes = await fetch("/api/save-submission", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ wizardData: data, preview, lang }),
-        });
-        const saveJson = await saveRes.json();
-        if (!saveRes.ok || !saveJson.id) {
-          console.error("auto-promote: save-submission gagal:", saveJson.error);
-          return;
+        // Reuse id yang sudah tersimpan segera setelah preview jadi (lihat
+        // runPreviewAnalysis di ChatWizard.tsx) -- kalau karena suatu alasan
+        // belum ada (mis. save-submission awal itu sempat gagal), baru
+        // panggil save-submission di sini sebagai fallback, sama seperti
+        // perilaku sebelumnya.
+        let usableDraftId = draftId || null;
+        if (!usableDraftId) {
+          const saveRes = await fetch("/api/save-submission", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ wizardData: data, preview, lang }),
+          });
+          const saveJson = await saveRes.json();
+          if (!saveRes.ok || !saveJson.id) {
+            console.error("auto-promote: save-submission gagal:", saveJson.error);
+            return;
+          }
+          usableDraftId = saveJson.id;
         }
 
         const promoteRes = await fetch("/api/workspace", {
@@ -109,7 +123,7 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({ action: "promoteDraft", draftId: saveJson.id }),
+          body: JSON.stringify({ action: "promoteDraft", draftId: usableDraftId }),
         });
         const promoteJson = await promoteRes.json();
         if (!cancelled && promoteRes.ok && promoteJson.businessProfileId) {

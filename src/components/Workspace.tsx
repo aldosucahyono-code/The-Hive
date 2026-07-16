@@ -49,6 +49,114 @@ type MenuKey =
 // tidak ada yang disembunyikan/dikunci. Lihat render di sidebar STAGE_GROUPS.
 const CORE_MENU_KEYS = new Set<MenuKey>(["today", "score", "target", "chat"]);
 
+// Quick Start Onboarding (audit Juli 2026, ChatGPT Critical #1 + QA
+// langsung: "user baru bisa kewalahan... terlalu banyak fitur, tidak tahu
+// harus mulai dari mana"). Dikonfirmasi lewat video: sidebar menampilkan
+// 7-9 tab sekaligus, semua berisi konten nyata (bukan cuma di Free -- Pro
+// malah lebih "ramai" karena Competitor/Referensi tidak lagi terkunci).
+// EMPAT langkah ini murni menyorot urutan yang DISARANKAN (bukan gating --
+// semua tab tetap 100% bisa diklik kapan saja, sama prinsipnya dengan
+// CORE_MENU_KEYS di atas). "today" sendiri tidak dihitung sebagai langkah
+// karena itu tab default yang otomatis "dikunjungi" begitu Workspace dibuka.
+type QuickStartKey = "score" | "businessUpdates" | "chat" | "competitor";
+const QUICK_START_STEPS: Array<{ key: QuickStartKey; icon: string }> = [
+  { key: "score", icon: "📊" },
+  { key: "businessUpdates", icon: "📝" },
+  { key: "chat", icon: "💬" },
+  { key: "competitor", icon: "🔍" },
+];
+const QUICK_START_STORAGE_PREFIX = "hive_quickstart_v1_";
+
+function loadQuickStartState(businessProfileId: string): { visited: Set<string>; dismissed: boolean } {
+  try {
+    const raw = window.localStorage.getItem(QUICK_START_STORAGE_PREFIX + businessProfileId);
+    if (!raw) return { visited: new Set(), dismissed: false };
+    const parsed = JSON.parse(raw) as { visited?: string[]; dismissed?: boolean } | null;
+    return { visited: new Set(Array.isArray(parsed?.visited) ? parsed!.visited : []), dismissed: !!parsed?.dismissed };
+  } catch {
+    return { visited: new Set(), dismissed: false };
+  }
+}
+
+function saveQuickStartState(businessProfileId: string, visited: Set<string>, dismissed: boolean) {
+  try {
+    window.localStorage.setItem(
+      QUICK_START_STORAGE_PREFIX + businessProfileId,
+      JSON.stringify({ visited: Array.from(visited), dismissed })
+    );
+  } catch {
+    // no-op -- localStorage tidak tersedia, degradasi jujur (kartu bisa saja tampil lagi tiap sesi, tidak menggagalkan apa pun yang lain)
+  }
+}
+
+/** Kartu "mulai dari sini" -- disorot di tab Today sampai keempat langkah
+ * dikunjungi atau pengguna sendiri yang menyembunyikannya. Bukan wizard
+ * modal terpisah (yang berisiko terasa seperti gerbang lagi setelah wizard
+ * awal) -- cukup kartu di tempat yang sudah wajar dilihat pertama kali. */
+function QuickStartCard({
+  t,
+  visited,
+  onStepClick,
+  onDismiss,
+}: {
+  t: Translations;
+  visited: Set<string>;
+  onStepClick: (key: QuickStartKey) => void;
+  onDismiss: () => void;
+}) {
+  const doneCount = QUICK_START_STEPS.filter((s) => visited.has(s.key)).length;
+  const nextStep = QUICK_START_STEPS.find((s) => !visited.has(s.key));
+
+  return (
+    <div className="mb-6 rounded-2xl border border-primary/25 bg-primary/[0.05] p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-white">🐝 {t.workspace.quickStartTitle}</p>
+          <p className="mt-1 text-xs leading-relaxed text-neutral-400">{t.workspace.quickStartDesc}</p>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="flex-none text-xs font-semibold text-neutral-500 underline-offset-2 hover:text-neutral-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+        >
+          {t.workspace.quickStartDismiss}
+        </button>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {QUICK_START_STEPS.map((s) => {
+          const done = visited.has(s.key);
+          const isNext = !done && nextStep?.key === s.key;
+          const label = t.workspace.quickStartSteps[s.key];
+          return (
+            <button
+              key={s.key}
+              onClick={() => onStepClick(s.key)}
+              className={
+                "flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 " +
+                (done
+                  ? "border-green-500/30 bg-green-500/10 text-green-300"
+                  : isNext
+                    ? "border-primary/50 bg-primary/15 text-white"
+                    : "border-white/15 bg-white/5 text-neutral-300 hover:border-primary/40 hover:text-white")
+              }
+            >
+              <span aria-hidden="true">{done ? "✓" : s.icon}</span>
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mx-auto mt-4 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-300"
+          style={{ width: `${(doneCount / QUICK_START_STEPS.length) * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // --- Tipe data mengikuti skema Domain Model (Tahap 1, 1.5, 1.6) ---
 // Catatan penting: Workspace sekarang mendukung BANYAK business_profile per
 // akun (Active Business Context), bukan lagi asumsi "1 user = 1 bisnis".
@@ -875,6 +983,7 @@ function BusinessScorePanel({
   onRetry,
   onUpgradeClick,
   onOpenUpdateModal,
+  scoreHistory,
 }: {
   preview: PreviewOutput | null;
   health: { dimensions: Record<string, number> | null; overall: number | null; dimensionSignals?: DimensionSignals };
@@ -887,6 +996,11 @@ function BusinessScorePanel({
   onRetry: () => void;
   onUpgradeClick: () => void;
   onOpenUpdateModal: () => void;
+  // Audit Juli 2026 (masukan ChatGPT + QA langsung: "skor cuma angka polos,
+  // lebih bagus ada panah tren/target") — reuse scoreHistory yang sudah
+  // dimuat untuk grafik Today (today_snapshot), BUKAN data baru. Opsional
+  // supaya pemanggil lain (kalau ada) tidak wajib menyediakannya.
+  scoreHistory?: Array<{ date: string; score: number | null }>;
 }) {
   const hasHealthData = health.overall !== null && health.dimensions !== null;
   const score = hasHealthData ? (health.overall as number) : preview?.businessHealthScore;
@@ -943,6 +1057,7 @@ function BusinessScorePanel({
           lang={lang}
           onUpgradeClick={onUpgradeClick}
           onOpenUpdateModal={onOpenUpdateModal}
+          scoreHistory={scoreHistory}
         />
       )}
     </WorkspaceSection>
@@ -970,6 +1085,7 @@ function ScoreContent({
   lang,
   onUpgradeClick,
   onOpenUpdateModal,
+  scoreHistory,
 }: {
   health: { dimensions: Record<string, number> | null; overall: number | null; dimensionSignals?: DimensionSignals };
   hasHealthData: boolean;
@@ -979,7 +1095,16 @@ function ScoreContent({
   lang: "id" | "en";
   onUpgradeClick: () => void;
   onOpenUpdateModal: () => void;
+  scoreHistory?: Array<{ date: string; score: number | null }>;
 }) {
+  // Audit Juli 2026 (masukan ChatGPT + QA langsung: skor selama ini tampil
+  // polos tanpa arah) — bandingkan titik data PALING AWAL yang tersedia di
+  // scoreHistory (today_snapshot) dengan titik TERBARU untuk dapat delta
+  // yang jujur, bukan dikarang. Kalau datanya kurang dari 2 titik (bisnis
+  // baru banget), jangan tampilkan apa-apa sama sekali -- sama prinsipnya
+  // dengan hasChartData di TodayPanel (JUJUR soal jumlah data).
+  const historyPoints = (scoreHistory || []).filter((h): h is { date: string; score: number } => h.score !== null);
+  const scoreDelta = historyPoints.length >= 2 ? historyPoints[historyPoints.length - 1].score - historyPoints[0].score : null;
   // Catatan: statusLabel SELALU dihitung dari skor numerik lewat kunci i18n,
   // bukan diambil dari preview.statusLabel mentah — field itu adalah teks
   // yang ditulis AI saat analisis dibuat (beku dalam bahasa saat itu), jadi
@@ -1006,6 +1131,12 @@ function ScoreContent({
           {score}
           <span className="text-lg text-neutral-500">/100</span>
         </p>
+        {scoreDelta !== null && scoreDelta !== 0 && (
+          <p className={`mt-1 text-xs font-bold ${scoreDelta > 0 ? "text-green-400" : "text-red-400"}`}>
+            {scoreDelta > 0 ? "▲" : "▼"} {scoreDelta > 0 ? "+" : ""}
+            {scoreDelta} {lang === "en" ? "since you started" : "sejak mulai dipantau"}
+          </p>
+        )}
         <p className="mt-2 text-sm font-bold uppercase tracking-wide text-neutral-300">{statusLabel}</p>
         <div className="mx-auto mt-4 h-2 max-w-xs overflow-hidden rounded-full bg-white/10">
           <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
@@ -4255,6 +4386,46 @@ function Workspace() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>("today");
   const [businesses, setBusinesses] = useState<BusinessProfileRow[]>([]);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
+  // Audit Juli 2026 (ChatGPT Critical #1 + QA langsung: "user baru bisa
+  // kewalahan" -- Workspace langsung menampilkan 7-9 tab sekaligus tanpa
+  // urutan "mulai dari sini"). Quick Start murni berbasis tab mana yang
+  // SUDAH PERNAH dibuka (bukan data baru di backend) -- disimpan per bisnis
+  // di localStorage supaya tidak perlu migrasi/endpoint baru, dan otomatis
+  // "selesai" begitu pengguna wajar menjelajah Workspace-nya sendiri (tidak
+  // memaksa urutan kaku, cuma menyorot langkah berikutnya yang disarankan).
+  const [visitedMenus, setVisitedMenus] = useState<Set<string>>(new Set());
+  const [quickStartDismissed, setQuickStartDismissed] = useState(false);
+
+  // Muat status Quick Start begitu bisnis aktif diketahui/berganti --
+  // per-bisnis (bukan global) supaya pindah ke bisnis lain di akun yang
+  // sama tetap disambut Quick Start-nya sendiri, bukan status bisnis lain.
+  useEffect(() => {
+    if (!activeBusinessId) return;
+    const loaded = loadQuickStartState(activeBusinessId);
+    setVisitedMenus(loaded.visited);
+    setQuickStartDismissed(loaded.dismissed);
+  }, [activeBusinessId]);
+
+  // Tandai tab yang sedang dibuka sebagai "dikunjungi" tiap kali activeMenu
+  // berubah -- satu tempat saja, tidak perlu mengubah tiap pemanggil
+  // setActiveMenu() satu-satu di seluruh file.
+  useEffect(() => {
+    if (!activeBusinessId) return;
+    setVisitedMenus((prev) => {
+      if (prev.has(activeMenu)) return prev;
+      const next = new Set(prev);
+      next.add(activeMenu);
+      saveQuickStartState(activeBusinessId, next, quickStartDismissed);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMenu, activeBusinessId]);
+
+  function dismissQuickStart() {
+    setQuickStartDismissed(true);
+    if (activeBusinessId) saveQuickStartState(activeBusinessId, visitedMenus, true);
+  }
+
   const [analyses, setAnalyses] = useState<AnalysisRow[]>([]);
   // Error/retry state Report — sebelumnya fetch "analyses" (sumber
   // latestPreview yang dipakai Report & fallback Business Score) juga cuma
@@ -4864,9 +5035,24 @@ function Workspace() {
     }
   }
 
-  function openUpgradeModal(platinumOnly = false) {
+  // Bugfix Juli 2026 (QA: "user gratis mau upgrade, pilihannya cuma
+  // Platinum saja, Pro tidak muncul"): akar masalahnya BUKAN di sini,
+  // tapi enam dari tujuh pemanggil generik ini menulis
+  // `onUpgradeClick={openUpgradeModal}` TANPA dibungkus arrow function --
+  // karena tombolnya (RetryButton) memakai `<button onClick={onRetry}>`,
+  // React meneruskan objek MouseEvent mentah sebagai argumen pertama.
+  // MouseEvent selalu truthy, jadi `platinumOnly` kebaca `true` di SETIAP
+  // klik upgrade generik (Business Score, Target, Competitor, Chat,
+  // Settings, Decision Journal) -- padahal cuma Final Reports yang memang
+  // seharusnya platinum-only. Perbaikan dua lapis: (1) semua pemanggil di
+  // bawah sekarang dibungkus `() => openUpgradeModal()` supaya tidak ada
+  // argumen tak sengaja yang lolos, (2) fungsi ini sendiri dikeraskan
+  // dengan `=== true` supaya SEKALIPUN ada pemanggil baru nanti yang lupa
+  // membungkus, sebuah objek event tidak akan pernah diam-diam dibaca
+  // sebagai true lagi.
+  function openUpgradeModal(platinumOnly: unknown = false) {
     setUpgradeOutcome(null);
-    setUpgradePlatinumOnly(platinumOnly);
+    setUpgradePlatinumOnly(platinumOnly === true);
     setShowUpgradeModal(true);
   }
 
@@ -6223,30 +6409,35 @@ function Workspace() {
               <SkeletonCard variant="default" />
             </div>
           ) : activeMenu === "today" ? (
-            <TodayPanel
-              t={t}
-              lang={lang}
-              businessProfileId={activeBusinessId || ""}
-              businessType={businessType}
-              snapshot={todaySnapshot}
-              snapshotLoading={todaySnapshotLoading}
-              snapshotError={todaySnapshotError}
-              onRetrySnapshot={reloadTodaySnapshot}
-              onOpenUpdateModal={() => setShowBusinessUpdate(true)}
-              onNavigateToInsights={() => setActiveMenu("score")}
-              onOpenChat={() => setActiveMenu("chat")}
-              onOpenCompetitor={() => setActiveMenu("competitor")}
-              scoreHistory={scoreHistory}
-              macro={macroSnapshot}
-              macroLoading={macroLoading}
-              macroError={macroError}
-              onRetryMacro={loadMacroSnapshot}
-              actionPlanItems={actionPlanItems}
-              actionPlanLoading={actionPlanLoading || actionPlanGenerating}
-              actionPlanError={actionPlanError}
-              onRegenerateActionPlan={generateActionPlanNow}
-              onToggleActionPlanItem={toggleActionPlanItemNow}
-            />
+            <>
+              {!quickStartDismissed && QUICK_START_STEPS.some((s) => !visitedMenus.has(s.key)) && (
+                <QuickStartCard t={t} visited={visitedMenus} onStepClick={(key) => setActiveMenu(key)} onDismiss={dismissQuickStart} />
+              )}
+              <TodayPanel
+                t={t}
+                lang={lang}
+                businessProfileId={activeBusinessId || ""}
+                businessType={businessType}
+                snapshot={todaySnapshot}
+                snapshotLoading={todaySnapshotLoading}
+                snapshotError={todaySnapshotError}
+                onRetrySnapshot={reloadTodaySnapshot}
+                onOpenUpdateModal={() => setShowBusinessUpdate(true)}
+                onNavigateToInsights={() => setActiveMenu("score")}
+                onOpenChat={() => setActiveMenu("chat")}
+                onOpenCompetitor={() => setActiveMenu("competitor")}
+                scoreHistory={scoreHistory}
+                macro={macroSnapshot}
+                macroLoading={macroLoading}
+                macroError={macroError}
+                onRetryMacro={loadMacroSnapshot}
+                actionPlanItems={actionPlanItems}
+                actionPlanLoading={actionPlanLoading || actionPlanGenerating}
+                actionPlanError={actionPlanError}
+                onRegenerateActionPlan={generateActionPlanNow}
+                onToggleActionPlanItem={toggleActionPlanItemNow}
+              />
+            </>
           ) : activeMenu === "history" ? (
             <FinalReportsList
               tier={tier}
@@ -6273,8 +6464,9 @@ function Workspace() {
               loading={businessHealthLoading}
               error={businessHealthError}
               onRetry={reloadBusinessHealth}
-              onUpgradeClick={openUpgradeModal}
+              onUpgradeClick={() => openUpgradeModal()}
               onOpenUpdateModal={() => setShowBusinessUpdate(true)}
+              scoreHistory={scoreHistory}
             />
           ) : activeMenu === "report" ? (
             <ReportPanel
@@ -6301,7 +6493,7 @@ function Workspace() {
               progressLoading={progressLoading}
               progressError={progressError}
               onRetryProgress={reloadProgress}
-              onUpgradeClick={openUpgradeModal}
+              onUpgradeClick={() => openUpgradeModal()}
               onOpenUpdateModal={() => setShowBusinessUpdate(true)}
               healthTrend={healthTrend}
               updates={updateHistory}
@@ -6317,7 +6509,7 @@ function Workspace() {
               tier={tier}
               t={t}
               lang={lang}
-              onUpgradeClick={openUpgradeModal}
+              onUpgradeClick={() => openUpgradeModal()}
               data={competitorAnalysis}
               loading={competitorLoading}
               error={competitorError}
@@ -6348,7 +6540,7 @@ function Workspace() {
                 businessType={businessType}
                 t={t}
                 lang={lang}
-                onUpgradeClick={openUpgradeModal}
+                onUpgradeClick={() => openUpgradeModal()}
                 pendingMemoryFacts={pendingMemoryFacts}
                 pendingMemoryFactsLoading={pendingMemoryFactsLoading}
                 pendingMemoryFactsError={pendingMemoryFactsError}
@@ -6373,7 +6565,7 @@ function Workspace() {
               reports={reports}
               reportsLoading={reportsLoading}
               reportsError={reportsError}
-              onUpgradeClick={openUpgradeModal}
+              onUpgradeClick={() => openUpgradeModal()}
               onSignOut={handleSignOut}
               onDeleteBusiness={() => {
                 setConfirmingDelete(true);
@@ -6401,7 +6593,7 @@ function Workspace() {
               loading={decisionsLoading}
               error={decisionsError}
               onRetry={loadDecisions}
-              onUpgradeClick={openUpgradeModal}
+              onUpgradeClick={() => openUpgradeModal()}
               businessName={activeBusiness?.business_name || ""}
             />
           ) : (

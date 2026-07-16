@@ -1237,6 +1237,18 @@ const id = {
     decisionSubmitButton: "Analisa Keputusan Ini",
     decisionSubmitLoading: "Beemo sedang menganalisa...",
     decisionCancelButton: "Batal",
+    // Quick Start Onboarding (audit Juli 2026, ChatGPT Critical #1 + QA
+    // langsung: "user baru bisa kewalahan") — lihat QuickStartCard di
+    // Workspace.tsx.
+    quickStartTitle: "Mulai dari sini",
+    quickStartDesc: "Workspace kamu punya banyak fitur — coba jelajahi 4 hal ini dulu supaya kerasa manfaatnya. Boleh diklik urutan apa saja, tidak wajib berurutan.",
+    quickStartDismiss: "Sembunyikan",
+    quickStartSteps: {
+      score: "Lihat Business Health",
+      businessUpdates: "Update Bisnis Pertama",
+      chat: "Ngobrol dengan Beemo",
+      competitor: "Buka Competitor",
+    },
     decisionGoalLabel: "Tujuanmu",
     decisionRiskLabel: "Risiko yang Perlu Diperhatikan",
     decisionOpportunityLabel: "Peluang yang Bisa Dimanfaatkan",
@@ -1244,7 +1256,14 @@ const id = {
     decisionRecommendationLabel: "Rekomendasi Beemo",
     decisionConclusionLabel: "Kesimpulan",
     decisionHistoryTitle: "Riwayat Keputusan",
-    decisionHistoryEmpty: "Belum ada keputusan besar yang tercatat. Bahas keputusan besar bareng Beemo di Chat — kalau relevan, otomatis tersimpan di sini.",
+    // Audit Juli 2026 (masukan ChatGPT + QA langsung: "Decision Journal
+    // perlu dijelaskan manfaatnya" — halamannya kosong tanpa contoh konkret
+    // kapan harus dipakai). Ditambahkan 3 contoh nyata langsung dari
+    // DECISION_DETECTION_BLOCK_ID di services/beemo/chat.ts supaya copy di
+    // sini benar-benar mencerminkan apa yang sungguhan dideteksi Beemo,
+    // bukan contoh yang dikarang terpisah.
+    decisionHistoryEmpty:
+      "Belum ada keputusan besar yang tercatat. Ini bukan tempat kamu isi form — cukup bahas keputusan besar bareng Beemo di Chat, misalnya \"apa aku perlu buka cabang baru?\", \"apakah harus terima tawaran franchise ini?\", atau \"perlu naikkan harga jual sekarang?\" — kalau memang keputusan besar, otomatis tersimpan di sini.",
     decisionBasedOnQuestionLabel: "Berdasarkan pertanyaan",
     decisionErrorGeneric: "Beemo gagal menganalisa. Coba lagi.",
     decisionQuestionRequired: "Ceritakan dulu keputusan yang sedang kamu pertimbangkan.",
@@ -2795,6 +2814,15 @@ const en: Translations = {
     decisionSubmitButton: "Analyze This Decision",
     decisionSubmitLoading: "Beemo is analyzing...",
     decisionCancelButton: "Cancel",
+    quickStartTitle: "Start here",
+    quickStartDesc: "Your Workspace has a lot going on — try these 4 things first to feel the real value. Click them in any order, no need to go in sequence.",
+    quickStartDismiss: "Hide",
+    quickStartSteps: {
+      score: "Check your Business Health",
+      businessUpdates: "Your First Business Update",
+      chat: "Chat with Beemo",
+      competitor: "Open Competitor",
+    },
     decisionGoalLabel: "Your Goal",
     decisionRiskLabel: "Risk to Watch Out For",
     decisionOpportunityLabel: "Opportunity Worth Taking",
@@ -2802,7 +2830,8 @@ const en: Translations = {
     decisionRecommendationLabel: "Beemo's Recommendation",
     decisionConclusionLabel: "Conclusion",
     decisionHistoryTitle: "Decision History",
-    decisionHistoryEmpty: "No big decisions logged yet. Talk through a big decision with Beemo in Chat — if it's relevant, it'll be saved here automatically.",
+    decisionHistoryEmpty:
+      "No big decisions logged yet. There's no form to fill in here — just talk through a big decision with Beemo in Chat, for example \"should I open a new branch?\", \"should I accept this franchise offer?\", or \"is it time to raise my prices?\" — if it's genuinely a big decision, it's saved here automatically.",
     decisionBasedOnQuestionLabel: "Based on the question",
     decisionErrorGeneric: "Beemo failed to analyze. Please try again.",
     decisionQuestionRequired: "First tell us the decision you're considering.",

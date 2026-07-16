@@ -102,6 +102,13 @@ function ChatBeemoPanel({
   // Fallback ke staticSuggestions selama belum siap/gagal, supaya empty
   // state tidak pernah kosong.
   const [dynamicStarters, setDynamicStarters] = useState<string[] | null>(null);
+  // Audit Juli 2026 (ChatGPT Critical #2 + QA langsung: "Beemo masih
+  // terlalu pasif, saya ingin Beemo mencari user") — kalimat pembuka dari
+  // Beemo sendiri, sekarang dikirim bareng starter pertanyaan (satu
+  // panggilan yang sama, lihat services/workspace/chat/getChatStarters.ts).
+  // null = belum siap/gagal -- render tetap aman, cuma tidak menampilkan
+  // bubble pembuka (empty state generik tetap ada sebagai fallback).
+  const [openingLine, setOpeningLine] = useState<string | null>(null);
   useEffect(() => {
     if (tier === "free" || !businessProfileId || !session?.access_token) return;
     let cancelled = false;
@@ -113,8 +120,13 @@ function ChatBeemoPanel({
           body: JSON.stringify({ action: "getChatStarters", businessProfileId, lang }),
         });
         const json = await response.json();
-        if (!cancelled && response.ok && Array.isArray(json.starters) && json.starters.length > 0) {
-          setDynamicStarters(json.starters as string[]);
+        if (!cancelled && response.ok) {
+          if (Array.isArray(json.starters) && json.starters.length > 0) {
+            setDynamicStarters(json.starters as string[]);
+          }
+          if (typeof json.opening === "string" && json.opening.trim().length > 0) {
+            setOpeningLine(json.opening.trim());
+          }
         }
       } catch (err) {
         console.error("getChatStarters error:", err);
@@ -200,12 +212,25 @@ function ChatBeemoPanel({
         >
           {messages.length === 0 && (
             <>
-              <EmptyState
-                variant="default"
-                icon="💬"
-                title={t.workspace.chatEmptyTitle}
-                description={t.workspace.chatEmptyState}
-              />
+              {openingLine ? (
+                // Beemo menyapa duluan (bukan cuma judul + deskripsi
+                // generik) -- ditampilkan PERSIS seperti bubble balasan
+                // biasa supaya terasa seperti Beemo benar-benar sudah
+                // melihat bisnis ini dan punya sesuatu untuk disampaikan,
+                // bukan menunggu diajak bicara.
+                <div className="flex justify-start">
+                  <div className="max-w-[80%] rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm leading-relaxed text-neutral-200">
+                    {renderChatContent(openingLine)}
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  variant="default"
+                  icon="💬"
+                  title={t.workspace.chatEmptyTitle}
+                  description={t.workspace.chatEmptyState}
+                />
+              )}
               <div className="mx-auto mt-4 flex max-w-md flex-wrap justify-center gap-2">
                 {suggestions.map((s) => (
                   <button

@@ -469,9 +469,23 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: "claude-sonnet-5",
-      // Dinaikkan dari 800 — riset sungguhan (web search) butuh ruang lebih
-      // untuk merangkai jawaban lengkap, bukan cuma jawaban template pendek.
-      max_tokens: 1500,
+      // Dinaikkan dari 800, lalu dari 1500 (audit Juli 2026, QA: "beemo
+      // jawab 5 poin tapi yang muncul cuma 2-3 poin, konsisten kepotong").
+      // Akar masalahnya: 1500 token adalah plafon KELUARAN, dan jawaban
+      // terstruktur (apalagi PERAN GANDA di PLATINUM yang mensintesis
+      // beberapa sudut pandang sekaligus) sering butuh lebih dari itu untuk
+      // selesai wajar -- Claude berhenti di tengah kalimat/poin begitu
+      // limitnya kena, dan sebelumnya TIDAK ADA deteksi stop_reason sama
+      // sekali, jadi jawaban terpotong itu tampil apa adanya ke pengguna
+      // seolah memang sudah selesai. Plafon dinaikkan ke 2200 (masih jauh
+      // di bawah generate-monthly-report/final-report yang butuh ribuan
+      // token untuk laporan penuh) -- ini CEILING, bukan biaya tetap;
+      // Claude tetap berhenti wajar begitu jawabannya selesai, jadi
+      // menaikkan ini tidak menaikkan biaya rata-rata, hanya menghilangkan
+      // pemotongan paksa untuk jawaban yang memang butuh ruang lebih.
+      // Deteksi stop_reason di bawah (lihat maxTokensHit) menjaga andai
+      // masih ada kasus yang kena limit.
+      max_tokens: 2200,
       system: systemPrompt,
       messages: trimmedMessages,
       // Riset Sungguhan (directive PO): Beemo boleh mencari data
@@ -502,6 +516,13 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
       .filter((b) => b.type === "text")
       .map((b) => ("text" in b ? b.text : ""))
       .join("");
+
+    // Deteksi jawaban terpotong (audit Juli 2026, lihat catatan max_tokens
+    // di atas) -- kalau Claude BENAR-BENAR masih kena limit 2200 (jawaban
+    // yang sangat panjang), jangan tampilkan potongan itu seolah sudah
+    // selesai. Tambahkan penanda jujur di akhir supaya pengguna tahu harus
+    // minta lanjutannya, bukan mengira Beemo cuma memberi jawaban pendek.
+    const maxTokensHit = response.stop_reason === "max_tokens";
 
     const { cleanReply: replyAfterMemory, factKey, factValue } = parseMemoryProposal(rawReply);
 
@@ -575,10 +596,20 @@ export async function chatWithBeemo(userId: string, payload: Record<string, unkn
       }
     }
 
+    // Kalau masih kena limit walau sudah dinaikkan ke 2200 (lihat catatan di
+    // atas), jangan biarkan potongan itu terlihat seperti jawaban utuh --
+    // tambahkan penanda jujur di baris terakhir. `truncated` juga dikirim
+    // terpisah di body supaya frontend bisa (opsional, menyusul) menampilkan
+    // tombol "lanjutkan jawaban" alih-alih cuma teks statis ini.
+    const finalReply = maxTokensHit
+      ? cleanReply + (lang === "en" ? "\n\n*(This answer got cut off — ask me to continue for the rest.)*" : "\n\n*(Jawaban ini terpotong karena cukup panjang — minta Beemo lanjutkan untuk bagian selanjutnya.)*")
+      : cleanReply;
+
     return {
       status: 200,
       body: {
-        reply: cleanReply,
+        reply: finalReply,
+        truncated: maxTokensHit,
         factProposed: Boolean(factKey),
         // Decision Engine Auto-Detect: frontend pakai ini untuk menampilkan
         // catatan kecil "tersimpan ke Decision Journal" di bubble chat —

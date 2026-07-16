@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useAuth } from "./context/AuthContext";
 
 import Navbar from "./components/Navbar";
@@ -12,13 +12,34 @@ import Footer from "./components/Footer";
 import LegalPage from "./components/LegalPage";
 import FeedbackPage from "./components/FeedbackPage";
 import ContactPage from "./components/ContactPage";
-import AdminPage from "./components/AdminPage";
 import { ADMIN_SECRET_PATH } from "./adminSecretPath";
-import ReferralPage from "./components/ReferralPage";
 import TentangKami from "./components/TentangKami";
-import PaymentPage from "./components/PaymentPage";
-import Workspace from "./components/Workspace";
 import NurtureUnsubscribePage from "./components/NurtureUnsubscribePage";
+
+// Audit Juli 2026 (Performance, masukan ChatGPT "ringan di banyak device" +
+// prinsip PO "sekalipun orang gaptek/awam teknologi harus terbimbing" --
+// audit performa terpisah tadi menemukan NOL code-splitting di seluruh
+// src/, semua rute eager-imported jadi satu bundle raksasa). Navigasi di
+// App ini SELALU lewat hardNavigate (full page reload, lihat
+// utils/navigate.ts) -- jadi lazy() di sini TIDAK mengubah perilaku
+// navigasi sama sekali, cuma memisahkan Workspace (6000+ baris, fitur
+// dashboard lengkap) / AdminPage / PaymentPage / ReferralPage jadi chunk
+// terpisah yang HANYA diunduh saat rute itu benar-benar dibuka -- supaya
+// pengunjung landing page pertama kali (termasuk yang koneksinya lambat,
+// tepat golongan yang ingin benar-benar dilayani) tidak perlu mengunduh
+// kode Workspace/Admin yang bahkan belum tentu mereka pakai.
+const Workspace = lazy(() => import("./components/Workspace"));
+const AdminPage = lazy(() => import("./components/AdminPage"));
+const PaymentPage = lazy(() => import("./components/PaymentPage"));
+const ReferralPage = lazy(() => import("./components/ReferralPage"));
+
+function RouteLoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-black text-white">
+      <p className="text-neutral-400">Memuat...</p>
+    </div>
+  );
+}
 
 function App() {
 
@@ -314,7 +335,9 @@ function App() {
     return (
       <>
         <Navbar authError={authError} />
-        <AdminPage />
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <AdminPage />
+        </Suspense>
         <Footer />
       </>
     );
@@ -324,7 +347,9 @@ function App() {
     return (
       <>
         <Navbar authError={authError} />
-        <ReferralPage />
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <ReferralPage />
+        </Suspense>
         <Footer />
       </>
     );
@@ -350,7 +375,9 @@ function App() {
     return (
       <div className="theme-dark">
         <Navbar variant="dark" authError={authError} />
-        <Workspace />
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Workspace />
+        </Suspense>
         <Footer variant="dark" />
       </div>
     );
@@ -377,7 +404,9 @@ function App() {
     return (
       <>
         <Navbar authError={authError} />
-        <PaymentPage plan={rawHash === "bayar-pro" ? "pro" : "platinum"} />
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <PaymentPage plan={rawHash === "bayar-pro" ? "pro" : "platinum"} />
+        </Suspense>
         <Footer />
       </>
     );

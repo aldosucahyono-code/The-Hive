@@ -40,46 +40,90 @@ function systemPrompt(lang: "id" | "en", businessType: "start" | "grow"): string
       ? `This business is NOT YET RUNNING (still preparing to launch) -- questions must fit an owner who's getting ready to open.`
       : `This business is ALREADY RUNNING -- questions must fit an owner managing day-to-day operations.`;
 
+  // Audit Juli 2026 (ChatGPT Critical #2 + QA langsung: "Beemo masih
+  // terlalu pasif, saya ingin Beemo mencari user" -- Chat Beemo sebelumnya
+  // cuma menunggu, empty state-nya cuma judul generik + pertanyaan yang
+  // harus DIKLIK pengguna). Ditambahkan SATU field baru "opening" -- kalimat
+  // pembuka dari SUDUT PANDANG BEEMO SENDIRI (bukan lagi contoh pertanyaan
+  // dari sudut pandang pemilik usaha), seolah Beemo sudah lihat bisnis ini
+  // dan punya sesuatu untuk disampaikan duluan -- ditampilkan sebagai bubble
+  // chat pertama, SEBELUM pengguna mengetik apa pun. Reuse SATU pemanggilan
+  // Claude yang sama dengan starter pertanyaan (bukan panggilan/biaya baru
+  // terpisah) -- konsisten dengan kehati-hatian biaya AI yang sudah
+  // dipegang di seluruh Chat Beemo.
   if (lang === "en") {
-    return `You are Beemo, THE HIVE's business mentor. Your job is to write exactly 3 short SAMPLE QUESTIONS the business owner could tap to start a conversation with you -- shown in the empty state of the chat, before they've typed anything.
+    return `You are Beemo, THE HIVE's business mentor. You need to write two things for the empty state of the chat (shown before the owner has typed anything):
+
+1. An OPENING LINE from YOUR OWN voice (Beemo speaking), as if you already looked at this business and have something specific to say -- a short observation, nudge, or question about their actual situation. This should feel like YOU reaching out first, not waiting to be asked.
+2. Exactly 3 short SAMPLE QUESTIONS the owner could tap to start a conversation with you.
 
 ${stageRuleEn}
 
 RULES:
-1. Write each question IN THE OWNER'S VOICE, first person, as if THEY are asking you (e.g. "How can I find my first customers for [business]?") -- not Beemo talking about them.
-2. Each question must be SPECIFIC to this business -- reference their actual challenge, target, product, or business name from the context below. Do NOT write generic questions that could apply to any business (e.g. "How is my business doing?" is too generic unless grounded in something specific from the context).
-3. Keep each question short -- one sentence, natural spoken language, no jargon.
+1. The opening line is Beemo speaking TO the owner (e.g. "I noticed [specific challenge] is still open -- want to tackle it together?") -- warm, direct, one or two short sentences, no jargon.
+2. The 3 sample questions are written IN THE OWNER'S VOICE, first person, as if THEY are asking you (e.g. "How can I find my first customers for [business]?").
+3. Everything must be SPECIFIC to this business -- reference their actual challenge, target, product, or business name from the context below. Do NOT write anything generic enough to apply to any business.
 4. Reply with ONLY valid JSON, no markdown, no other text, in exactly this format:
-{"starters": [string, string, string]}`;
+{"opening": string, "starters": [string, string, string]}`;
   }
 
-  return `Kamu adalah Beemo, mentor bisnis THE HIVE. Tugasmu menulis TEPAT 3 CONTOH PERTANYAAN singkat yang bisa langsung diklik pemilik usaha untuk mulai ngobrol denganmu -- ditampilkan di empty state chat, sebelum mereka mengetik apa pun.
+  return `Kamu adalah Beemo, mentor bisnis THE HIVE. Kamu perlu menulis dua hal untuk empty state chat (ditampilkan sebelum pemilik usaha mengetik apa pun):
+
+1. KALIMAT PEMBUKA dari SUDUT PANDANG KAMU SENDIRI (Beemo bicara), seolah kamu sudah lihat bisnis ini dan punya sesuatu yang spesifik untuk disampaikan -- pengamatan singkat, dorongan, atau pertanyaan tentang situasi nyata mereka. Ini harus terasa seperti KAMU yang menyapa duluan, bukan menunggu ditanya.
+2. TEPAT 3 CONTOH PERTANYAAN singkat yang bisa langsung diklik pemilik usaha untuk mulai ngobrol denganmu.
 
 ${stageRuleId}
 
 ATURAN:
-1. Tulis tiap pertanyaan dari SUDUT PANDANG PEMILIK USAHA, orang pertama, seolah MEREKA yang bertanya ke kamu (mis. "Bagaimana cara saya cari pelanggan pertama untuk [nama bisnis]?") -- bukan Beemo yang bicara tentang mereka.
-2. Setiap pertanyaan harus SPESIFIK untuk bisnis ini -- sebut tantangan, target, produk, atau nama bisnis asli dari konteks di bawah. JANGAN tulis pertanyaan generik yang bisa berlaku untuk bisnis apa pun (mis. "Bagaimana kondisi bisnis saya?" terlalu generik kalau tidak dikaitkan sesuatu yang spesifik dari konteks).
-3. Pertanyaan singkat -- satu kalimat, bahasa lisan natural, tanpa jargon.
+1. Kalimat pembuka adalah Beemo bicara KE pemilik usaha (mis. "Saya lihat [tantangan spesifik] masih belum terselesaikan -- mau kita bahas bareng?") -- hangat, langsung, satu-dua kalimat pendek, tanpa jargon.
+2. Tiga contoh pertanyaan ditulis dari SUDUT PANDANG PEMILIK USAHA, orang pertama, seolah MEREKA yang bertanya ke kamu (mis. "Bagaimana cara saya cari pelanggan pertama untuk [nama bisnis]?").
+3. Semuanya harus SPESIFIK untuk bisnis ini -- sebut tantangan, target, produk, atau nama bisnis asli dari konteks di bawah. JANGAN tulis apa pun yang cukup generik untuk berlaku ke bisnis manapun.
 4. Balas HANYA JSON valid, tanpa markdown, tanpa teks lain, format persis:
-{"starters": [string, string, string]}`;
+{"opening": string, "starters": [string, string, string]}`;
 }
 
-function parseStartersJson(raw: string): string[] {
+type StartersPayload = { opening: string | null; starters: string[] };
+
+function parseStartersJson(raw: string): StartersPayload {
   const cleaned = raw.replace(/```json|```/g, "").trim();
+  const extract = (parsed: unknown): StartersPayload | null => {
+    if (!parsed || typeof parsed !== "object") return null;
+    const obj = parsed as { starters?: unknown; opening?: unknown };
+    if (!Array.isArray(obj.starters)) return null;
+    return { opening: typeof obj.opening === "string" ? obj.opening : null, starters: obj.starters as string[] };
+  };
   try {
-    const parsed = JSON.parse(cleaned);
-    if (Array.isArray(parsed?.starters)) return parsed.starters;
+    const result = extract(JSON.parse(cleaned));
+    if (result) return result;
   } catch {
     // lanjut ke percobaan berikutnya
   }
   const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("Respons tidak mengandung objek JSON.");
-  const parsed = JSON.parse(jsonMatch[0]);
-  return Array.isArray(parsed?.starters) ? parsed.starters : [];
+  const result = extract(JSON.parse(jsonMatch[0]));
+  return result || { opening: null, starters: [] };
 }
 
-async function generateAndSave(businessProfileId: string, lang: "id" | "en"): Promise<string[] | null> {
+// Bentuk yang disimpan di kolom jsonb `starters` (business_chat_starters).
+// TIDAK perlu migrasi baru -- kolomnya sudah jsonb bebas skema. Baris LAMA
+// (sebelum audit Juli 2026 ini) berbentuk array string polos, baris BARU
+// berbentuk objek {opening, starters}. normalizeStoredStarters menangani
+// dua bentuk itu supaya baris lama yang belum sempat regenerate (staleness
+// 14 hari) tidak error, cuma tampil tanpa opening line sampai regenerate
+// berikutnya.
+function normalizeStoredStarters(stored: unknown): StartersPayload {
+  if (Array.isArray(stored)) return { opening: null, starters: stored as string[] };
+  if (stored && typeof stored === "object") {
+    const obj = stored as { opening?: unknown; starters?: unknown };
+    return {
+      opening: typeof obj.opening === "string" ? obj.opening : null,
+      starters: Array.isArray(obj.starters) ? (obj.starters as string[]) : [],
+    };
+  }
+  return { opening: null, starters: [] };
+}
+
+async function generateAndSave(businessProfileId: string, lang: "id" | "en"): Promise<StartersPayload | null> {
   const memory = await getBusinessMemory(businessProfileId);
   if (!memory) return null;
 
@@ -110,24 +154,27 @@ async function generateAndSave(businessProfileId: string, lang: "id" | "en"): Pr
       .filter((b) => b.type === "text")
       .map((b) => ("text" in b ? b.text : ""))
       .join("");
-    const starters = parseStartersJson(rawText)
+    const parsed = parseStartersJson(rawText);
+    const starters = parsed.starters
       .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
       .map((s) => s.trim().slice(0, 200))
       .slice(0, 3);
+    const opening = parsed.opening && parsed.opening.trim().length > 0 ? parsed.opening.trim().slice(0, 400) : null;
 
-    if (starters.length === 0) return null;
+    if (starters.length === 0 && !opening) return null;
 
+    const payload: StartersPayload = { opening, starters };
     const { error } = await supabase
       .from("business_chat_starters")
       .upsert(
-        { business_profile_id: businessProfileId, starters, generated_at: new Date().toISOString() },
+        { business_profile_id: businessProfileId, starters: payload, generated_at: new Date().toISOString() },
         { onConflict: "business_profile_id" }
       );
     if (error) {
       console.error("getChatStarters: gagal menyimpan starters:", error);
     }
 
-    return starters;
+    return payload;
   } catch (err) {
     console.error("getChatStarters: gagal memanggil Claude:", err);
     return null;
@@ -161,7 +208,8 @@ export async function getChatStarters(userId: string, payload: Record<string, un
   const isStale = !existing || Date.now() - new Date(existing.generated_at).getTime() > STALE_AFTER_MS;
 
   if (existing && !isStale) {
-    return { status: 200, body: { starters: existing.starters as string[] } };
+    const normalized = normalizeStoredStarters(existing.starters);
+    return { status: 200, body: { opening: normalized.opening, starters: normalized.starters } };
   }
 
   const rl = await checkRateLimit(`chat-starters:${businessProfileId}`, RATE_LIMIT_PER_DAY, 86400);
@@ -170,15 +218,17 @@ export async function getChatStarters(userId: string, payload: Record<string, un
     // basi daripada tidak ada sama sekali), atau array kosong kalau memang
     // belum pernah ada -- ChatBeemoPanel.tsx fallback ke starter statis
     // lama saat array kosong.
-    return { status: 200, body: { starters: existing ? (existing.starters as string[]) : [] } };
+    const normalized = existing ? normalizeStoredStarters(existing.starters) : { opening: null, starters: [] };
+    return { status: 200, body: { opening: normalized.opening, starters: normalized.starters } };
   }
 
   const fresh = await generateAndSave(businessProfileId, lang);
   if (fresh) {
-    return { status: 200, body: { starters: fresh } };
+    return { status: 200, body: { opening: fresh.opening, starters: fresh.starters } };
   }
 
   // Generate gagal -- fallback ke starter lama (kalau ada, walau basi)
   // daripada gagal total; ChatBeemoPanel.tsx fallback ke statis kalau kosong.
-  return { status: 200, body: { starters: existing ? (existing.starters as string[]) : [] } };
+  const normalized = existing ? normalizeStoredStarters(existing.starters) : { opening: null, starters: [] };
+  return { status: 200, body: { opening: normalized.opening, starters: normalized.starters } };
 }

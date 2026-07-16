@@ -97,6 +97,46 @@ function clearSavedWizardDraft() {
   }
 }
 
+// Audit Juli 2026 (masukan ChatGPT + QA: hasil preview hilang kalau tab
+// ditutup sebelum login) — BEDA dari WIZARD_DRAFT_STORAGE_KEY di atas (itu
+// untuk jawaban yang BELUM selesai, step 1). Key ini menyimpan id hasil
+// preview yang SUDAH SELESAI (step 7), disimpan ke wizard_drafts server
+// lewat /api/save-submission segera setelah preview jadi -- lihat
+// runPreviewAnalysis(). Kalau tab ditutup dan dibuka lagi, id ini dipakai
+// untuk memuat ulang hasil yang SAMA dari server (api/get-preview-draft),
+// bukan mengulang wizard atau memanggil Claude lagi.
+const PREVIEW_RESULT_STORAGE_KEY = "hive_preview_draft_id";
+const PREVIEW_RESULT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari -- lebih lama dari draft jawaban (24 jam) karena stakes-nya beda: ini hasil JADI yang sudah dibayar dengan waktu tunggu, sayang dibuang cepat
+
+function savePreviewResultId(id: string) {
+  try {
+    window.localStorage.setItem(PREVIEW_RESULT_STORAGE_KEY, JSON.stringify({ id, savedAt: Date.now() }));
+  } catch {
+    // no-op -- localStorage tidak tersedia, degradasi jujur (tidak ada pemulihan kalau tab ditutup, tapi tidak menggagalkan apa pun yang terlihat pengguna)
+  }
+}
+
+function loadPreviewResultId(): string | null {
+  try {
+    const raw = window.localStorage.getItem(PREVIEW_RESULT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { id?: string; savedAt?: number } | null;
+    if (!parsed?.id || typeof parsed.savedAt !== "number") return null;
+    if (Date.now() - parsed.savedAt > PREVIEW_RESULT_MAX_AGE_MS) return null;
+    return parsed.id;
+  } catch {
+    return null;
+  }
+}
+
+function clearPreviewResultId() {
+  try {
+    window.localStorage.removeItem(PREVIEW_RESULT_STORAGE_KEY);
+  } catch {
+    // no-op
+  }
+}
+
 const initialData: WizardData = {
   jenisAnalisis: "",
   nama: "",
@@ -143,6 +183,57 @@ function ChatWizard() {
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
+  // wizard_drafts.id begitu save-submission berhasil (lihat
+  // runPreviewAnalysis) — diteruskan ke PreviewReport supaya autoPromote di
+  // sana bisa langsung promoteDraft dengan id ini, TANPA memanggil
+  // save-submission kedua kalinya (dulu dua-duanya insert baris sendiri).
+  const [previewDraftId, setPreviewDraftId] = useState<string | null>(null);
+  // Audit Juli 2026 (masukan ChatGPT + QA: "user isi 15 pertanyaan, tunggu
+  // hampir 1 menit, lalu tab tertutup -- semua hilang") — kalau TIDAK ada
+  // draft jawaban yang sedang berjalan (restoredDraft null, berarti bukan
+  // kasus "lagi ngobrol lalu refresh"), tapi ADA id hasil preview yang
+  // sudah selesai tersimpan, coba muat ulang hasil itu dari server SEBELUM
+  // render apa pun -- supaya pengunjung yang balik lagi langsung melihat
+  // hasil yang sama, bukan diminta mengulang wizard dari nol.
+  const [checkingPreviewRestore, setCheckingPreviewRestore] = useState(() => !restoredDraft && !!loadPreviewResultId());
+  useEffect(() => {
+    if (!checkingPreviewRestore) return;
+    const savedId = loadPreviewResultId();
+    if (!savedId) {
+      setCheckingPreviewRestore(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/get-preview-draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: savedId }),
+        });
+        const json = await response.json();
+        if (!cancelled && response.ok && json.preview && json.wizardData) {
+          setData({ ...initialData, ...json.wizardData });
+          setPreviewData(json.preview as PreviewData);
+          setPreviewReady(true);
+          setPreviewDraftId(savedId);
+          setStep(7);
+        } else if (!cancelled) {
+          // Draft tidak ditemukan/kadaluwarsa di server -- bersihkan id
+          // lokal supaya tidak dicoba lagi tiap mount, mulai dari nol.
+          clearPreviewResultId();
+        }
+      } catch (err) {
+        console.error("restore preview draft error:", err);
+      } finally {
+        if (!cancelled) setCheckingPreviewRestore(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkingPreviewRestore]);
   // Audit Juli 2026 (directive PO: "satu-satunya pintu... hanya lewat chat
   // wizzard") — kalau pengunjung SUDAH LOGIN (mis. lewat tombol "Tambah
   // Bisnis" di Workspace, atau Workspace yang masih kosong), cek batas
@@ -158,10 +249,12 @@ function ChatWizard() {
 
   function restart() {
     clearSavedWizardDraft();
+    clearPreviewResultId();
     setData(initialData);
     setPreviewData(null);
     setPreviewError(null);
     setPreviewReady(false);
+    setPreviewDraftId(null);
     setStep(0);
   }
 
@@ -226,7 +319,31 @@ function ChatWizard() {
         setPreviewError(json?.error || t.chatWizard.previewErrorGeneric);
         setPreviewData(null);
       } else {
-        setPreviewData((json?.preview as PreviewData) ?? null);
+        const preview = (json?.preview as PreviewData) ?? null;
+        setPreviewData(preview);
+
+        // Audit Juli 2026 (masukan ChatGPT + QA: "hasil preview hilang
+        // kalau tab ditutup") — simpan SEGERA ke wizard_drafts server (fire
+        // and forget, tidak menunda tampilan hasil ke pengguna) supaya ada
+        // sesuatu untuk dipulihkan kalau tab ini ditutup sebelum login.
+        // Sebelumnya save-submission cuma dipanggil saat auto-promote di
+        // PreviewReport.tsx (yang mengharuskan user SUDAH login) -- jadi
+        // pengunjung anonim yang menutup tab kehilangan hasilnya permanen.
+        if (preview) {
+          fetch("/api/save-submission", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ wizardData: data, preview, lang }),
+          })
+            .then((r) => r.json())
+            .then((saveJson) => {
+              if (saveJson?.id) {
+                savePreviewResultId(saveJson.id);
+                setPreviewDraftId(saveJson.id);
+              }
+            })
+            .catch((err) => console.error("runPreviewAnalysis: save-submission gagal:", err));
+        }
       }
     } catch (err) {
       console.error("runPreviewAnalysis error:", err);
@@ -253,7 +370,7 @@ function ChatWizard() {
     setStep(6);
   }
 
-  if (authLoading) {
+  if (authLoading || checkingPreviewRestore) {
     return (
       <section className="mx-auto flex min-h-[40vh] max-w-lg items-center justify-center px-6 py-20 text-center">
         <p className="text-neutral-600">{t.wizardCapBlocked.checkingLabel}</p>
@@ -288,6 +405,7 @@ function ChatWizard() {
         error={previewError}
         onRetry={retryPreview}
         onRestart={restart}
+        draftId={previewDraftId}
       />
     );
   }
