@@ -37,6 +37,22 @@ import { sendExpiryReminders } from "../../services/subscriptions/sendExpiryRemi
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Audit Juli 2026 ("cari celah, dan perbaiki"): dibungkus try/catch —
+  // sebelumnya loop generateFinalReport per baris tidak terlindungi,
+  // exception tak terduga di satu baris bisa menghentikan seluruh proses
+  // cron sebelum baris berikutnya sempat diproses/dilaporkan. Risiko lebih
+  // rendah dari router publik (endpoint ini digerbangi CRON_SECRET), tapi
+  // pola yang sama tetap diterapkan untuk konsistensi & supaya kegagalan
+  // selalu tercatat sebagai respons JSON, bukan crash diam-diam.
+  try {
+    return await handleCronRequest(req, res);
+  } catch (error) {
+    console.error("api/cron/generate-expiry-reports: unhandled error:", error);
+    return res.status(500).json({ error: "Terjadi kesalahan pada server." });
+  }
+}
+
+async function handleCronRequest(req: VercelRequest, res: VercelResponse) {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.authorization;
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {

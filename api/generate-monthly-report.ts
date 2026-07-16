@@ -109,6 +109,19 @@ function buildUserPrompt(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Audit Juli 2026 ("cari celah, dan perbaiki"): sebelumnya try/catch cuma
+  // membungkus panggilan Claude di bawah — gerbang auth, ownership check,
+  // dan gate PLATINUM di atasnya tidak terlindungi. Dibungkus di sini,
+  // sama pola dengan api/workspace.ts/business.ts/beemo.ts.
+  try {
+    return await handleGenerateMonthlyReport(req, res);
+  } catch (error) {
+    console.error("api/generate-monthly-report: unhandled error:", error);
+    return res.status(500).json({ error: "Terjadi kesalahan pada server. Coba lagi." });
+  }
+}
+
+async function handleGenerateMonthlyReport(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

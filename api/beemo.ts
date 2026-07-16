@@ -14,6 +14,19 @@ import { chatWithBeemo } from "../services/beemo/chat.js";
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Audit Juli 2026 ("cari celah, dan perbaiki"): dibungkus try/catch, sama
+  // alasannya dengan api/workspace.ts dan api/business.ts — chatWithBeemo
+  // sendiri sudah punya try/catch internal, tapi gerbang auth di atasnya
+  // (getUser, dsb.) sebelumnya tidak terlindungi.
+  try {
+    return await handleBeemoRequest(req, res);
+  } catch (error) {
+    console.error("api/beemo: unhandled error:", error);
+    return res.status(500).json({ error: "Terjadi kesalahan pada server. Coba lagi." });
+  }
+}
+
+async function handleBeemoRequest(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

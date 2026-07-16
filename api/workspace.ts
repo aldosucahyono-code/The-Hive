@@ -96,6 +96,22 @@ const ADMIN_FLOW_ACTIONS = new Set([
 const PUBLIC_ACTIONS = new Set(["nurtureUnsubscribe"]);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Audit Juli 2026 ("cari celah, dan perbaiki"): router terbesar di
+  // aplikasi ini (30+ aksi pelanggan + 14 aksi admin) sebelumnya TIDAK
+  // dibungkus try/catch sama sekali -- exception tak terduga dari mana pun
+  // di dalam service yang dipanggil (bukan {error} dari Supabase, tapi throw
+  // sungguhan, mis. network/parsing) akan lolos mentah ke runtime Vercel
+  // alih-alih pulang sebagai JSON bersih. Pola sama yang sudah diperbaiki di
+  // api/generate-preview.ts sekarang diterapkan di sini juga.
+  try {
+    return await handleWorkspaceRequest(req, res);
+  } catch (error) {
+    console.error("api/workspace: unhandled error:", error);
+    return res.status(500).json({ error: "Terjadi kesalahan pada server. Coba lagi." });
+  }
+}
+
+async function handleWorkspaceRequest(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

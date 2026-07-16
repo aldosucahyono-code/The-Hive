@@ -24,6 +24,18 @@ import { getCapDetails } from "../services/business/checkBusinessCap.js";
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Audit Juli 2026 ("cari celah, dan perbaiki"): dibungkus try/catch supaya
+  // exception tak terduga dari service manapun di bawah (mis. createBusiness)
+  // pulang sebagai JSON 500 bersih, bukan lolos mentah ke runtime Vercel.
+  try {
+    return await handleBusinessRequest(req, res);
+  } catch (error) {
+    console.error("api/business: unhandled error:", error);
+    return res.status(500).json({ error: "Terjadi kesalahan pada server. Coba lagi." });
+  }
+}
+
+async function handleBusinessRequest(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
