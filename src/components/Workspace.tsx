@@ -241,6 +241,7 @@ function FinalReportsList({
   generating,
   generateError,
   onGenerateBaseline,
+  businessName,
 }: {
   tier: Tier;
   t: Translations;
@@ -253,6 +254,9 @@ function FinalReportsList({
   generating: boolean;
   generateError: string | null;
   onGenerateBaseline: () => void;
+  // Phase 6 (Monetization/Upgrade timing) — dipakai untuk mempersonalisasi
+  // copy lock di bawah, lihat finalReportsLockedDescNamed.
+  businessName: string;
 }) {
   // Bugfix produk Juli 2026 ("PDF eksklusif PLATINUM, kurangi biaya generate
   // untuk PRO"): sebelumnya hanya tier "free" yang dikunci di sini — PRO
@@ -267,7 +271,11 @@ function FinalReportsList({
       <WorkspaceSection>
         <SectionHeader title={t.workspace.menuHistory} description={t.workspace.historySectionDesc} />
         <UpgradeLockCard
-          description={t.workspace.finalReportsLockedDesc}
+          description={
+            businessName
+              ? fillTemplate(t.workspace.finalReportsLockedDescNamed, { businessName })
+              : t.workspace.finalReportsLockedDesc
+          }
           buttonLabel={t.workspace.finalReportsUpgradeButton}
           onUpgradeClick={onUpgradeClick}
         />
@@ -629,6 +637,7 @@ function DecisionJournalList({
   error,
   onRetry,
   onUpgradeClick,
+  businessName,
 }: {
   tier: Tier;
   t: Translations;
@@ -638,13 +647,20 @@ function DecisionJournalList({
   error: boolean;
   onRetry: () => void;
   onUpgradeClick: () => void;
+  // Phase 6 (Monetization/Upgrade timing) — dipakai untuk mempersonalisasi
+  // copy lock di bawah, lihat decisionJournalLockedDescNamed.
+  businessName: string;
 }) {
   if (tier !== "platinum") {
     return (
       <WorkspaceSection>
         <SectionHeader title={t.workspace.menuDecisionJournal} description={t.workspace.decisionJournalSectionDesc} />
         <UpgradeLockCard
-          description={t.workspace.decisionJournalLockedDesc}
+          description={
+            businessName
+              ? fillTemplate(t.workspace.decisionJournalLockedDescNamed, { businessName })
+              : t.workspace.decisionJournalLockedDesc
+          }
           buttonLabel={t.workspace.competitorUpgradeButton}
           onUpgradeClick={onUpgradeClick}
         />
@@ -1316,7 +1332,11 @@ function TargetPanel({
       <WorkspaceSection>
         <SectionHeader title={t.workspace.targetSectionTitle} description={t.workspace.targetSectionDesc} />
         <UpgradeLockCard
-          description={t.workspace.growthLockedDesc}
+          // Phase 6 (Monetization/Upgrade timing, directive PO: "teaser
+          // lebih personal") — sebut target ASLI pengguna (rawInput.target,
+          // sudah tersedia di scope ini) kalau ada, bukan copy generik yang
+          // sama untuk semua orang.
+          description={target ? fillTemplate(t.workspace.growthLockedDescNamed, { target: target.length > 80 ? target.slice(0, 80).trim() + "…" : target }) : t.workspace.growthLockedDesc}
           buttonLabel={t.workspace.growthUpgradeButton}
           onUpgradeClick={onUpgradeClick}
         />
@@ -1363,7 +1383,7 @@ function TargetPanel({
           upgrade, bukan bagian yang hilang diam-diam. */}
       {tier !== "platinum" ? (
         <UpgradeLockCard
-          description={t.workspace.targetProgressLockedDesc}
+          description={target ? fillTemplate(t.workspace.targetProgressLockedDescNamed, { target: target.length > 80 ? target.slice(0, 80).trim() + "…" : target }) : t.workspace.targetProgressLockedDesc}
           buttonLabel={t.workspace.competitorUpgradeButton}
           onUpgradeClick={onUpgradeClick}
         />
@@ -6192,6 +6212,7 @@ function Workspace() {
               generating={reportsGenerating}
               generateError={reportsGenerateError}
               onGenerateBaseline={handleGenerateBaselineReport}
+              businessName={activeBusiness?.business_name || ""}
             />
           ) : activeMenu === "score" ? (
             <BusinessScorePanel
@@ -6333,6 +6354,7 @@ function Workspace() {
               error={decisionsError}
               onRetry={loadDecisions}
               onUpgradeClick={openUpgradeModal}
+              businessName={activeBusiness?.business_name || ""}
             />
           ) : (
             <EmptyState

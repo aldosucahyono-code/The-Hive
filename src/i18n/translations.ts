@@ -942,6 +942,11 @@ const id = {
     // PLATINUM (PRO tidak lagi termasuk), jadi teksnya diperbaiki supaya
     // tidak menjanjikan sesuatu yang PRO sebenarnya tidak dapat.
     finalReportsLockedDesc: "Final Reports (PDF laporan resmi bisnismu) eksklusif untuk pelanggan PLATINUM. Upgrade untuk membuat, melihat, dan mengunduh laporannya.",
+    // Phase 6 (Monetization/Upgrade timing, directive PO: "teaser lebih
+    // personal... users merasa ini benar-benar tentang bisnisku") — versi
+    // yang menyebut nama bisnis asli, dipakai kalau businessName tersedia;
+    // fallback ke versi generik di atas kalau kosong.
+    finalReportsLockedDescNamed: "Final Reports — PDF laporan resmi untuk {businessName} — eksklusif untuk pelanggan PLATINUM. Upgrade untuk membuat, melihat, dan mengunduh laporannya.",
     finalReportsUpgradeButton: "Upgrade ke PLATINUM",
     finalReportsBaselineTitle: "Laporan Awal",
     finalReportsBaselineDesc: "Ringkasan lengkap analisa pertama bisnismu — jadi patokan buat lihat kemajuanmu ke depan.",
@@ -1032,6 +1037,7 @@ const id = {
     businessUpdatesCtaDesc: "Rutin isi update supaya pendampingan Beemo makin relevan dan up-to-date.",
     decisionJournalSectionDesc: "Riwayat keputusan besar yang pernah kamu bahas dengan Beemo di Chat — otomatis tersimpan di sini, tidak perlu mengisi form terpisah.",
     decisionJournalLockedDesc: "Beemo bantu kamu mikirin keputusan besar dari berbagai sudut pandang, pakai data bisnismu sendiri — khusus pelanggan Platinum.",
+    decisionJournalLockedDescNamed: "Beemo bantu kamu mikirin keputusan besar untuk {businessName} dari berbagai sudut pandang, pakai data bisnismu sendiri — khusus pelanggan Platinum.",
     decisionStatusOpen: "Belum Selesai",
     decisionStatusDecided: "Sudah Diputuskan",
     decisionStatusDismissed: "Dibatalkan",
@@ -1087,6 +1093,8 @@ const id = {
     targetEmptyTitle: "Belum Ada Target Bisnis",
     targetEmptyDesc: "Mulailah memperbarui perkembangan bisnismu agar THE HIVE dapat menghitung target secara otomatis.",
     targetProgressLockedDesc: "Progress menuju target — perbandingan Business Score sejak awal dan minggu ke minggu — tersedia di paket PLATINUM.",
+    targetProgressLockedDescNamed: "Progress menuju target kamu — \"{target}\" — perbandingan Business Score sejak awal dan minggu ke minggu — tersedia di paket PLATINUM.",
+    growthLockedDescNamed: "Strategi marketing, ide pengembangan, dan rencana 30 hari untuk mengejar target kamu — \"{target}\" — tersedia di laporan PRO/PLATINUM.",
     targetProgressEmptyTitle: "Progress Belum Tersedia",
     targetPriorityTitle: "Prioritas Menuju Target",
     targetCtaTitle: "Perbarui Progressmu",
@@ -2479,6 +2487,7 @@ const en: Translations = {
     historyCtaDesc: "Update your business condition regularly so your history stays complete and accurate.",
     historyUnnamedBusiness: "Unnamed Business",
     finalReportsLockedDesc: "Final Reports (your business's official PDF reports) are exclusive to PLATINUM customers. Upgrade to generate, view, and download them.",
+    finalReportsLockedDescNamed: "Final Reports — official PDF reports for {businessName} — are exclusive to PLATINUM customers. Upgrade to generate, view, and download them.",
     finalReportsUpgradeButton: "Upgrade to PLATINUM",
     finalReportsBaselineTitle: "Initial Report",
     finalReportsBaselineDesc: "A full summary of your business's very first analysis — your starting point for tracking progress from here.",
@@ -2563,6 +2572,7 @@ const en: Translations = {
     businessUpdatesCtaDesc: "Update regularly so Beemo's guidance stays relevant and up to date.",
     decisionJournalSectionDesc: "A history of the big decisions you've discussed with Beemo in Chat — saved here automatically, no separate form needed.",
     decisionJournalLockedDesc: "Beemo helps you think through big decisions from every angle, using your own business data — only for Platinum members.",
+    decisionJournalLockedDescNamed: "Beemo helps you think through big decisions for {businessName} from every angle, using your own business data — only for Platinum members.",
     decisionStatusOpen: "Open",
     decisionStatusDecided: "Decided",
     decisionStatusDismissed: "Dismissed",
@@ -2618,6 +2628,7 @@ const en: Translations = {
     targetEmptyTitle: "No Business Target Yet",
     targetEmptyDesc: "Start updating your business progress so THE HIVE can track your target automatically.",
     targetProgressLockedDesc: "Progress toward your target — Business Score comparison since day one and week over week — is available in the PLATINUM plan.",
+    targetProgressLockedDescNamed: "Progress toward your target — \"{target}\" — Business Score comparison since day one and week over week — is available in the PLATINUM plan.",
     targetProgressEmptyTitle: "Progress Not Available Yet",
     targetPriorityTitle: "Priority Toward Your Target",
     targetCtaTitle: "Update Your Progress",
@@ -2688,6 +2699,7 @@ const en: Translations = {
     membershipTaglinePlatinum: "A complete business companion with progress reports and advanced strategy.",
     growthSectionDesc: "See how your business journey has evolved over time — score, milestones, and weekly progress.",
     growthLockedDesc: "Marketing strategy, development ideas, and a 30-day plan are available in the PRO/PLATINUM report.",
+    growthLockedDescNamed: "Marketing strategy, development ideas, and a 30-day plan to chase your target — \"{target}\" — are available in the PRO/PLATINUM report.",
     growthUpgradeButton: "View PRO/PLATINUM Plans",
     growthJourneyTitle: "Business Journey",
     growthBiggestMoverLabel: "Biggest Change",
