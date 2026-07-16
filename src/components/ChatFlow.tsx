@@ -135,7 +135,23 @@ function fill(template: string, data: WizardData): string {
 function frozenPrompt(q: Question, data: WizardData): string {
   if (q.field === "bucketAnswer1" && data.bucketQuestion1) return data.bucketQuestion1;
   if (q.field === "bucketAnswer2" && data.bucketQuestion2) return data.bucketQuestion2;
+  // Bugfix Juli 2026 (QA audit live: "Penyedia Pasir Besi" -- pertanyaan
+  // produkJasa yang SUDAH dijawab pakai contoh fallback ("Nasi goreng...")
+  // ternyata berubah sendiri di riwayat jadi contoh AI ("Pasir besi curah
+  // per truk...") begitu dynamicProdukJasaExamples selesai di-fetch
+  // TERLAMBAT (lewat timeout 8 detik) -- sama seperti kasus bucketQuestion
+  // di atas, cuma belum ditangani. lihat produkJasaQuestion di WizardData.
+  if (q.field === "produkJasa" && data.produkJasaQuestion) return data.produkJasaQuestion;
   return q.prompt(data);
+}
+
+/** Pasangan frozenPrompt() untuk teks transitionBefore di riwayat -- HANYA
+ * produkJasa yang transitionBefore-nya dinamis (reaksi industri AI-generated,
+ * lihat dynamicIndustryReaction), field lain statis/template biasa jadi aman
+ * dipanggil ulang. Bugfix sama dengan frozenPrompt() di atas. */
+function frozenTransitionText(q: Question, data: WizardData): string | undefined {
+  if (q.field === "produkJasa" && data.produkJasaReaction) return data.produkJasaReaction;
+  return resolveTransitionBefore(q.transitionBefore, data);
 }
 
 // Contoh produk/jasa untuk pertanyaan produkJasa (audit Juli 2026): SEBELUM
@@ -943,6 +959,15 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       updateField("bucketQuestion1", activeQuestion.prompt(data));
     } else if (activeQuestion.field === "bucketAnswer2") {
       updateField("bucketQuestion2", activeQuestion.prompt(data));
+    } else if (activeQuestion.field === "produkJasa") {
+      // Bugfix Juli 2026 (lihat frozenPrompt/frozenTransitionText di atas):
+      // simpan persis teks pertanyaan & reaksi industri yang tampil SAAT
+      // pengguna menjawab, sama seperti bucketQuestion1/2 -- supaya riwayat
+      // tidak pernah berubah sendiri walau dynamicProdukJasaExamples/
+      // dynamicIndustryReaction baru selesai di-fetch setelahnya.
+      updateField("produkJasaQuestion", activeQuestion.prompt(data));
+      const reaction = resolveTransitionBefore(activeQuestion.transitionBefore, data);
+      if (reaction) updateField("produkJasaReaction", reaction);
     }
 
     if (editingField) {
@@ -1298,7 +1323,7 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       {/* Area pesan — bisa di-scroll, composer di bawah selalu terlihat */}
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-1 pb-2 pr-2">
         {questions.slice(0, answeredCount).map((q) => {
-          const transitionText = resolveTransitionBefore(q.transitionBefore, data);
+          const transitionText = frozenTransitionText(q, data);
           return (
             <div key={q.field as string} className="space-y-2">
               {transitionText && <ChatBubble role="bot" text={transitionText} />}

@@ -234,8 +234,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const usage = extractUsage(message);
     void logClaudeUsage({ businessProfileId: null, email: wizardData.email || null, action: "preview", model: "claude-sonnet-5", inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearches: usage.webSearches });
 
-    const textBlock = message.content.find((b) => b.type === "text");
-    const raw = textBlock && "text" in textBlock ? textBlock.text : "";
+    // Bugfix Juli 2026 (QA audit langsung: skor "0/100" muncul di preview
+    // gratis padahal ringkasan analisanya jelas positif/mendetail --
+    // ditemukan lewat uji coba nyata "Dunia Pasir Lumajang"). Root cause
+    // SAMA PERSIS dengan bug 500 di generate-wizard-questions.ts (fix
+    // sebelumnya, lihat commit 9ac3e1d): message.content.find() cuma
+    // mengambil text block PERTAMA -- kalau respons Claude terpecah jadi
+    // lebih dari satu text block (bisa terjadi walau tanpa web_search tool,
+    // mis. respons panjang/kompleks), JSON yang diambil cuma separuh, dan
+    // separuh itu KADANG masih valid JSON tapi field-field yang posisinya
+    // di bagian akhir skema (termasuk businessHealthScore) jadi hilang --
+    // JSON.parse tidak error sama sekali, cuma diam-diam salah/tidak
+    // lengkap. Ini satu-satunya tempat di seluruh codebase yang masih pakai
+    // pola .find() -- semua endpoint Claude lain sudah pakai .filter()+join
+    // (lihat generate-wizard-questions.ts, generateActionPlan.ts, dst).
+    const raw = message.content
+      .filter((b) => b.type === "text")
+      .map((b) => ("text" in b ? b.text : ""))
+      .join("");
     const cleaned = raw.replace(/```json|```/g, "").trim();
 
     let preview: PreviewData;

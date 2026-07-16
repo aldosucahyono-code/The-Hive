@@ -25,6 +25,16 @@ export type WizardData = {
   // yang lebih akurat saat mencari akun Instagram kompetitor — lihat
   // services/socialMedia/instagramProvider.ts.
   produkJasa: string;
+  // Bugfix Juli 2026 (QA audit: pertanyaan/reaksi produkJasa yang SUDAH
+  // dijawab masih bisa "berubah sendiri" di riwayat chat begitu
+  // dynamicProdukJasaExamples/dynamicIndustryReaction selesai di-fetch
+  // TERLAMBAT, mis. lewat dari timeout 8 detik -- pola sama persis dengan
+  // bucketQuestion1/2 di bawah, cuma belum pernah diterapkan ke produkJasa.
+  // Membekukan teks pertanyaan & reaksi industri yang BENAR-BENAR
+  // ditampilkan saat dijawab (lihat handleSubmitAnswer di ChatFlow.tsx),
+  // dipakai frozenPrompt() untuk riwayat.
+  produkJasaQuestion: string;
+  produkJasaReaction: string;
   lokasi: string;
   sejakKapan: string;
   rencanaLaunching: string;
@@ -96,6 +106,8 @@ const initialData: WizardData = {
   namaBisnis: "",
   jenisBisnis: "",
   produkJasa: "",
+  produkJasaQuestion: "",
+  produkJasaReaction: "",
   lokasi: "",
   sejakKapan: "",
   rencanaLaunching: "",
