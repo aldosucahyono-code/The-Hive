@@ -4,12 +4,12 @@ import { hardNavigate } from "../utils/navigate";
 import { useLanguage, fillTemplate } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import AuthModal from "./AuthModal";
-import PricingCards from "./PricingCards";
 
-// Kartu Pro/Platinum sekarang ditarik ke komponen bersama PricingCards.tsx
-// (audit Juli 2026 — dipakai juga oleh UpgradeModal.tsx di Workspace dan
-// layar "batas bisnis tercapai" di ChatWizard, supaya ketiganya benar-benar
-// identik alih-alih 3 salinan JSX yang gampang tidak sinkron).
+// Bugfix Juli 2026 (directive PO: "upgrade hanya diworkspace saja") —
+// halaman preview report ini TIDAK LAGI menampilkan PricingCards/memicu
+// checkout langsung. Satu-satunya jalur upgrade Pro/Platinum sekarang ada di
+// dalam Workspace (lihat UpgradeModal.tsx, yang masih pakai PricingCards.tsx
+// seperti biasa). Di sini kita cuma funnel ke Workspace gratis.
 
 export type PreviewData = {
   businessHealthScore: number;
@@ -39,7 +39,6 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
   const namaBisnis = data.namaBisnis || "Bisnis Anda";
   const isBaru = data.jenisAnalisis === "baru";
   const scoreLabel = isBaru ? t.previewReport.scoreLabelNew : t.previewReport.scoreLabelRunning;
-  const [preparingPlan, setPreparingPlan] = useState<"pro" | "platinum" | null>(null);
 
   // Auto-promote draft (directive PO: "bisnis yang baru saya masukan...
   // tidak otomatis tersimpan... padahal emailnya sama"): promote-draft
@@ -48,26 +47,10 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
   // muncul (mis. sudah jadi pelanggan di tab lain), business barunya
   // langsung "naik level" jadi business_profile asli di Workspace-nya —
   // tidak perlu nunggu sampai checkout. Untuk pengunjung anonim (belum
-  // login), TIDAK berubah — draft tetap baru dipromosikan saat checkout
-  // (lihat goToPayment di bawah / PaymentPage.tsx), supaya tidak membuat
+  // login), TIDAK berubah — draft tetap baru dipromosikan saat checkout di
+  // dalam Workspace (lihat PaymentPage.tsx), supaya tidak membuat
   // business_profile permanen untuk orang yang cuma coba-coba gratis.
   const [autoSavedBusinessId, setAutoSavedBusinessId] = useState<string | null>(null);
-  // BUGFIX Juli 2026 (audit end-to-end: "Unlock PLATINUM sesaat setelah
-  // draft auto-save sukses -> gagal dengan 'Slot usaha di akunmu sudah
-  // penuh'"). Root cause: goToPayment() di bawah SELALU memanggil
-  // /api/save-submission lagi untuk membuat wizard_draft BARU (draftId
-  // baru, status "pending"), padahal draft yang SAMA sudah lebih dulu
-  // dipromosikan jadi business_profile oleh effect autoPromote di atas
-  // (kalau user kebetulan sudah login saat preview gratis ini muncul).
-  // promoteDraft() di backend memang idempotent KALAU diberi draftId yang
-  // SAMA (early-return business_profile yang sudah ada) -- tapi draft yang
-  // baru dibuat di goToPayment tidak "tahu" itu, jadi lolos ke pengecekan
-  // checkBusinessCap dan dihitung sebagai usaha ke-3 (padahal cuma re-promosi
-  // usaha yang sama), sehingga salah ditolak walau akun belum benar-benar
-  // penuh. Simpan draftId yang sudah berhasil dipromosikan di sini supaya
-  // goToPayment bisa memakai ulang draftId yang SAMA (bukan bikin baru)
-  // ketika auto-save sudah lebih dulu berhasil.
-  const [autoSavedDraftId, setAutoSavedDraftId] = useState<string | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
   // Batas jumlah usaha per akun (services/business/checkBusinessCap.ts) —
   // kalau user sudah di batas, auto-promote tidak membuat business_profile
@@ -131,10 +114,6 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
         const promoteJson = await promoteRes.json();
         if (!cancelled && promoteRes.ok && promoteJson.businessProfileId) {
           setAutoSavedBusinessId(promoteJson.businessProfileId);
-          // Simpan draftId yang barusan sukses dipromosikan (lihat komentar
-          // di deklarasi autoSavedDraftId) supaya goToPayment tidak membuat
-          // draft baru yang tidak perlu kalau user lanjut ke checkout.
-          setAutoSavedDraftId(saveJson.id);
         } else if (!cancelled && promoteJson.capExceeded) {
           setAutoSaveCapped(true);
         } else if (!cancelled && promoteJson.emailMismatch) {
@@ -216,62 +195,6 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
     return () => cancelAnimationFrame(frameId);
   }, [preview?.businessHealthScore]);
 
-  async function goToPayment(plan: "pro" | "platinum") {
-    setPreparingPlan(plan);
-
-    // Simpan wizard data + hasil preview sebagai draft anonim (wizard_drafts).
-    // Draft ini BELUM terhubung ke business_profile/analysis manapun — itu
-    // baru terjadi lewat /api/promote-draft, setelah user login di halaman
-    // pembayaran. save-submission tidak butuh token sama sekali (memang
-    // dirancang bisa dipanggil tanpa login).
-    let draftId: string | null = null;
-    // BUGFIX Juli 2026 (lihat komentar di autoSavedDraftId): kalau draft ini
-    // SUDAH berhasil auto-save + dipromosikan jadi business_profile (user
-    // kebetulan sudah login saat preview gratis ini tampil), pakai ULANG
-    // draftId yang sama itu -- JANGAN bikin wizard_draft baru. Draft baru
-    // akan dianggap "usaha ke-3" oleh checkBusinessCap padahal cuma
-    // re-promosi usaha yang sama, sehingga salah ditolak dengan "Slot usaha
-    // sudah penuh" walau akun belum benar-benar di batas.
-    if (autoSavedDraftId) {
-      draftId = autoSavedDraftId;
-    } else {
-      try {
-        const response = await fetch("/api/save-submission", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ wizardData: data, preview, lang }),
-        });
-        const json = await response.json();
-        if (response.ok) {
-          draftId = json.id;
-        } else {
-          console.error("save-submission gagal:", json.error);
-        }
-      } catch (err) {
-        console.error("save-submission error:", err);
-        // Tidak menghalangi user lanjut ke pembayaran walau gagal simpan —
-        // draftId akan null, PaymentPage akan minta user isi ulang data
-        // secara manual (kurang ideal, tapi tidak fatal).
-      }
-    }
-
-    try {
-      localStorage.setItem(
-        "hive_pending_order",
-        JSON.stringify({
-          namaBisnis: data.namaBisnis,
-          nama: data.nama,
-          email: data.email,
-          draftId,
-        })
-      );
-    } catch {
-      // localStorage tidak tersedia — halaman pembayaran akan tampil tanpa ringkasan data.
-    }
-
-    hardNavigate(plan === "pro" ? "bayar-pro" : "bayar-platinum");
-  }
-
   // Preview gagal dibuat (API error/timeout) — tampilkan pesan jujur dan
   // tombol coba lagi, JANGAN tampilkan template/data yang dikarang.
   if (error || !preview) {
@@ -304,7 +227,26 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
     );
   }
 
-  const status = preview.statusLabel;
+  // Bugfix Juli 2026 (directive PO: skor rendah tapi label bilang "Cukup
+  // Baik" -- membingungkan & bikin laporan kurang dipercaya): sebelumnya
+  // "status" diambil mentah dari preview.statusLabel, teks bebas yang
+  // dikarang AI saat analisis dibuat -- penilaiannya bisa tidak konsisten
+  // dengan angka skornya sendiri (skor 34/100 pernah dapat "Cukup Baik").
+  // Sekarang dihitung langsung dari angka skor lewat kunci i18n yang SAMA
+  // dengan yang sudah dipakai di Workspace.tsx (t.workspace.healthStatus*),
+  // supaya bahasanya konsisten & jujur di seluruh aplikasi -- termasuk
+  // otomatis ikut bahasa aktif (statusLabel dari AI beku dalam bahasa saat
+  // analisis dibuat, tidak ikut berubah kalau user toggle bahasa).
+  // Dihitung dari preview.businessHealthScore (nilai akhir tetap), BUKAN
+  // displayScore (angka yang lagi animasi count-up) -- supaya label tidak
+  // ikut "kedip" berpindah tingkat selagi angkanya masih berjalan naik.
+  const finalScore = typeof preview.businessHealthScore === "number" ? preview.businessHealthScore : displayScore;
+  const status =
+    finalScore >= 70
+      ? t.workspace.healthStatusGood
+      : finalScore >= 45
+        ? t.workspace.healthStatusNeedsAttention
+        : t.workspace.healthStatusNeedsSeriousAttention;
   const findings = preview.findings.slice(0, 3);
 
   return (
@@ -475,13 +417,26 @@ function PreviewReport({ data, preview, error, onRetry, onRestart }: PreviewRepo
           </div>
         )}
 
-        <PricingCards
-          recommendedTier={preview.recommendedTier ?? null}
-          onSelect={goToPayment}
-          loadingPlan={preparingPlan}
-          ctaLabel={{ pro: t.previewReport.proButton, platinum: t.previewReport.platinumButton, preparing: t.previewReport.preparingButton }}
-          variant="light"
-        />
+        {/* Bugfix Juli 2026 (directive PO: "upgrade hanya diworkspace saja")
+            -- tombol di bawah ini TIDAK memicu checkout. Satu-satunya tujuan
+            adalah masuk ke Workspace gratis; upgrade Pro/Platinum baru
+            dilakukan dari SANA (lihat UpgradeModal.tsx). */}
+        <div className="text-center">
+          <button
+            onClick={() => {
+              if (autoSavedBusinessId) {
+                hardNavigate("workspace");
+              } else if (!user) {
+                setExplicitWorkspaceIntent(true);
+                setShowAuthModal(true);
+              }
+            }}
+            disabled={autoSaving}
+            className="rounded-xl bg-primary px-7 py-3 text-sm font-bold text-black shadow-[0_0_20px_-6px_rgba(255,152,0,0.6)] transition-transform hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {autoSaving ? t.previewReport.unlockSectionPreparing : t.previewReport.unlockSectionButton}
+          </button>
+        </div>
 
         <p className="mt-6 text-center text-xs text-neutral-500">
           {t.previewReport.footerNote}

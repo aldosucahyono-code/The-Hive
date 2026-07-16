@@ -686,6 +686,12 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   const [showTypingDots, setShowTypingDots] = useState(false);
   const typingIntervalRef = useRef<number | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
+  // Bugfix Juli 2026 (directive PO: "saya tidak mau ada bug dalam chat
+  // wizard" -- lihat catatan panjang di useEffect di bawah): dua ref
+  // tambahan untuk safety-net supaya animasi reveal TIDAK PERNAH bisa
+  // permanen macet dan menyembunyikan input jawaban dari pengguna.
+  const typingHardTimeoutRef = useRef<number | null>(null);
+  const typingVisibilityHandlerRef = useRef<(() => void) | null>(null);
 
   // Kunci unik per "pesan bot yang sedang tampil" — dipakai supaya animasi
   // mengetik cuma jalan sekali per pesan baru, bukan tiap kali komponen
@@ -706,9 +712,44 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
             ? "produkJasa-waiting"
             : `q-${answeredCount}`;
 
+  // Bugfix Juli 2026 (bug produksi nyata, ditemukan lewat uji coba end-to-end
+  // wizard di production: pertanyaan "produk/jasa" macet PERMANEN di tengah
+  // animasi mengetik -- teks berhenti beberapa karakter sebelum selesai dan
+  // TIDAK PERNAH lanjut, input jawaban tidak pernah muncul karena render-nya
+  // digerbang oleh `typingDone`, pengguna benar-benar terjebak tanpa cara
+  // keluar selain reload dan kehilangan progres). Root cause: reveal lama
+  // pakai setInterval yang nambah +3 karakter per tick 16ms -- kalau browser
+  // men-throttle timer tab ini (umum terjadi untuk tab yang di-background,
+  // atau di lingkungan otomatis/headless), interval bisa berhenti dipanggil
+  // SAMA SEKALI di tengah jalan, dan karena progress-nya cuma "nambah dari
+  // titik terakhir", dia tidak pernah "mengejar" ke posisi seharusnya.
+  //
+  // Fix (directive PO: "saya tidak mau ada bug dalam chat wizard" -- jadi
+  // bukan cuma tambal, tapi bikin animasi ini TIDAK BISA macet permanen
+  // dalam kondisi apa pun):
+  // 1. Reveal sekarang berbasis WAKTU (elapsed ms sejak reveal mulai), bukan
+  //    counter tetap -- begitu ada SATU tick saja yang sempat jalan (walau
+  //    telat/jarang karena throttling), progress langsung dihitung ulang ke
+  //    posisi yang SEHARUSNYA saat itu, bukan nambah dikit dari titik
+  //    terakhir. Throttling jadi bikin animasi terlihat "lompat-lompat",
+  //    bukan berhenti total.
+  // 2. Listener visibilitychange: begitu tab kembali terlihat (mis. user
+  //    balik dari app lain), reveal langsung dihitung ulang saat itu juga --
+  //    tidak menunggu interval berikutnya yang mungkin juga di-throttle.
+  // 3. Hard safety timeout: independen dari interval manapun, dijadwalkan
+  //    sekali di awal untuk durasi teks + margin aman -- kalau karena alasan
+  //    apa pun revealedLength belum juga mencapai akhir saat itu, dipaksa
+  //    selesai. Ini jaring pengaman terakhir: apa pun yang terjadi ke
+  //    interval/timer lain, input jawaban DIJAMIN muncul paling lama
+  //    beberapa detik setelah pesan mulai tampil.
   useEffect(() => {
     if (typingIntervalRef.current) window.clearInterval(typingIntervalRef.current);
     if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    if (typingHardTimeoutRef.current) window.clearTimeout(typingHardTimeoutRef.current);
+    if (typingVisibilityHandlerRef.current) {
+      document.removeEventListener("visibilitychange", typingVisibilityHandlerRef.current);
+      typingVisibilityHandlerRef.current = null;
+    }
 
     const fullText = getCurrentBotText();
     setRevealedLength(0);
@@ -721,23 +762,49 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     setShowTypingDots(true);
     typingTimeoutRef.current = window.setTimeout(() => {
       setShowTypingDots(false);
-      // Ringan: cuma setInterval biasa yang menambah panjang teks yang
-      // ditampilkan sedikit demi sedikit — bukan library animasi.
+
+      const revealStartedAt = Date.now();
+      const CHARS_PER_MS = 3 / 16; // kecepatan sama seperti sebelumnya (~187 char/detik)
+      const totalRevealMs = fullText.length / CHARS_PER_MS;
+
+      function applyElapsedProgress() {
+        const elapsed = Date.now() - revealStartedAt;
+        const next = Math.min(fullText.length, Math.ceil(elapsed * CHARS_PER_MS));
+        setRevealedLength(next);
+        return next;
+      }
+
       typingIntervalRef.current = window.setInterval(() => {
-        setRevealedLength((prev) => {
-          const next = prev + 3;
-          if (next >= fullText.length) {
-            if (typingIntervalRef.current) window.clearInterval(typingIntervalRef.current);
-            return fullText.length;
-          }
-          return next;
-        });
+        const next = applyElapsedProgress();
+        if (next >= fullText.length && typingIntervalRef.current) {
+          window.clearInterval(typingIntervalRef.current);
+          typingIntervalRef.current = null;
+        }
       }, 16);
+
+      const handleVisibility = () => {
+        if (document.visibilityState === "visible") applyElapsedProgress();
+      };
+      document.addEventListener("visibilitychange", handleVisibility);
+      typingVisibilityHandlerRef.current = handleVisibility;
+
+      typingHardTimeoutRef.current = window.setTimeout(() => {
+        setRevealedLength(fullText.length);
+        if (typingIntervalRef.current) {
+          window.clearInterval(typingIntervalRef.current);
+          typingIntervalRef.current = null;
+        }
+      }, totalRevealMs + 1000);
     }, 450);
 
     return () => {
       if (typingIntervalRef.current) window.clearInterval(typingIntervalRef.current);
       if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+      if (typingHardTimeoutRef.current) window.clearTimeout(typingHardTimeoutRef.current);
+      if (typingVisibilityHandlerRef.current) {
+        document.removeEventListener("visibilitychange", typingVisibilityHandlerRef.current);
+        typingVisibilityHandlerRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typingKey]);

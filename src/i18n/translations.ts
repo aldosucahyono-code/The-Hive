@@ -231,9 +231,20 @@ const id = {
     competitorDesc: "Identifikasi kompetitor tersedia di laporan berbayar.",
     planTitle: "Rencana 30 Hari",
     planDesc: "Roadmap langkah demi langkah tersedia di laporan berbayar.",
-    unlockEyebrow: "🔒 Unlock Laporan Lengkap",
-    unlockTitle: "Pilih Paket yang Sesuai Kebutuhan Anda",
-    unlockSubtitle: "Dua pilihan paket untuk analisis bisnis yang lebih mendalam dan siap Anda terapkan.",
+    // Bugfix Juli 2026 (directive PO: "upgrade hanya diworkspace saja ketika
+    // users free mau upgrade ke pro/platinum" -- sebelumnya halaman preview
+    // report GRATIS ini punya tombol "Unlock PRO"/"Unlock PLATINUM" yang
+    // langsung buka checkout, jadi ada DUA jalur upgrade yang saling
+    // bersaing: dari sini, dan dari dalam Workspace. Sekarang cuma SATU
+    // jalur: bagian ini tidak lagi memicu pembayaran sama sekali -- isinya
+    // sekarang funnel ke Workspace gratis (reuse CTA "Coba Gratis" yang
+    // sudah ada), dan upgrade Pro/Platinum HANYA bisa dilakukan dari dalam
+    // Workspace pribadi user (lihat UpgradeModal.tsx). Copy diganti supaya
+    // tetap menimbulkan rasa penasaran & jelas value Pro/Platinum ada, tapi
+    // ajakannya konsisten "coba dulu di Workspace-mu", bukan "beli sekarang".
+    unlockEyebrow: "✨ Pro & Platinum Menantimu di Workspace",
+    unlockTitle: "Lihat Dulu di Workspace Pribadimu",
+    unlockSubtitle: "Upgrade ke Pro atau Platinum kapan saja — begitu kamu masuk Workspace gratis, cukup klik tombol Upgrade di sana.",
     recommendationTitle: "Saran Beemo untuk kasusmu",
     recommendedBadge: "Disarankan Beemo",
     autoSavedNote: "Bisnis ini sudah otomatis tersimpan ke akunmu.",
@@ -243,7 +254,9 @@ const id = {
     proButton: "🔓 Unlock PRO",
     platinumButton: "🔓 Unlock PLATINUM",
     preparingButton: "Menyiapkan...",
-    footerNote: "🔒 Hasil analisis akan tersedia langsung dalam format PDF yang siap diunduh.",
+    footerNote: "🔒 Detail paket & harga lengkap ada di dalam Workspace-mu — tinggal klik Upgrade kapan saja kamu siap.",
+    unlockSectionButton: "Coba Gratis, Masuk ke Workspace",
+    unlockSectionPreparing: "Menyiapkan Workspace-mu...",
     unlockCta: "Buka Laporan Lengkap",
     freeCtaDivider: "atau",
     freeCtaTitle: "Belum siap bayar? Coba dulu gratis.",
@@ -1830,19 +1843,21 @@ const en: Translations = {
     competitorDesc: "Competitor identification is available in the paid report.",
     planTitle: "30-Day Plan",
     planDesc: "A step-by-step roadmap is available in the paid report.",
-    unlockEyebrow: "🔒 Unlock Full Report",
+    unlockEyebrow: "✨ Pro & Platinum Are Waiting in Your Workspace",
     recommendationTitle: "Beemo's suggestion for your case",
     recommendedBadge: "Beemo suggests this",
     autoSavedNote: "This business has been automatically saved to your account.",
     autoSavedButton: "Open Workspace",
     autoSaveCappedNote: "Your account's business slots are full, so this business wasn't added to your Workspace. Upgrade one of your businesses to unlock a new slot.",
     autoSaveCappedButton: "Open Workspace",
-    unlockTitle: "Choose the Plan That Fits Your Needs",
-    unlockSubtitle: "Two plan options for a deeper business analysis you can put into action.",
+    unlockTitle: "See It First in Your Own Workspace",
+    unlockSubtitle: "Upgrade to Pro or Platinum anytime — once you're in your free Workspace, just tap the Upgrade button there.",
+    unlockSectionButton: "Try Free, Open Workspace",
+    unlockSectionPreparing: "Setting up your Workspace...",
     proButton: "🔓 Unlock PRO",
     platinumButton: "🔓 Unlock PLATINUM",
     preparingButton: "Preparing...",
-    footerNote: "🔒 Your analysis result will be available directly as a ready-to-download PDF.",
+    footerNote: "🔒 Full plan details & pricing live inside your Workspace — just tap Upgrade whenever you're ready.",
     unlockCta: "Open Full Report",
     freeCtaDivider: "or",
     freeCtaTitle: "Not ready to pay yet? Try it free first.",
