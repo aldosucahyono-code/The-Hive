@@ -96,20 +96,31 @@ type StartersPayload = { opening: string | null; starters: string[] };
 // tantangan belum pernah diisi (jarang, wizard selalu menanyakan ini),
 // fallback ke 2 pertanyaan generik tanpa nama bisnis -- tetap jujur, tidak
 // mengarang data yang tidak ada.
+//
+// Round 3 audit (live QA + GPT, 17 Juli 2026) -- BUG P1 ditemukan: versi awal
+// menyisipkan `mainChallenges` mentah ke tengah kalimat ("Bagaimana cara
+// mengatasi <tantangan> di <bisnis>?"). Tantangan yang berasal dari isian
+// bebas pengguna (Business Update) sering berupa KALIMAT PANJANG, bukan
+// frasa pendek -- hasilnya kalimat rancu/run-on yang membuat user mengira
+// "AI-nya aneh", padahal ini cuma template string, bukan AI. Diperbaiki
+// sesuai saran GPT: tantangan TIDAK PERNAH disisipkan di tengah kalimat lagi,
+// selalu ditampilkan apa adanya sebagai kutipan diikuti tag pertanyaan
+// pendek yang FIXED -- jadi aman untuk tantangan sepanjang apapun.
 function buildTemplatePreview(
   businessName: string,
   mainChallenges: string | null,
   lang: "id" | "en"
 ): string[] {
   if (mainChallenges && mainChallenges.trim().length > 0) {
-    const challenge = mainChallenges.trim().slice(0, 80);
+    const raw = mainChallenges.trim();
+    const truncated = raw.length > 100 ? `${raw.slice(0, 100).trim()}…` : raw;
     return lang === "en"
       ? [
-          `How can I deal with ${challenge} at ${businessName}?`,
+          `"${truncated}" — want to work through this with Beemo?`,
           `What's the most important next step for ${businessName} this week?`,
         ]
       : [
-          `Bagaimana cara mengatasi ${challenge} di ${businessName}?`,
+          `"${truncated}" — mau dibahas bareng Beemo?`,
           `Apa langkah paling penting untuk ${businessName} minggu ini?`,
         ];
   }
