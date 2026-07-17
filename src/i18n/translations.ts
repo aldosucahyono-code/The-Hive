@@ -1204,8 +1204,13 @@ const id = {
     achievementUnlockedToast: "Pencapaian baru terbuka!",
     achievementUnlockedDismiss: "Tutup",
     chatSectionDesc: "Tanya apa saja soal bisnismu — Beemo membantu kamu memikirkan langkah berikutnya.",
-    chatLockedDesc: "Konsultasi langsung dengan Beemo — tanya apa saja soal bisnismu — tersedia 30 hari untuk pelanggan PRO & PLATINUM (kuota tanya-jawab Platinum jauh lebih besar).",
+    // Round 2 GAPTEK review: nada diubah dari "diberitahu ditolak" jadi
+    // "diundang" (masukan GPT yang kami setujui) — Beemo sudah menganalisis
+    // bisnis ini (dari wizard/preview), jadi copy-nya menegaskan itu duluan
+    // sebelum menyebut batasan tier.
+    chatLockedDesc: "Beemo sudah meninjau bisnismu dan siap diajak diskusi langsung — dari strategi sampai masalah harian. Obrolan penuh ini tersedia 30 hari untuk pelanggan PRO & PLATINUM (kuota tanya-jawab Platinum jauh lebih besar).",
     chatUpgradeButton: "Lihat Paket PRO/PLATINUM",
+    chatLockedPreviewLabel: "Contoh yang bisa langsung ditanyakan kalau kamu upgrade:",
     chatEmptyTitle: "Mulai Obrolan",
     chatEmptyState: "Mulai obrolan dengan Beemo — ceritakan apa yang sedang kamu pikirkan soal bisnismu.",
     chatGreetingWave: "Halo! 👋 Beemo di sini.",
@@ -1245,11 +1250,15 @@ const id = {
     quickStartTitle: "Mulai dari sini",
     quickStartDesc: "Workspace kamu punya banyak fitur — coba jelajahi 4 hal ini dulu supaya kerasa manfaatnya. Boleh diklik urutan apa saja, tidak wajib berurutan.",
     quickStartDismiss: "Sembunyikan",
+    // Round 2 GAPTEK review (kolaborasi dengan GPT, difilter user 17 Juli
+    // 2026): label diganti dari perintah teknis ("Lihat Business Health")
+    // jadi kalimat manfaat orang-pertama, biar user gaptek langsung paham
+    // ALASAN mengklik, bukan cuma nama fitur.
     quickStartSteps: {
-      score: "Lihat Business Health",
-      businessUpdates: "Update Bisnis Pertama",
-      chat: "Ngobrol dengan Beemo",
-      competitor: "Buka Competitor",
+      score: "Lihat kondisi bisnis saya",
+      businessUpdates: "Ceritakan perkembangan bisnis",
+      chat: "Tanya Beemo",
+      competitor: "Lihat pesaing sekitar",
     },
     decisionGoalLabel: "Tujuanmu",
     decisionRiskLabel: "Risiko yang Perlu Diperhatikan",
@@ -1464,6 +1473,27 @@ const id = {
     stageDetailEkspansi: "Tahap: Ekspansi",
     stageDetailScale: "Tahap: Scale",
     stageDetailSystemize: "Tahap: Systemize",
+    // Round 2 GAPTEK review (kolaborasi GPT, difilter user 17 Juli 2026):
+    // GPT bilang "TAHAP: VALIDASI" saja belum tentu dipahami user gaptek —
+    // ditambah SATU kalimat penjelas per tahap (bukan cuma Validasi, biar
+    // konsisten untuk semua 17 tahap), ditampilkan kecil di bawah badge.
+    stageDetailDescIdea: "Bisnis masih di tahap ide — waktunya matangkan konsep sebelum mulai.",
+    stageDetailDescValidasi: "Bisnis sedang mencari tahu apakah idenya diminati pasar.",
+    stageDetailDescPersiapan: "Bisnis sedang menyiapkan semua yang dibutuhkan sebelum buka.",
+    stageDetailDescSupplier: "Bisnis sedang mencari pemasok bahan atau produk yang tepat.",
+    stageDetailDescLegalitas: "Bisnis sedang mengurus izin dan legalitas usaha.",
+    stageDetailDescBranding: "Bisnis sedang membangun identitas dan citra merek.",
+    stageDetailDescMarketing: "Bisnis sedang menyiapkan strategi promosi sebelum buka.",
+    stageDetailDescSoftOpening: "Bisnis baru buka secara terbatas untuk uji coba dulu.",
+    stageDetailDescGrandOpening: "Bisnis sedang bersiap untuk pembukaan resmi.",
+    stageDetailDescOperasional: "Bisnis sudah berjalan, fokus menjaga kelancaran sehari-hari.",
+    stageDetailDescGrowth: "Bisnis sedang fokus bertumbuh dan menjangkau lebih banyak pelanggan.",
+    stageDetailDescStabil: "Bisnis sudah stabil dan berjalan dengan baik.",
+    stageDetailDescBertumbuh: "Bisnis sedang berkembang dan menambah pelanggan baru.",
+    stageDetailDescOptimasi: "Bisnis sedang menyempurnakan proses supaya lebih efisien.",
+    stageDetailDescEkspansi: "Bisnis sedang memperluas jangkauan atau membuka cabang baru.",
+    stageDetailDescScale: "Bisnis sedang meningkatkan skala usaha secara signifikan.",
+    stageDetailDescSystemize: "Bisnis sedang membangun sistem supaya tidak bergantung ke pemilik.",
     // Business OS Engine — Weekly Review + Target minggu/bulan ini.
     weeklyReviewTitle: "Rekap Minggu Ini",
     weeklyReviewRange: "{start} – {end}",
@@ -2783,8 +2813,10 @@ const en: Translations = {
     achievementUnlockedToast: "New achievement unlocked!",
     achievementUnlockedDismiss: "Dismiss",
     chatSectionDesc: "Ask anything about your business — Beemo helps you think through your next move.",
-    chatLockedDesc: "Direct consultation with Beemo — ask anything about your business — available for 30 days for both PRO & PLATINUM customers (Platinum gets a much bigger chat quota).",
+    // Round 2 GAPTEK review (see id block for context).
+    chatLockedDesc: "Beemo has already reviewed your business and is ready for a real conversation — from strategy to daily challenges. Full chat is available for 30 days for both PRO & PLATINUM customers (Platinum gets a much bigger chat quota).",
     chatUpgradeButton: "View PRO/PLATINUM Plans",
+    chatLockedPreviewLabel: "Examples you could ask right after upgrading:",
     chatEmptyTitle: "Start a Conversation",
     chatEmptyState: "Start a conversation with Beemo — tell it what's on your mind about your business.",
     chatGreetingWave: "Hi! 👋 Beemo here.",
@@ -2821,11 +2853,12 @@ const en: Translations = {
     quickStartTitle: "Start here",
     quickStartDesc: "Your Workspace has a lot going on — try these 4 things first to feel the real value. Click them in any order, no need to go in sequence.",
     quickStartDismiss: "Hide",
+    // Round 2 GAPTEK review (see id block for context).
     quickStartSteps: {
-      score: "Check your Business Health",
-      businessUpdates: "Your First Business Update",
-      chat: "Chat with Beemo",
-      competitor: "Open Competitor",
+      score: "See how my business is doing",
+      businessUpdates: "Share a business update",
+      chat: "Ask Beemo",
+      competitor: "See nearby competitors",
     },
     decisionGoalLabel: "Your Goal",
     decisionRiskLabel: "Risk to Watch Out For",
@@ -3010,6 +3043,24 @@ const en: Translations = {
     stageDetailEkspansi: "Stage: Expanding",
     stageDetailScale: "Stage: Scaling",
     stageDetailSystemize: "Stage: Systemizing",
+    // Round 2 GAPTEK review (see id block for context).
+    stageDetailDescIdea: "The business is still an idea — time to sharpen the concept before starting.",
+    stageDetailDescValidasi: "The business is testing whether the idea has real market demand.",
+    stageDetailDescPersiapan: "The business is getting everything ready before opening.",
+    stageDetailDescSupplier: "The business is finding the right suppliers for materials or products.",
+    stageDetailDescLegalitas: "The business is sorting out permits and legal requirements.",
+    stageDetailDescBranding: "The business is building its identity and brand image.",
+    stageDetailDescMarketing: "The business is preparing a promotion strategy before opening.",
+    stageDetailDescSoftOpening: "The business just opened on a limited basis to test things out.",
+    stageDetailDescGrandOpening: "The business is getting ready for its official launch.",
+    stageDetailDescOperasional: "The business is running, focused on smooth day-to-day operations.",
+    stageDetailDescGrowth: "The business is focused on growing and reaching more customers.",
+    stageDetailDescStabil: "The business is stable and running well.",
+    stageDetailDescBertumbuh: "The business is growing and gaining new customers.",
+    stageDetailDescOptimasi: "The business is refining its processes to be more efficient.",
+    stageDetailDescEkspansi: "The business is expanding its reach or opening new branches.",
+    stageDetailDescScale: "The business is scaling up significantly.",
+    stageDetailDescSystemize: "The business is building systems so it doesn't depend solely on the owner.",
     // Business OS Engine — Weekly Review + this week's/month's target.
     weeklyReviewTitle: "This Week's Review",
     weeklyReviewRange: "{start} – {end}",

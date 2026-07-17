@@ -3069,6 +3069,34 @@ function stageDetailLabel(t: Translations, stageDetail: string): string {
   return map[stageDetail] || stageDetail;
 }
 
+// Round 2 GAPTEK review (kolaborasi GPT, difilter user 17 Juli 2026): badge
+// "Tahap: X" saja belum tentu dipahami user gaptek -- satu kalimat penjelas
+// pendek per tahap, ditampilkan kecil di bawah badge. Fallback string kosong
+// (bukan stageDetail mentah) kalau tahapnya tidak dikenali -- lebih baik
+// tidak menampilkan apa pun daripada menampilkan kode internal ke user.
+function stageDetailDescription(t: Translations, stageDetail: string): string {
+  const map: Record<string, string> = {
+    idea: t.workspace.stageDetailDescIdea,
+    validasi: t.workspace.stageDetailDescValidasi,
+    persiapan: t.workspace.stageDetailDescPersiapan,
+    supplier: t.workspace.stageDetailDescSupplier,
+    legalitas: t.workspace.stageDetailDescLegalitas,
+    branding: t.workspace.stageDetailDescBranding,
+    marketing: t.workspace.stageDetailDescMarketing,
+    soft_opening: t.workspace.stageDetailDescSoftOpening,
+    grand_opening: t.workspace.stageDetailDescGrandOpening,
+    operasional: t.workspace.stageDetailDescOperasional,
+    growth: t.workspace.stageDetailDescGrowth,
+    stabil: t.workspace.stageDetailDescStabil,
+    bertumbuh: t.workspace.stageDetailDescBertumbuh,
+    optimasi: t.workspace.stageDetailDescOptimasi,
+    ekspansi: t.workspace.stageDetailDescEkspansi,
+    scale: t.workspace.stageDetailDescScale,
+    systemize: t.workspace.stageDetailDescSystemize,
+  };
+  return map[stageDetail] || "";
+}
+
 function greetingPrefix(t: Translations): string {
   // new Date().getHours() sudah otomatis mengikuti timezone lokal browser
   // pengguna (bukan server) — jadi "Selamat pagi/siang/sore/malam" ini
@@ -6065,9 +6093,19 @@ function Workspace() {
                   pelanggan lihat progresnya berubah berdasarkan event
                   nyata, bukan cuma dua kelompok kasar. */}
               {todaySnapshot && (
-                <span className="mt-2 inline-block rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
-                  {stageDetailLabel(t, todaySnapshot.stageDetail)}
-                </span>
+                <div className="mt-2">
+                  <span className="inline-block rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
+                    {stageDetailLabel(t, todaySnapshot.stageDetail)}
+                  </span>
+                  {/* Round 2 GAPTEK review: badge saja ("TAHAP: VALIDASI")
+                      belum tentu dipahami user gaptek -- satu kalimat
+                      penjelas kecil di bawahnya, murni lookup i18n statis. */}
+                  {stageDetailDescription(t, todaySnapshot.stageDetail) && (
+                    <p className="mt-1 text-xs text-neutral-500">
+                      {stageDetailDescription(t, todaySnapshot.stageDetail)}
+                    </p>
+                  )}
+                </div>
               )}
               {/* Business OS Engine — "Target minggu ini" / "Target bulan
                   ini" dari Business Daily Brief. JUJUR: tidak tampil sama

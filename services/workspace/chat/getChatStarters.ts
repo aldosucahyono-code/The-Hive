@@ -84,6 +84,40 @@ ATURAN:
 
 type StartersPayload = { opening: string | null; starters: string[] };
 
+// Round 2 GAPTEK review (kolaborasi GPT, difilter user 17 Juli 2026): GPT
+// mengusulkan "Conversation Preview" penuh (mockup dialog bertahap) untuk
+// kartu terkunci Free -- kami TOLAK itu, kepanjangan/kebanyakan fitur untuk
+// nilai tambah yang tidak pasti. Yang kami AMBIL dari idenya cuma inti yang
+// benar-benar murah: pertanyaan contoh ditulis dari TEMPLATE + data bisnis
+// yang SUDAH ADA sejak wizard onboarding (nama bisnis, tantangan utama dari
+// Business Discovery/Update terbaru) -- BUKAN AI, BUKAN cache starter. Jadi
+// SETIAP bisnis Free (bahkan yang baru daftar hari ini) selalu dapat contoh
+// yang terasa personal, tanpa nambah panggilan Claude sama sekali. Kalau
+// tantangan belum pernah diisi (jarang, wizard selalu menanyakan ini),
+// fallback ke 2 pertanyaan generik tanpa nama bisnis -- tetap jujur, tidak
+// mengarang data yang tidak ada.
+function buildTemplatePreview(
+  businessName: string,
+  mainChallenges: string | null,
+  lang: "id" | "en"
+): string[] {
+  if (mainChallenges && mainChallenges.trim().length > 0) {
+    const challenge = mainChallenges.trim().slice(0, 80);
+    return lang === "en"
+      ? [
+          `How can I deal with ${challenge} at ${businessName}?`,
+          `What's the most important next step for ${businessName} this week?`,
+        ]
+      : [
+          `Bagaimana cara mengatasi ${challenge} di ${businessName}?`,
+          `Apa langkah paling penting untuk ${businessName} minggu ini?`,
+        ];
+  }
+  return lang === "en"
+    ? ["How can I increase my sales?", "What strategy fits my business best?"]
+    : ["Bagaimana cara meningkatkan penjualan saya?", "Strategi apa yang cocok untuk bisnis saya?"];
+}
+
 function parseStartersJson(raw: string): StartersPayload {
   const cleaned = raw.replace(/```json|```/g, "").trim();
   const extract = (parsed: unknown): StartersPayload | null => {
@@ -184,6 +218,13 @@ async function generateAndSave(businessProfileId: string, lang: "id" | "en"): Pr
 export async function getChatStarters(userId: string, payload: Record<string, unknown>): Promise<ServiceResult> {
   const businessProfileId = payload.businessProfileId;
   const lang: "id" | "en" = payload.lang === "en" ? "en" : "id";
+  // Round 2 GAPTEK review (kolaborasi GPT, difilter user 17 Juli 2026):
+  // dipakai Free-tier ChatBeemoPanel untuk menampilkan 1-2 contoh
+  // pertanyaan personal di kartu terkunci (biar "terkunci" terasa seperti
+  // diundang, bukan ditolak) TANPA memicu generate AI baru -- Free tier
+  // tidak boleh menambah biaya AI. readOnly = true berarti: baca cache
+  // kalau ada (walau basi), JANGAN pernah panggil Claude atau tulis DB.
+  const readOnly = payload.readOnly === true;
 
   if (!businessProfileId || typeof businessProfileId !== "string") {
     return { status: 400, body: { error: "businessProfileId wajib diisi" } };
@@ -204,6 +245,22 @@ export async function getChatStarters(userId: string, payload: Record<string, un
     .select("starters, generated_at")
     .eq("business_profile_id", businessProfileId)
     .maybeSingle();
+
+  if (readOnly) {
+    if (existing) {
+      const normalized = normalizeStoredStarters(existing.starters);
+      if (normalized.starters.length > 0) {
+        return { status: 200, body: { opening: normalized.opening, starters: normalized.starters } };
+      }
+    }
+    // Belum ada cache starter AI sama sekali (kasus paling umum untuk Free
+    // tier baru) -- bangun 2 contoh dari TEMPLATE + data bisnis yang sudah
+    // ada, BUKAN generate AI baru (lihat buildTemplatePreview di atas).
+    const memory = await getBusinessMemory(businessProfileId);
+    if (!memory) return { status: 200, body: { opening: null, starters: [] } };
+    const templateStarters = buildTemplatePreview(memory.profile.businessName, memory.mainChallenges, lang);
+    return { status: 200, body: { opening: null, starters: templateStarters } };
+  }
 
   const isStale = !existing || Date.now() - new Date(existing.generated_at).getTime() > STALE_AFTER_MS;
 

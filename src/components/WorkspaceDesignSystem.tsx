@@ -135,15 +135,39 @@ export function UpgradeLockCard({
   description,
   buttonLabel,
   onUpgradeClick,
+  previewLabel,
+  previewItems,
 }: {
   description: string;
   buttonLabel: string;
   onUpgradeClick: () => void;
+  // Round 2 GAPTEK review (kolaborasi GPT, difilter user 17 Juli 2026):
+  // opsional -- kalau ada data starter yang SUDAH pernah di-generate untuk
+  // bisnis ini (mis. pelanggan yang pernah Pro/Platinum lalu turun ke
+  // Free), tampilkan 1-2 contoh pertanyaan personal supaya "terkunci"
+  // terasa seperti diundang, bukan ditolak. TIDAK memicu generate AI baru
+  // -- kalau belum ada data (user baru), kedua prop ini kosong dan bagian
+  // ini otomatis tidak tampil sama sekali (degradasi jujur).
+  previewLabel?: string;
+  previewItems?: string[];
 }) {
   return (
     <WorkspaceCard className="text-center">
       <div className="mb-3 text-2xl" aria-hidden="true">🔒</div>
       <p className="mx-auto max-w-sm text-sm text-neutral-400">{description}</p>
+      {previewItems && previewItems.length > 0 && (
+        <div className="mx-auto mt-4 max-w-sm space-y-2 text-left">
+          {previewLabel && <p className="text-xs font-semibold text-neutral-500">{previewLabel}</p>}
+          {previewItems.map((item, i) => (
+            <p
+              key={i}
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs italic text-neutral-300"
+            >
+              "{item}"
+            </p>
+          ))}
+        </div>
+      )}
       <RetryButton label={buttonLabel} onRetry={onUpgradeClick} />
     </WorkspaceCard>
   );

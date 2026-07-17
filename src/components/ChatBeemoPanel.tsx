@@ -138,6 +138,37 @@ function ChatBeemoPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessProfileId, tier, session?.access_token, lang]);
 
+  // Round 2 GAPTEK review (kolaborasi GPT, difilter user 17 Juli 2026):
+  // Free-tier tidak boleh memicu generate AI baru (prinsip sadar biaya
+  // sesi ini), jadi ini BUKAN panggilan yang sama dengan di atas -- pakai
+  // readOnly:true supaya backend cuma baca cache starter yang MUNGKIN sudah
+  // ada (mis. bisnis yang pernah Pro/Platinum lalu turun ke Free) dan tidak
+  // pernah memanggil Claude. Kalau belum ada cache sama sekali (user baru),
+  // array-nya tetap kosong dan UpgradeLockCard tidak menampilkan apa-apa.
+  const [freePreviewStarters, setFreePreviewStarters] = useState<string[]>([]);
+  useEffect(() => {
+    if (tier !== "free" || !businessProfileId || !session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/workspace", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ action: "getChatStarters", businessProfileId, lang, readOnly: true }),
+        });
+        const json = await response.json();
+        if (!cancelled && response.ok && Array.isArray(json.starters)) {
+          setFreePreviewStarters((json.starters as string[]).slice(0, 2));
+        }
+      } catch (err) {
+        console.error("getChatStarters (readOnly) error:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessProfileId, tier, session?.access_token, lang]);
+
   // WOW Moment onboarding (masukan GPT yang kami saring jadi versi murah):
   // daripada langsung menampilkan kalimat pembuka Beemo begitu data siap,
   // sapaan muncul bertahap (sapa dulu -> "sedang meninjau" -> baru kalimat
@@ -176,6 +207,8 @@ function ChatBeemoPanel({
           description={t.workspace.chatLockedDesc}
           buttonLabel={t.workspace.chatUpgradeButton}
           onUpgradeClick={onUpgradeClick}
+          previewLabel={t.workspace.chatLockedPreviewLabel}
+          previewItems={freePreviewStarters}
         />
       </WorkspaceSection>
     );
