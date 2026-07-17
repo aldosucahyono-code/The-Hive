@@ -379,6 +379,16 @@ function PreviewReport({ data, preview, error, onRetry, onRestart, draftId }: Pr
             <p className="text-sm text-neutral-700">{preview.improvements}</p>
           </div>
         </div>
+
+        {/* Trust Engine v1 — lihat komentar lengkap di Workspace.tsx
+            (ReportContent) soal kenapa cuma 2 dari 3 badge yang dipakai:
+            halaman ini disuplai api/generate-preview.ts yang TIDAK memanggil
+            web_search sama sekali, jadi badge "informasi publik" akan
+            menyesatkan kalau ditambahkan di sini. */}
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-neutral-200 pt-3 text-[11px] text-neutral-500">
+          <span>📋 {t.previewReport.trustBadgeBusinessData}</span>
+          <span>📍 {t.previewReport.trustBadgeLocation}</span>
+        </div>
       </div>
 
       {/* Yang Sudah Baik — tetap kartu terpisah, tidak masuk Executive

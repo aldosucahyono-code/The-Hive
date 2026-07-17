@@ -103,6 +103,11 @@ export type TodaySnapshotPayload = {
   periodDelta: number | null;
   daysSinceUpdate: number | null;
   lastUpdateAt: string | null;
+  // Business Memory Narrative — lihat catatan lengkap di buildSnapshot()
+  // (query businessUpdatesCount/daysSinceFirstUse). Murni angka, kalimatnya
+  // dirangkai di frontend.
+  businessUpdatesCount: number;
+  daysSinceFirstUse: number | null;
   // Mission Engine (Living Business Loop): maksimal 5 item, diurutkan
   // berdasarkan urgensi — semua rule-based dari Business Engine + Decision
   // Memory + Business Update terbaru (data freshness, dimensi terlemah,
@@ -149,7 +154,7 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
 
   const health = healthRes.body as { dimensions: Record<string, number> | null; overall: number | null };
   const progress = progressRes.body as {
-    journey: { delta: number } | null;
+    journey: { delta: number; baselineDate: string } | null;
     period: { delta: number } | null;
   };
   const achievementsBody = achievementsRes.body as {
@@ -183,6 +188,21 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
 
   const now = new Date();
   const daysSinceUpdate = latestUpdate ? daysBetween(latestUpdate.created_at as string, now) : null;
+
+  // Business Memory Narrative (roadmap GPT, "Apa yang berubah dibanding
+  // dulu?") — HANYA angka mentah di sini (count() + tanggal baseline yang
+  // SUDAH dihitung getProgress di atas, tidak query ulang) sesuai prinsip
+  // #2 file ini: payload snapshot cuma boleh berisi data terstruktur, bukan
+  // kalimat jadi. Kalimatnya baru dirangkai di frontend lewat template i18n
+  // (persis pola pulseReasons/whatChanged), supaya ganti bahasa ID/EN tidak
+  // butuh recompute. Query count() di bawah murah (index business_profile_id
+  // yang sudah ada dari query business_updates lain di file ini) dan TIDAK
+  // memanggil AI sama sekali.
+  const { count: businessUpdatesCount } = await supabase
+    .from("business_updates")
+    .select("id", { count: "exact", head: true })
+    .eq("business_profile_id", businessProfileId);
+  const daysSinceFirstUse = progress.journey?.baselineDate ? daysBetween(progress.journey.baselineDate, now) : null;
 
   // Decision Follow Up (Living Business Loop): keputusan besar yang masih
   // "open" dan sudah >=7 hari sejak diajukan, yang BELUM pernah ditanyakan
@@ -441,6 +461,8 @@ async function buildSnapshot(userId: string, businessProfileId: string): Promise
     periodDelta: progress.period?.delta ?? null,
     daysSinceUpdate,
     lastUpdateAt: (latestUpdate?.created_at as string) || null,
+    businessUpdatesCount: businessUpdatesCount ?? 0,
+    daysSinceFirstUse,
     priorities: cappedPriorities,
     topRisk: finalTopRisk,
     opportunity: finalOpportunity,

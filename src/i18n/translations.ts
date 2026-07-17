@@ -244,6 +244,13 @@ const id = {
     executiveSummaryPrioritasLabel: "Prioritas Minggu Ini",
     executiveSummaryPeluangLabel: "Peluang Terbesar",
     executiveSummaryRisikoLabel: "Risiko Terbesar",
+    // Trust Engine v1 (roadmap GPT, "Kenapa saya harus percaya?") — label
+    // singkat di bawah Ringkasan Eksekutif. Lihat komentar lengkap di
+    // Workspace.tsx (ReportContent) soal kenapa cuma 2 dari 3 badge yang
+    // direkomendasikan GPT yang dipakai di sini (jujur soal pipeline mana
+    // yang benar-benar memakai web_search vs tidak).
+    trustBadgeBusinessData: "Berdasarkan data bisnis yang Anda isi",
+    trustBadgeLocation: "Mempertimbangkan lokasi bisnis Anda",
     swotTitle: "Kekuatan & Kelemahan Bisnismu",
     swotDesc: "Tersedia lengkap di laporan PRO/PLATINUM.",
     competitorTitle: "Analisa Kompetitor",
@@ -1379,6 +1386,15 @@ const id = {
     todayReasonUpdateOverdue: "Business Update sudah {days} hari belum diisi.",
     todayReasonScoreDown: "Business Score turun {points} poin dari minggu lalu.",
     todayReasonScoreUp: "Business Score naik {points} poin dari minggu lalu.",
+    // Business Memory Narrative (roadmap GPT, "Apa yang berubah dibanding
+    // dulu?") — dipakai businessMemoryNarrativeText() di Workspace.tsx,
+    // ditampilkan di atas Ringkasan Eksekutif di tab Laporan. Murni template
+    // + angka dari database (periodDelta/businessUpdatesCount), TIDAK ada
+    // AI call baru — reuse angka yang sudah dihitung Progress Engine
+    // (services/workspace/getProgress.ts) untuk Today tab.
+    businessMemoryScoreUp: "Sejak analisis sebelumnya, skor kesehatan bisnis Anda meningkat {points} poin.",
+    businessMemoryScoreDown: "Dibanding analisis sebelumnya, skor bisnis Anda turun {points} poin — beberapa area perlu kembali diperhatikan.",
+    businessMemoryUpdateCount: "Anda telah memperbarui perkembangan bisnis sebanyak {count} kali sejak mulai menggunakan THE HIVE.",
     todayFocusLabel: "Fokus Hari Ini",
     todayFocusStartFirstUpdate: "Isi Business Update pertamamu supaya Beemo mulai bisa melihat kondisi bisnismu.",
     todayFocusFillBusinessUpdate: "Update kondisi bisnismu minggu ini — sudah {days} hari sejak terakhir kali.",
@@ -1994,6 +2010,9 @@ const en: Translations = {
     executiveSummaryPrioritasLabel: "This Week's Priorities",
     executiveSummaryPeluangLabel: "Biggest Opportunity",
     executiveSummaryRisikoLabel: "Biggest Risk",
+    // Trust Engine v1 — see the ID comment for the full rationale.
+    trustBadgeBusinessData: "Based on the business data you entered",
+    trustBadgeLocation: "Takes your business location into account",
     swotTitle: "Your Business's Strengths & Weaknesses",
     swotDesc: "Available in full in the PRO/PLATINUM report.",
     competitorTitle: "Competitor Analysis",
@@ -3013,6 +3032,10 @@ const en: Translations = {
     todayReasonUpdateOverdue: "Your Business Update hasn't been filled in for {days} days.",
     todayReasonScoreDown: "Business Score dropped {points} points from last week.",
     todayReasonScoreUp: "Business Score went up {points} points from last week.",
+    // Business Memory Narrative — see the ID comment for the full rationale.
+    businessMemoryScoreUp: "Since your last analysis, your business health score has gone up {points} points.",
+    businessMemoryScoreDown: "Compared to your last analysis, your business score dropped {points} points — a few areas need attention again.",
+    businessMemoryUpdateCount: "You've updated your business progress {count} times since you started using THE HIVE.",
     todayFocusLabel: "Today's Focus",
     todayFocusStartFirstUpdate: "Submit your first Business Update so Beemo can start seeing your business's condition.",
     todayFocusFillBusinessUpdate: "Update your business condition this week — it's been {days} days since the last one.",

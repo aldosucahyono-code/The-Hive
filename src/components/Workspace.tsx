@@ -1255,6 +1255,7 @@ function ReportPanel({
   error,
   onRetry,
   onOpenUpdateModal,
+  todaySnapshot,
 }: {
   preview: PreviewOutput | null;
   t: Translations;
@@ -1262,6 +1263,11 @@ function ReportPanel({
   error: boolean;
   onRetry: () => void;
   onOpenUpdateModal: () => void;
+  // Business Memory Narrative — reuse snapshot yang SAMA dengan tab Today
+  // (sudah dimuat di state utama Workspace, tidak ada fetch/AI call baru).
+  // Optional & boleh null (mis. saat snapshot masih loading/gagal) supaya
+  // tab Laporan tidak pernah blocked oleh tab Today.
+  todaySnapshot?: TodaySnapshotPayload | null;
 }) {
   return (
     <WorkspaceSection>
@@ -1290,7 +1296,7 @@ function ReportPanel({
           onCtaClick={() => hardNavigate("")}
         />
       ) : (
-        <ReportContent preview={preview} t={t} onOpenUpdateModal={onOpenUpdateModal} />
+        <ReportContent preview={preview} t={t} onOpenUpdateModal={onOpenUpdateModal} todaySnapshot={todaySnapshot} />
       )}
     </WorkspaceSection>
   );
@@ -1300,15 +1306,33 @@ function ReportContent({
   preview,
   t,
   onOpenUpdateModal,
+  todaySnapshot,
 }: {
   preview: PreviewOutput;
   t: Translations;
   onOpenUpdateModal: () => void;
+  todaySnapshot?: TodaySnapshotPayload | null;
 }) {
   const hasPriority = Boolean(preview.improvements || preview.opportunity);
+  // Business Memory Narrative — lihat businessMemoryNarrativeText() di atas
+  // untuk logika lengkap (TANPA AI call, reuse snapshot Today tab). null
+  // kalau snapshot belum siap ATAU user memang belum punya histori apapun.
+  const memoryNarrative = todaySnapshot ? businessMemoryNarrativeText(t, todaySnapshot) : null;
 
   return (
     <>
+      {/* Business Memory Narrative (roadmap GPT): SATU baris di ATAS
+          Ringkasan Eksekutif -- urutan ini sengaja mengikuti rekomendasi GPT
+          sendiri ("Business Memory di atas Executive Summary") supaya
+          pengguna langsung lihat "apa yang berubah sejak terakhir kali"
+          sebelum masuk ke ringkasan kondisi terkini. */}
+      {memoryNarrative && (
+        <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <span aria-hidden="true">🐝</span>
+          <p className="text-sm leading-relaxed text-neutral-300">{memoryNarrative}</p>
+        </div>
+      )}
+
       {/* Round 4 roadmap (diskusi GPT, "Executive Summary / Insight
           Compression"): SATU blok terkonsolidasi di paling atas yang
           langsung menjawab "apa yang harus saya pahami hari ini?" --
@@ -1375,6 +1399,22 @@ function ReportContent({
                 <p className="text-sm leading-relaxed text-neutral-300">{preview.improvements}</p>
               </div>
             )}
+          </div>
+
+          {/* Trust Engine v1 (roadmap GPT, "Kenapa saya harus percaya?") --
+              dua label ini SELALU benar untuk blok ini secara spesifik:
+              api/generate-preview.ts (sumber field summary/findings/
+              improvements/opportunity di atas) TIDAK memanggil web_search
+              sama sekali -- 100% disintesis dari jawaban Business Discovery/
+              Update (termasuk field lokasi, lihat SYSTEM_PROMPT di file
+              itu). SENGAJA TIDAK menambahkan badge "informasi publik" di
+              sini -- itu cuma jujur dipakai kalau pipeline-nya benar-benar
+              memanggil web_search (mis. Final Report Platinum), yang bukan
+              sumber blok ini. Satu baris untuk seluruh blok (bukan per
+              bullet) supaya tidak berisik, sesuai concern GPT sendiri. */}
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-white/10 pt-3 text-[11px] text-neutral-500">
+            <span>📋 {t.previewReport.trustBadgeBusinessData}</span>
+            <span>📍 {t.previewReport.trustBadgeLocation}</span>
           </div>
         </WorkspaceCard>
       )}
@@ -3083,6 +3123,27 @@ function pulseSubheadlineText(t: Translations, level: "preparation" | "stable" |
         : t.workspace.todaySubheadlinePreparation;
 }
 
+// Business Memory Narrative (roadmap GPT, "Apa yang berubah dibanding
+// dulu?") — SATU kalimat ringkas dirangkai dari angka yang backend sudah
+// kirim (periodDelta/businessUpdatesCount), lewat template i18n saja, TANPA
+// AI call apapun — sama persis pola pulseHeadlineText di atas. Prioritas:
+// perubahan skor sejak analisis sebelumnya (paling informatif) lebih dulu,
+// baru jumlah update kalau skor belum berubah. Kalau user baru (belum ada
+// histori sama sekali), kembalikan null — TIDAK dipaksa tampil, sesuai
+// concern GPT sendiri saat diskusi ("jangan dipaksa untuk user baru").
+function businessMemoryNarrativeText(t: Translations, snapshot: TodaySnapshotPayload): string | null {
+  if (snapshot.periodDelta !== null && snapshot.periodDelta > 0) {
+    return fillTemplate(t.workspace.businessMemoryScoreUp, { points: snapshot.periodDelta });
+  }
+  if (snapshot.periodDelta !== null && snapshot.periodDelta < 0) {
+    return fillTemplate(t.workspace.businessMemoryScoreDown, { points: Math.abs(snapshot.periodDelta) });
+  }
+  if (snapshot.businessUpdatesCount > 0) {
+    return fillTemplate(t.workspace.businessMemoryUpdateCount, { count: snapshot.businessUpdatesCount });
+  }
+  return null;
+}
+
 // Living Business Loop: label tampilan untuk stageDetail granular dari Stage
 // Engine (services/stage/determineStage.ts) — murni lookup i18n, TIDAK ada
 // logic penentuan stage di frontend (itu semua di backend, berbasis event).
@@ -3192,6 +3253,11 @@ type TodaySnapshotPayload = {
   periodDelta: number | null;
   daysSinceUpdate: number | null;
   lastUpdateAt: string | null;
+  // Business Memory Narrative (roadmap GPT, "Apa yang berubah dibanding
+  // dulu?") — angka mentah saja, lihat businessMemoryNarrativeText() di
+  // bawah untuk cara kalimatnya dirangkai (template i18n, TANPA AI call).
+  businessUpdatesCount: number;
+  daysSinceFirstUse: number | null;
   priorities: RuleItem[];
   topRisk: RuleItem | null;
   opportunity: RuleItem | null;
@@ -6586,6 +6652,7 @@ function Workspace() {
               error={analysesError}
               onRetry={reloadAnalyses}
               onOpenUpdateModal={() => setShowBusinessUpdate(true)}
+              todaySnapshot={todaySnapshot}
             />
           ) : activeMenu === "target" ? (
             // Journey digabung ke sini (audit Juli 2026) — TargetPanel sekarang
