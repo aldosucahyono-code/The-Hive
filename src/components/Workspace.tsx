@@ -1309,73 +1309,84 @@ function ReportContent({
 
   return (
     <>
-      {/* Ringkasan Singkat — hero, ini "executive summary"-nya halaman. */}
+      {/* Round 4 roadmap (diskusi GPT, "Executive Summary / Insight
+          Compression"): SATU blok terkonsolidasi di paling atas yang
+          langsung menjawab "apa yang harus saya pahami hari ini?" --
+          sebelumnya info yang sama (summary/findings/improvements/
+          opportunity) tersebar di 4 kartu terpisah yang harus di-scroll &
+          disusun sendiri oleh pengguna. Konten di sini TIDAK mengarang apa
+          pun -- 100% field yang sama dari preview yang sudah ada (lihat
+          reportPriorityTitle lama untuk pola sintesis yang sama persis). */}
       {preview.summary && (
         <WorkspaceCard variant="hero">
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-500">
-            {t.previewReport.summaryTitle}
+          <h3 className="mb-4 text-xs font-bold uppercase tracking-wide text-primary">
+            {t.previewReport.executiveSummaryTitle}
           </h3>
-          <p className="text-base leading-relaxed text-neutral-100">{preview.summary}</p>
-        </WorkspaceCard>
-      )}
 
-      {/* Temuan Penting */}
-      {preview.findings && preview.findings.length > 0 && (
-        <WorkspaceCard>
-          <h3 className="mb-3 text-sm font-bold text-neutral-200">{t.previewReport.findingsTitle}</h3>
-          <ul className="space-y-2">
-            {preview.findings.map((f, i) => (
-              <li key={i} className="text-sm leading-relaxed text-neutral-400">
-                {i + 1}. {f}
-              </li>
-            ))}
-          </ul>
-        </WorkspaceCard>
-      )}
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+            {t.previewReport.executiveSummaryKondisiLabel}
+          </p>
+          <p className="mb-4 text-base leading-relaxed text-neutral-100">{preview.summary}</p>
 
-      {/* Yang Sudah Baik + Yang Perlu Diperbaiki berdampingan — hijau vs
-          amber, mengikuti semantik warna yang sudah ditetapkan Today. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {preview.strengths && (
-          <WorkspaceCard tone="success">
-            <h3 className="mb-1 text-xs font-bold uppercase text-green-400">{t.previewReport.strengthsTitle}</h3>
-            <p className="text-sm leading-relaxed text-neutral-300">{preview.strengths}</p>
-          </WorkspaceCard>
-        )}
-        {preview.improvements && (
-          <WorkspaceCard tone="warning">
-            <h3 className="mb-1 text-xs font-bold uppercase text-amber-400">{t.previewReport.improvementsTitle}</h3>
-            <p className="text-sm leading-relaxed text-neutral-300">{preview.improvements}</p>
-          </WorkspaceCard>
-        )}
-      </div>
+          {preview.findings && preview.findings.length > 0 && (
+            <div className="mb-4">
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+                {t.previewReport.executiveSummaryInsightLabel}
+              </p>
+              <ul className="space-y-1.5">
+                {preview.findings.slice(0, 3).map((f, i) => (
+                  <li key={i} className="text-sm leading-relaxed text-neutral-300">
+                    {i + 1}. {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-      {/* Peluang */}
-      {preview.opportunity && (
-        <WorkspaceCard tone="success">
-          <h3 className="mb-1 text-xs font-bold uppercase text-green-400">{t.previewReport.opportunityTitle}</h3>
-          <p className="text-sm leading-relaxed text-neutral-300">{preview.opportunity}</p>
-        </WorkspaceCard>
-      )}
+          {hasPriority && (
+            <div className="mb-4">
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+                {t.previewReport.executiveSummaryPrioritasLabel}
+              </p>
+              <ol className="space-y-1.5">
+                {preview.improvements && (
+                  <li className="text-sm leading-relaxed text-neutral-300">1. {preview.improvements}</li>
+                )}
+                {preview.opportunity && (
+                  <li className="text-sm leading-relaxed text-neutral-300">
+                    {preview.improvements ? "2. " : "1. "}
+                    {preview.opportunity}
+                  </li>
+                )}
+              </ol>
+            </div>
+          )}
 
-      {/* Rekomendasi Prioritas — BUKAN insight baru. Murni menyusun ulang
-          Yang Perlu Diperbaiki + Peluang jadi satu daftar berurutan
-          ("sintesis": mengurutkan informasi yang sudah ada, bukan
-          mengarang kalimat baru). */}
-      {hasPriority && (
-        <WorkspaceCard tone="primary">
-          <h3 className="mb-3 text-sm font-bold text-primary">{t.workspace.reportPriorityTitle}</h3>
-          <ol className="space-y-2">
-            {preview.improvements && (
-              <li className="text-sm leading-relaxed text-neutral-200">1. {preview.improvements}</li>
-            )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {preview.opportunity && (
-              <li className="text-sm leading-relaxed text-neutral-200">
-                {preview.improvements ? "2. " : "1. "}
-                {preview.opportunity}
-              </li>
+              <div className="rounded-xl border border-green-500/20 bg-green-500/[0.06] p-3">
+                <p className="mb-1 text-[11px] font-bold uppercase text-green-400">{t.previewReport.executiveSummaryPeluangLabel}</p>
+                <p className="text-sm leading-relaxed text-neutral-300">{preview.opportunity}</p>
+              </div>
             )}
-          </ol>
+            {preview.improvements && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-3">
+                <p className="mb-1 text-[11px] font-bold uppercase text-amber-400">{t.previewReport.executiveSummaryRisikoLabel}</p>
+                <p className="text-sm leading-relaxed text-neutral-300">{preview.improvements}</p>
+              </div>
+            )}
+          </div>
+        </WorkspaceCard>
+      )}
+
+      {/* Yang Sudah Baik — SATU-SATUNYA field yang tidak masuk struktur
+          Executive Summary di atas (GPT: formatnya tidak mencakup
+          "strengths"), tetap ditampilkan terpisah supaya info positif ini
+          tidak hilang begitu saja. */}
+      {preview.strengths && (
+        <WorkspaceCard tone="success">
+          <h3 className="mb-1 text-xs font-bold uppercase text-green-400">{t.previewReport.strengthsTitle}</h3>
+          <p className="text-sm leading-relaxed text-neutral-300">{preview.strengths}</p>
         </WorkspaceCard>
       )}
 

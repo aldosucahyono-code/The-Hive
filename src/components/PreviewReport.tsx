@@ -327,36 +327,65 @@ function PreviewReport({ data, preview, error, onRetry, onRestart, draftId }: Pr
         </ul>
       </div>
 
-      {/* Ringkasan Singkat — dari Claude */}
-      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-6">
-        <h3 className="mb-2 font-bold">{t.previewReport.summaryTitle}</h3>
-        <p className="text-sm leading-relaxed text-neutral-700">{preview.summary}</p>
+      {/* Round 4 roadmap (diskusi GPT, "Executive Summary / Insight
+          Compression"): gantikan Ringkasan Singkat + Temuan Penting +
+          grid 3 kolom (Sudah Baik/Perlu Diperbaiki/Peluang) yang
+          sebelumnya terpisah-pisah, dengan SATU blok terkonsolidasi --
+          sama persis field-nya (summary/findings/improvements/
+          opportunity), tanpa AI call baru. Pola yang sama diterapkan di
+          Workspace.tsx (ReportContent) supaya konsisten lintas halaman.
+          "Sudah Baik" (strengths) tetap kartu terpisah di bawah -- lihat
+          komentar di Workspace.tsx untuk alasannya. */}
+      <div className="mb-6 rounded-2xl border border-primary/30 bg-white p-6">
+        <h3 className="mb-4 text-xs font-bold uppercase tracking-wide text-primary">
+          {t.previewReport.executiveSummaryTitle}
+        </h3>
+
+        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+          {t.previewReport.executiveSummaryKondisiLabel}
+        </p>
+        <p className="mb-4 text-sm leading-relaxed text-neutral-700">{preview.summary}</p>
+
+        {findings.length > 0 && (
+          <div className="mb-4">
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+              {t.previewReport.executiveSummaryInsightLabel}
+            </p>
+            <ol className="space-y-1.5 text-sm text-neutral-700">
+              {findings.map((f, i) => (
+                <li key={i}><strong className="text-primary">{i + 1}.</strong> {f}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        <div className="mb-1">
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+            {t.previewReport.executiveSummaryPrioritasLabel}
+          </p>
+          <ol className="space-y-1.5 text-sm text-neutral-700">
+            <li><strong className="text-primary">1.</strong> {preview.improvements}</li>
+            <li><strong className="text-primary">2.</strong> {preview.opportunity}</li>
+          </ol>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-green-200 bg-green-50 p-3">
+            <p className="mb-1 text-[11px] font-bold uppercase text-green-700">{t.previewReport.executiveSummaryPeluangLabel}</p>
+            <p className="text-sm text-neutral-700">{preview.opportunity}</p>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <p className="mb-1 text-[11px] font-bold uppercase text-amber-700">{t.previewReport.executiveSummaryRisikoLabel}</p>
+            <p className="text-sm text-neutral-700">{preview.improvements}</p>
+          </div>
+        </div>
       </div>
 
-      {/* Temuan Penting — dari Claude */}
-      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-6">
-        <h3 className="mb-3 font-bold">{t.previewReport.findingsTitle}</h3>
-        <ol className="space-y-2 text-sm text-neutral-700">
-          {findings.map((f, i) => (
-            <li key={i}><strong className="text-primary">{i + 1}.</strong> {f}</li>
-          ))}
-        </ol>
-      </div>
-
-      {/* Sudah Baik / Perlu Diperbaiki / Peluang — dari Claude */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-neutral-200 bg-white p-4">
-          <p className="mb-1 text-xs font-bold uppercase text-primary">{t.previewReport.strengthsTitle}</p>
-          <p className="text-sm text-neutral-700">{preview.strengths}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-200 bg-white p-4">
-          <p className="mb-1 text-xs font-bold uppercase text-primary">{t.previewReport.improvementsTitle}</p>
-          <p className="text-sm text-neutral-700">{preview.improvements}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-200 bg-white p-4">
-          <p className="mb-1 text-xs font-bold uppercase text-primary">{t.previewReport.opportunityTitle}</p>
-          <p className="text-sm text-neutral-700">{preview.opportunity}</p>
-        </div>
+      {/* Yang Sudah Baik — tetap kartu terpisah, tidak masuk Executive
+          Summary di atas (lihat komentar sama di Workspace.tsx). */}
+      <div className="mb-6 rounded-xl border border-neutral-200 bg-white p-4">
+        <p className="mb-1 text-xs font-bold uppercase text-primary">{t.previewReport.strengthsTitle}</p>
+        <p className="text-sm text-neutral-700">{preview.strengths}</p>
       </div>
 
       {/* CTA "Coba Gratis" — sengaja ditaruh di sini, SEBELUM bagian yang

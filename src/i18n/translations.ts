@@ -225,6 +225,25 @@ const id = {
     strengthsTitle: "Yang Sudah Baik",
     improvementsTitle: "Yang Perlu Diperbaiki",
     opportunityTitle: "Peluang",
+    // Round 4 roadmap (diskusi GPT, 17 Juli 2026, "Executive Summary /
+    // Insight Compression"): satu blok terkonsolidasi di PALING ATAS laporan
+    // (PreviewReport.tsx & Workspace.tsx ReportContent) yang menjawab
+    // "apa yang harus saya pahami hari ini?" tanpa perlu scroll & menyusun
+    // sendiri dari beberapa kartu terpisah. SENGAJA TIDAK menambah field AI
+    // baru/panggilan Claude baru -- murni menyusun ulang 5 field yang SUDAH
+    // ADA (summary/findings/improvements/opportunity), sesuai prinsip
+    // "sintesis boleh, mengarang tidak boleh" yang sudah dipegang di
+    // reportPriorityTitle/reportNextStepsTitle. "Risiko Terbesar" di sini
+    // adalah field `improvements` yang sama dengan kartu "Yang Perlu
+    // Diperbaiki" lama (bukan insight baru, cuma dibingkai ulang sebagai
+    // risiko, konsisten dengan makna aslinya: hal yang paling perlu
+    // diperhatikan).
+    executiveSummaryTitle: "Ringkasan Eksekutif",
+    executiveSummaryKondisiLabel: "Kondisi Bisnis Saat Ini",
+    executiveSummaryInsightLabel: "Insight Utama",
+    executiveSummaryPrioritasLabel: "Prioritas Minggu Ini",
+    executiveSummaryPeluangLabel: "Peluang Terbesar",
+    executiveSummaryRisikoLabel: "Risiko Terbesar",
     swotTitle: "Kekuatan & Kelemahan Bisnismu",
     swotDesc: "Tersedia lengkap di laporan PRO/PLATINUM.",
     competitorTitle: "Analisa Kompetitor",
@@ -1967,6 +1986,14 @@ const en: Translations = {
     strengthsTitle: "What's Working",
     improvementsTitle: "What Needs Work",
     opportunityTitle: "Opportunity",
+    // Round 4 roadmap fix -- see matching ID comment above (Executive
+    // Summary consolidation, mirrored here).
+    executiveSummaryTitle: "Executive Summary",
+    executiveSummaryKondisiLabel: "Current Business Condition",
+    executiveSummaryInsightLabel: "Key Insights",
+    executiveSummaryPrioritasLabel: "This Week's Priorities",
+    executiveSummaryPeluangLabel: "Biggest Opportunity",
+    executiveSummaryRisikoLabel: "Biggest Risk",
     swotTitle: "Your Business's Strengths & Weaknesses",
     swotDesc: "Available in full in the PRO/PLATINUM report.",
     competitorTitle: "Competitor Analysis",
