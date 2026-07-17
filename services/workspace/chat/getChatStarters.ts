@@ -106,6 +106,30 @@ type StartersPayload = { opening: string | null; starters: string[] };
 // sesuai saran GPT: tantangan TIDAK PERNAH disisipkan di tengah kalimat lagi,
 // selalu ditampilkan apa adanya sebagai kutipan diikuti tag pertanyaan
 // pendek yang FIXED -- jadi aman untuk tantangan sepanjang apapun.
+// Round 4 audit (live QA Workspace tiers + GPT, 17 Juli 2026) -- BUG P3
+// "kutip ganda": kalau `mainChallenges` yang diisi pengguna sendiri SUDAH
+// diawali & diakhiri tanda kutip (mis. pengguna menulis nama produk
+// "Fresh Roasted", atau mengutip ucapan pelanggan sendiri), kode di bawah
+// SEBELUMNYA tetap membungkusnya lagi dengan `"${truncated}"` -- hasilnya
+// kutip ganda yang terlihat aneh/rusak ("""Fresh Roasted""..."). Sesuai
+// pendekatan yang disepakati bareng GPT: JANGAN menghapus/menormalkan tanda
+// kutip yang memang diketik pengguna (itu input sah, menghapusnya merusak
+// makna) -- cukup DETEKSI dulu apakah teksnya sudah berpasangan kutip di
+// awal & akhir, baru putuskan perlu dibungkus lagi atau tidak.
+const QUOTE_PAIRS: Array<[string, string]> = [
+  ['"', '"'],
+  ["“", "”"], // “ ”
+  ["'", "'"],
+  ["‘", "’"], // ‘ ’
+];
+
+function isAlreadyQuoted(text: string): boolean {
+  if (text.length < 2) return false;
+  const first = text[0];
+  const last = text[text.length - 1];
+  return QUOTE_PAIRS.some(([open, close]) => first === open && last === close);
+}
+
 function buildTemplatePreview(
   businessName: string,
   mainChallenges: string | null,
@@ -114,13 +138,17 @@ function buildTemplatePreview(
   if (mainChallenges && mainChallenges.trim().length > 0) {
     const raw = mainChallenges.trim();
     const truncated = raw.length > 100 ? `${raw.slice(0, 100).trim()}…` : raw;
+    // Deteksi berdasarkan `raw` (sebelum dipotong) -- kalau teks aslinya
+    // sudah berpasangan kutip, tampilkan `truncated` apa adanya, tidak
+    // dibungkus tanda kutip tambahan lagi.
+    const quotedLine = isAlreadyQuoted(raw) ? truncated : `"${truncated}"`;
     return lang === "en"
       ? [
-          `"${truncated}" — want to work through this with Beemo?`,
+          `${quotedLine} — want to work through this with Beemo?`,
           `What's the most important next step for ${businessName} this week?`,
         ]
       : [
-          `"${truncated}" — mau dibahas bareng Beemo?`,
+          `${quotedLine} — mau dibahas bareng Beemo?`,
           `Apa langkah paling penting untuk ${businessName} minggu ini?`,
         ];
   }

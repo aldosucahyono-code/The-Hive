@@ -276,13 +276,33 @@ function BusinessSwitcher({
  * "aku sekarang punya akses apa, sampai kapan?" dalam sekali lihat. */
 function AccessStatusCard({
   membership,
+  loading,
   t,
   lang,
 }: {
   membership: Membership | null;
+  loading?: boolean;
   t: Translations;
   lang: "id" | "en";
 }) {
+  // Round 4 audit fix (Bug 4, "stale tier badge saat pindah bisnis"):
+  // sebelumnya membership === null langsung dianggap "free" dan kartu
+  // "Paket Gratis" tampil -- itu tetap data yang bisa KELIRU kalau bisnis
+  // yang baru dipilih sebenarnya Pro/Platinum tapi getMembership belum
+  // selesai. Sekarang selama loading=true, tampilkan skeleton netral (bukan
+  // klaim tier apa pun) sampai data yang benar-benar milik bisnis aktif ini
+  // selesai dimuat -- prinsip dari diskusi GPT: "belum ada data" lebih aman
+  // daripada "data yang salah".
+  if (loading) {
+    return (
+      <div className="animate-pulse rounded-2xl border border-white/10 bg-surface p-5">
+        <div className="h-3 w-24 rounded bg-white/10" />
+        <div className="mt-3 h-5 w-40 rounded bg-white/10" />
+        <div className="mt-2 h-3 w-56 rounded bg-white/10" />
+      </div>
+    );
+  }
+
   if (!membership || membership.status === "free") {
     return (
       <div className="rounded-2xl border border-white/10 bg-surface p-5">
@@ -2695,6 +2715,7 @@ function SettingsPanel({
   activeBusiness,
   activeBusinessId,
   membership,
+  membershipLoading,
   tier,
   businessHealth,
   updateHistory,
@@ -2713,6 +2734,7 @@ function SettingsPanel({
   activeBusiness: BusinessProfileRow | null;
   activeBusinessId: string | null;
   membership: Membership | null;
+  membershipLoading: boolean;
   tier: Tier;
   businessHealth: { dimensions: Record<string, number> | null; overall: number | null };
   updateHistory: Array<Record<string, unknown>>;
@@ -2810,7 +2832,7 @@ function SettingsPanel({
               ? t.workspace.membershipTaglinePro
               : t.workspace.membershipTaglineFree}
         </p>
-        <AccessStatusCard membership={membership} t={t} lang={lang} />
+        <AccessStatusCard membership={membership} loading={membershipLoading} t={t} lang={lang} />
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{t.workspace.settingsMembershipTierLabel}</p>
@@ -4469,6 +4491,16 @@ function Workspace() {
   const [analysesError, setAnalysesError] = useState(false);
   const [analysesLoading, setAnalysesLoading] = useState(false);
   const [membership, setMembership] = useState<Membership | null>(null);
+  // BUGFIX QA Juli 2026 (round 4, "Bug 4" -- lanjutan dari reset di
+  // resetPerBusinessCaches di bawah): reset membership ke null saja TIDAK
+  // cukup, karena AccessStatusCard memperlakukan membership === null sama
+  // seperti tier "free" dan langsung menampilkan kartu "Paket Gratis" --
+  // itu tetap data yang BISA salah kalau bisnis yang baru dipilih
+  // sebenarnya Pro/Platinum, cuma belum selesai di-fetch. Prinsip dari
+  // diskusi GPT: lebih baik pengguna melihat "belum ada data" (skeleton)
+  // daripada "data yang salah" (kartu Gratis yang keliru sesaat).
+  // membershipLoading membedakan dua state itu secara eksplisit.
+  const [membershipLoading, setMembershipLoading] = useState(true);
   const [businessHealth, setBusinessHealth] = useState<{
     dimensions: Record<string, number> | null;
     overall: number | null;
@@ -4871,6 +4903,11 @@ function Workspace() {
             } else {
               console.error("Gagal memuat membership:", membershipJson.error);
             }
+            // Bug 4 fix: baik sukses maupun gagal, loading harus berhenti di
+            // sini supaya skeleton tidak menggantung selamanya kalau
+            // fetch gagal -- kegagalan tetap ditangani AccessStatusCard
+            // sebagai membership null/"free", bukan tier bisnis lama.
+            setMembershipLoading(false);
             if (healthTrendResponse.ok) {
               setHealthTrend({
                 journeyByDimension: healthTrendJson.journeyByDimension,
@@ -4898,6 +4935,11 @@ function Workspace() {
         } finally {
           if (!cancelled) setTodaySnapshotLoading(false);
         }
+      } else if (!cancelled) {
+        // Tidak ada session token -> fetch membership tidak pernah jalan,
+        // jadi loading harus dimatikan manual di sini juga supaya skeleton
+        // STATUS AKSES tidak menggantung selamanya.
+        setMembershipLoading(false);
       }
 
       setBusinessDataLoading(false);
@@ -5138,11 +5180,16 @@ function Workspace() {
     // — akibatnya badge "STATUS AKSES" di header sempat menampilkan tier
     // bisnis LAMA (mis. "PLATINUM Aktif") selama beberapa detik setelah
     // pindah ke bisnis baru yang sebenarnya masih Gratis, sampai fetch
-    // getMembership untuk bisnis baru selesai. AccessStatusCard menganggap
-    // membership === null sama seperti "free" (lihat komponennya), jadi
-    // reset ke null di sini aman — pengguna melihat "Paket Gratis" sesaat
-    // sebagai default yang jujur, bukan tier yang salah dari bisnis lain.
+    // getMembership untuk bisnis baru selesai.
+    // Round 4 audit (GPT): reset ke null saja ternyata masih menampilkan
+    // data yang BISA salah, karena AccessStatusCard memperlakukan
+    // membership === null sama seperti tier "free" -- kalau bisnis baru itu
+    // sebenarnya Pro/Platinum, pengguna sempat melihat "Paket Gratis" yang
+    // keliru sesaat. Sekarang membershipLoading=true dipasang bersamaan,
+    // supaya AccessStatusCard menampilkan skeleton (bukan kartu tier
+    // apa pun) sampai getMembership untuk bisnis baru benar-benar selesai.
     setMembership(null);
+    setMembershipLoading(true);
     setCompetitorAnalysis(null);
     setCompetitorError(false);
     setCompetitorNotReadyMessage(null);
@@ -6317,7 +6364,7 @@ function Workspace() {
       )}
 
       <div className="mb-6">
-        <AccessStatusCard membership={membership} t={t} lang={lang} />
+        <AccessStatusCard membership={membership} loading={membershipLoading} t={t} lang={lang} />
         {checkingUpgrade && (
           <p className="mt-2 text-xs text-neutral-400">{t.workspace.upgradeChecking}</p>
         )}
@@ -6602,6 +6649,7 @@ function Workspace() {
               activeBusiness={activeBusiness}
               activeBusinessId={activeBusinessId}
               membership={membership}
+              membershipLoading={membershipLoading}
               tier={tier}
               businessHealth={businessHealth}
               updateHistory={updateHistory}

@@ -414,6 +414,42 @@ const id = {
     ],
   },
 
+  // Round 4 audit (GPT, 17 Juli 2026) -- pengganti PERMANEN untuk rencana
+  // "testimoni pelanggan" yang sempat didiskusikan tapi TIDAK PERNAH
+  // diimplementasikan (lihat komentar reportPreview.exampleLabel di bawah:
+  // THE HIVE belum punya pelanggan asli, jadi testimoni bernama akan berarti
+  // mengarang orang fiktif -- ditolak). "Insight Agregat" ini sengaja BUKAN
+  // kutipan dari orang bernama, melainkan pola yang Beemo AI perhatikan
+  // lintas analisis bisnis kecil-menengah -- posisinya justru menunjukkan
+  // kompetensi analitis platform, bukan social proof buatan. SENGAJA TANPA
+  // angka/statistik ("73%", "8 dari 10 bisnis", dst) karena belum ada data
+  // agregat sungguhan untuk diklaim -- hanya deskripsi pola kualitatif yang
+  // jujur ke apa yang benar-benar dilakukan Beemo (lihat services/beemo/,
+  // getBusinessMemory) supaya tidak jadi klaim yang tidak bisa dipertanggungjawabkan.
+  insightAgregat: {
+    eyebrow: "APA YANG DITEMUKAN THE HIVE",
+    title: "Pola yang Beemo Perhatikan di Bisnis Kecil-Menengah",
+    desc: "Ini bukan testimoni pelanggan — THE HIVE belum lama berdiri. Ini pola nyata yang Beemo, AI Business Consultant kami, perhatikan berulang kali saat menganalisis kondisi bisnis.",
+    insights: [
+      {
+        title: "Kejelasan Target Pelanggan",
+        desc: "Bisnis yang bisa mendeskripsikan pelanggan idealnya secara spesifik biasanya lebih cepat menyusun strategi pemasaran yang tepat sasaran, dibanding yang masih menyasar \"semua orang\".",
+      },
+      {
+        title: "Legalitas Sering Terlewat",
+        desc: "Banyak usaha yang operasionalnya sudah lancar, tapi belum merapikan izin usaha — padahal ini yang sering jadi penghambat saat butuh modal tambahan atau mitra baru.",
+      },
+      {
+        title: "Kompetitor Jarang Dipetakan Sistematis",
+        desc: "Pemilik usaha umumnya tahu siapa kompetitor terdekatnya, tapi jarang benar-benar memetakan kekuatan & kelemahan mereka — padahal di situlah peluang yang belum digarap biasanya bersembunyi.",
+      },
+      {
+        title: "Eksekusi, Bukan Ide, yang Jadi Pembeda",
+        desc: "Hampir semua bisnis punya ide bagus. Yang membedakan yang terus berkembang biasanya rencana aksi konkret yang benar-benar dijalankan secara konsisten.",
+      },
+    ],
+  },
+
   // Panel contoh laporan SENGAJA diberi label "Contoh Ilustrasi" yang jelas
   // (exampleLabel) — bukan testimoni/data pelanggan asli (THE HIVE belum
   // punya pelanggan asli saat ini), murni menunjukkan FORMAT & jenis insight
@@ -550,8 +586,16 @@ const id = {
     askNamaBisnis: "Sip, {profesi} — apa nama bisnis atau brand kamu?",
     askJenisBisnis: "{namaBisnis}, nama yang menarik 😊 Bisnis ini bergerak di bidang apa? (misalnya Coffee Shop, Retail, Jasa Konsultasi)",
     askProdukJasa: "Lebih spesifiknya, produk atau jasa utama apa yang kamu jual? (misalnya \"{contoh1}\" atau \"{contoh2}\")",
-    askLokasiNew: "Sip 👍 Sekarang soal lokasi — kalau {namaBisnis} nanti buka, rencananya di mana?",
-    askLokasiRunning: "Sip 👍 Sekarang soal lokasi — {namaBisnis} sekarang lokasinya di mana?",
+    // Round 4 audit (GAPTEK QA + GPT, 17 Juli 2026) -- BUG P1 "Sip ganda":
+    // transitionBefore (transitionToKondisi, di bawah) SUDAH tampil sebagai
+    // bubble terpisah persis sebelum pertanyaan ini ("Sip, dicatat...
+    // Sekarang aku mau tahu lokasi bisnismu."), jadi kalau prompt di sini
+    // JUGA dibuka dengan "Sip 👍 Sekarang soal lokasi —" hasilnya dua bubble
+    // berturut-turut yang sama-sama basa-basi "sip/sekarang soal lokasi"
+    // sebelum baru nanya intinya -- user gaptek bisa mengira Beemo nge-lag/
+    // ngomong sendiri. Pertanyaan di sini sekarang langsung ke inti saja.
+    askLokasiNew: "Kalau {namaBisnis} nanti buka, rencananya di mana?",
+    askLokasiRunning: "{namaBisnis} sekarang lokasinya di mana?",
     askTargetPelanggan: "Aku ingin memahami siapa pelangganmu — biasanya siapa yang paling sering membeli produk/jasamu?",
     askRencanaLaunching: "Kira-kira kapan rencana launching-nya? Perkiraan saja tidak apa-apa.",
     askSejakKapan: "Sejak kapan bisnis ini mulai berjalan?",
@@ -606,7 +650,18 @@ const id = {
     editLabel: "Edit",
     sendPlaceholder: "Ketik jawabanmu di sini...",
     sendHint: "Tekan Enter untuk mengirim",
-    invalidNudge: "Sepertinya jawabannya masih terlalu singkat — boleh ceritakan sedikit lebih detail?",
+    // Round 4 audit fix (GPT + GAPTEK QA, 17 Juli 2026) -- BUG P2: pesan ini
+    // dipakai sebagai invalidNudge GENERIK untuk banyak field berbeda
+    // (validate() masing-masing bisa menolak karena panjang kurang, karakter
+    // tidak diizinkan, jumlah kata kurang, ATAU terdeteksi spam -- lihat
+    // src/utils/validation.ts), tapi teksnya SELALU mengklaim alasan
+    // spesifik "masih terlalu singkat" walau jawaban user sebenarnya sudah
+    // panjang/detail dan gagal karena sebab lain -- ditemukan saat uji coba
+    // end-to-end sebagai pengunjung baru, jawaban yang jelas tidak pendek
+    // tetap ditolak dengan pesan "terlalu singkat" yang menyesatkan. Fix:
+    // ganti dengan permintaan tulis-ulang yang netral terhadap sebab
+    // penolakan (tidak mengklaim diagnosis yang belum tentu benar).
+    invalidNudge: "Sepertinya jawabanmu belum sesuai dengan yang aku tanyakan — boleh coba tulis ulang dengan lebih jelas?",
     invalidEmailNudge: "Sepertinya format emailnya belum tepat, boleh dicek kembali?",
     invalidPhoneNudge: "Sepertinya format nomor HP-nya belum tepat (contoh: 08123456789), boleh dicek kembali?",
     semanticNudgeLocation: "Saya belum yakin dengan alamat tersebut — kota dan provinsinya sepertinya belum sesuai. Bisakah kamu menulis lebih rinci, misalnya \"Nama Kota, Nama Provinsi\"?",
@@ -2075,6 +2130,33 @@ const en: Translations = {
     ],
   },
 
+  // Round 4 audit fix -- see matching ID comment above (insightAgregat,
+  // permanent replacement for the never-built "customer testimonials"
+  // idea; mirrored here).
+  insightAgregat: {
+    eyebrow: "WHAT THE HIVE HAS NOTICED",
+    title: "Patterns Beemo Notices in Small-Medium Businesses",
+    desc: "This isn't a customer testimonial — THE HIVE is still young. These are real patterns Beemo, our AI Business Consultant, keeps noticing while analyzing businesses.",
+    insights: [
+      {
+        title: "Clarity on Target Customers",
+        desc: "Businesses that can describe their ideal customer specifically tend to land on the right marketing strategy faster, compared to ones still targeting \"everyone\".",
+      },
+      {
+        title: "Legal Setup Often Gets Skipped",
+        desc: "Many businesses run smoothly day-to-day but haven't sorted out their business licensing — which often becomes the blocker when they need funding or a new partner.",
+      },
+      {
+        title: "Competitors Rarely Get Mapped Systematically",
+        desc: "Owners usually know who their nearest competitors are, but rarely map out their strengths and weaknesses in detail — which is usually where untapped opportunity hides.",
+      },
+      {
+        title: "Execution, Not Ideas, Is the Real Differentiator",
+        desc: "Almost every business has a good idea. What separates the ones that keep growing is usually a concrete action plan that's actually followed through, consistently.",
+      },
+    ],
+  },
+
   reportPreview: {
     eyebrow: "SAMPLE REPORT PREVIEW",
     exampleLabel: "Illustrative Example",
@@ -2192,8 +2274,10 @@ const en: Translations = {
     askNamaBisnis: "Cool, {profesi} — what's the name of your business or brand?",
     askJenisBisnis: "{namaBisnis}, a fitting name 😊 What industry is this business in? (e.g. Coffee Shop, Retail, Consulting)",
     askProdukJasa: "More specifically, what's the main product or service you sell? (e.g. \"{contoh1}\" or \"{contoh2}\")",
-    askLokasiNew: "Nice 👍 Now about location — where's {namaBisnis} planned to be located?",
-    askLokasiRunning: "Nice 👍 Now about location — where is {namaBisnis} located right now?",
+    // Round 4 audit fix -- see matching ID comment above (double "Sip"
+    // opener bug, same fix mirrored here).
+    askLokasiNew: "Where's {namaBisnis} planned to be located?",
+    askLokasiRunning: "Where is {namaBisnis} located right now?",
     askTargetPelanggan: "I want to understand who your customers are — who usually buys your product/service the most?",
     askRencanaLaunching: "When are you planning to launch? An estimate is fine.",
     askSejakKapan: "Since when has this business been running?",
@@ -2229,7 +2313,10 @@ const en: Translations = {
     editLabel: "Edit",
     sendPlaceholder: "Type your answer here...",
     sendHint: "Press Enter to send",
-    invalidNudge: "That answer seems a bit brief — could you share a little more detail?",
+    // Round 4 audit fix -- see matching ID comment above (generic invalidNudge
+    // wrongly claimed "too short" regardless of actual validation-failure
+    // reason; mirrored fix here, neutral toward the real cause).
+    invalidNudge: "That answer doesn't seem to match what I asked — could you try rewriting it a bit more clearly?",
     invalidEmailNudge: "That email format doesn't look quite right, could you check it again?",
     invalidPhoneNudge: "That phone number format doesn't look quite right (e.g. 08123456789), could you check it again?",
     semanticNudgeLocation: "I'm not sure about that address — the city and province don't seem to match up. Could you write it in more detail, e.g. \"City, Province\"?",

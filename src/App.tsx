@@ -6,6 +6,7 @@ import Hero from "./components/Hero";
 import Features from "./components/Features";
 import HowItWorks from "./components/HowItWorks";
 import ReportPreview from "./components/ReportPreview";
+import InsightAgregat from "./components/InsightAgregat";
 import FAQSection from "./components/FAQSection";
 import ChatWizard from "./components/ChatWizard";
 import Footer from "./components/Footer";
@@ -429,6 +430,7 @@ function App() {
         <Features animate={animateHero} />
         <HowItWorks animate={animateHero} />
         <ReportPreview onStart={() => setStart(true)} animate={animateHero} />
+        <InsightAgregat animate={animateHero} />
         <FAQSection animate={animateHero} />
         <Footer variant="light" />
       </div>
