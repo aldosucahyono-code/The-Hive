@@ -4568,13 +4568,22 @@ function Workspace() {
   // akses) berulang penuh di SETIAP tab, memaksa pengguna scroll ~400-500px
   // melewati info yang sama tiap kali pindah/scroll. Prinsip GPT: "context
   // stays, decoration shrinks" -- begitu pengguna scroll ke bawah, header
-  // menyusut jadi bar ringkas (nama bisnis + tahap + Update Bisnis), lalu
-  // mengembang lagi begitu scroll kembali ke atas. Murni state UI lokal,
-  // tidak menyentuh data/fetch apapun.
+  // menyusut jadi bar ringkas (nama bisnis + tahap) yang MENEMPEL (sticky)
+  // di bawah navbar utama, lalu mengembang lagi begitu scroll kembali ke
+  // atas. Murni state UI lokal, tidak menyentuh data/fetch apapun.
+  //
+  // Bugfix (QA sebelum push): threshold awal (96px) terlalu kecil -- header
+  // penuh tingginya ~400-500px, jadi begitu compact aktif di 96px, blok
+  // sapaan/status yang MASIH terlihat di layar tiba-tiba hilang (di-`hidden`)
+  // tanpa ada pengganti yang menempel, membuat konten melompat kasar ke atas.
+  // Threshold dinaikkan supaya transisi terjadi mendekati saat header penuh
+  // memang akan discroll lewat, dan compact bar dibuat `sticky` (lihat JSX)
+  // supaya benar-benar tetap terlihat selama sisa scroll -- bukan cuma
+  // sekejap sebelum ikut ter-scroll keluar layar.
   const [headerCompact, setHeaderCompact] = useState(false);
   useEffect(() => {
-    const COLLAPSE_AT = 96;
-    const EXPAND_AT = 32;
+    const COLLAPSE_AT = 360;
+    const EXPAND_AT = 200;
     function handleScroll() {
       const y = window.scrollY;
       setHeaderCompact((prev) => {
@@ -6243,12 +6252,15 @@ function Workspace() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-10">
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        {/* Review UX round 7: mode ringkas begitu discroll -- hanya nama
-            bisnis + badge tahap yang tetap terlihat, sisanya (sapaan penuh,
-            deskripsi pulse, target minggu/bulan) disembunyikan sementara.
-            Prinsip GPT "context stays, decoration shrinks". */}
-        {headerCompact && (
+      {/* Review UX round 7 (GPT — "tata kelola UI"): bar ringkas yang benar-
+          benar MENEMPEL (sticky) di bawah navbar utama begitu pengguna
+          scroll melewati header penuh -- nama bisnis + badge tahap tetap
+          terlihat sepanjang scroll, plus akses cepat ke Update Bisnis, tanpa
+          perlu scroll balik ke atas. Prinsip GPT "context stays, decoration
+          shrinks". top-[88px] mengikuti tinggi navbar utama (Navbar.tsx,
+          sticky top-0) supaya menempel persis di bawahnya, bukan menimpanya. */}
+      {headerCompact && (
+        <div className="sticky top-[88px] z-30 -mx-6 mb-6 flex items-center justify-between gap-3 border-b border-white/10 bg-black/95 px-6 py-3 backdrop-blur-md">
           <div className="flex min-w-0 items-center gap-2">
             <p className="truncate text-base font-black text-white">
               {activeBusiness?.business_name || user.email || ""}
@@ -6259,7 +6271,17 @@ function Workspace() {
               </span>
             )}
           </div>
-        )}
+          {activeBusinessId && (
+            <button
+              onClick={() => setShowBusinessUpdate(true)}
+              className="flex h-9 flex-shrink-0 items-center rounded-2xl bg-primary px-4 text-xs font-bold text-black shadow-[0_0_20px_-6px_rgba(255,152,0,0.5)] transition-transform duration-200 hover:scale-[1.03] hover:opacity-90 motion-reduce:transition-none motion-reduce:hover:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            >
+              {t.workspace.updateBusinessButton}
+            </button>
+          )}
+        </div>
+      )}
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div className={"min-w-0" + (headerCompact ? " hidden" : "")}>
           <p className="text-sm font-semibold text-neutral-400">
             {personalGreeting(t, {
