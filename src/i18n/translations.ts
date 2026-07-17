@@ -1432,7 +1432,10 @@ const id = {
     todayChecklistBeemoInsightNote: "Dari analisa tantangan & target bisnismu — bukan template.",
     // Visual Priority (Phase 4) — badge kecil di sidebar untuk 4 menu inti
     // (Today/Score/Target/Chat), lihat CORE_MENU_KEYS di Workspace.tsx.
-    navFocusBadge: "Fokus",
+    // Review UX round 7 (GPT): "Fokus" saja tidak jelas maknanya buat user
+    // ("Fokus itu maksudnya apa?") — diganti "Direkomendasikan" supaya
+    // user langsung paham ini menu inti yang disarankan dipakai rutin.
+    navFocusBadge: "⭐ Direkomendasikan",
     // Rencana Aksi Beemo (Phase 3, Juli 2026, directive PO: "user tau apa
     // saja yang harus dilakukan hari ini, besok, lusa dst... jadi kita
     // benar2 menjadi mentor") — lihat services/workspace/actionPlan/*.ts.
@@ -1592,6 +1595,22 @@ const id = {
     weeklyReviewScoreDelta: "Business Score",
     weeklyReviewNewOpportunities: "Peluang Baru",
     weeklyReviewNewRisks: "Risiko Baru",
+    // Review UX round 7 (GPT): versi narasi pendek dari 5 angka di atas —
+    // murni template dari angka yang sama (bukan AI/data baru), supaya
+    // langsung terbaca sebagai cerita ("1 target selesai") bukan tabel angka
+    // mentah yang butuh ditafsirkan sendiri oleh user.
+    weeklyReviewTargetsCompletedPositive: "✅ {count} target selesai minggu ini",
+    weeklyReviewTargetsCompletedZero: "◻️ Belum ada target selesai minggu ini",
+    weeklyReviewDecisionsMadePositive: "🧭 {count} keputusan dibuat minggu ini",
+    weeklyReviewDecisionsMadeZero: "◻️ Belum ada keputusan dicatat minggu ini",
+    weeklyReviewScoreUp: "📈 Skor naik {points} poin sejak update terakhir",
+    weeklyReviewScoreDown: "📉 Skor turun {points} poin sejak update terakhir",
+    weeklyReviewScoreFlat: "➖ Skor stagnan sejak update terakhir",
+    weeklyReviewScoreNoData: "➖ Skor belum bisa dibandingkan (data belum cukup)",
+    weeklyReviewNewOpportunitiesPositive: "💡 {count} peluang baru ditemukan",
+    weeklyReviewNewOpportunitiesZero: "◻️ Belum ada peluang baru terdeteksi",
+    weeklyReviewNewRisksPositive: "⚠️ {count} risiko baru muncul",
+    weeklyReviewNewRisksZero: "✅ Tidak ada risiko baru minggu ini",
     targetThisWeekLabel: "Target minggu ini",
     targetThisMonthLabel: "Target bulan ini",
     todayMissionBadge: "Mission Today",
@@ -3060,7 +3079,7 @@ const en: Translations = {
     todayChecklistSessionNote: "Your progress is saved automatically — this checklist also signals your business's next stage.",
     todayChecklistBeemoInsightPrefix: "💡 Beemo's focus for you today:",
     todayChecklistBeemoInsightNote: "From an analysis of your business's challenges & target — not a template.",
-    navFocusBadge: "Focus",
+    navFocusBadge: "⭐ Recommended",
     actionPlanTitle: "Beemo's Plan This Week",
     actionPlanSubtitle: "Built by Beemo specifically for your business — not a generic template.",
     actionPlanRegenerateButton: "🔄 Rebuild Plan",
@@ -3206,6 +3225,18 @@ const en: Translations = {
     weeklyReviewScoreDelta: "Business Score",
     weeklyReviewNewOpportunities: "New Opportunities",
     weeklyReviewNewRisks: "New Risks",
+    weeklyReviewTargetsCompletedPositive: "✅ {count} target completed this week",
+    weeklyReviewTargetsCompletedZero: "◻️ No targets completed yet this week",
+    weeklyReviewDecisionsMadePositive: "🧭 {count} decision made this week",
+    weeklyReviewDecisionsMadeZero: "◻️ No decisions logged yet this week",
+    weeklyReviewScoreUp: "📈 Score up {points} points since your last update",
+    weeklyReviewScoreDown: "📉 Score down {points} points since your last update",
+    weeklyReviewScoreFlat: "➖ Score unchanged since your last update",
+    weeklyReviewScoreNoData: "➖ Not enough data yet to compare your score",
+    weeklyReviewNewOpportunitiesPositive: "💡 {count} new opportunity found",
+    weeklyReviewNewOpportunitiesZero: "◻️ No new opportunities detected yet",
+    weeklyReviewNewRisksPositive: "⚠️ {count} new risk surfaced",
+    weeklyReviewNewRisksZero: "✅ No new risks this week",
     targetThisWeekLabel: "This week's target",
     targetThisMonthLabel: "This month's target",
     todayMissionBadge: "Mission Today",

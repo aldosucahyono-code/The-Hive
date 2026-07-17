@@ -583,47 +583,50 @@ function BusinessUpdatesList({
       {/* Rekap Mingguan (pindahan dari Today) — rule-based 7-hari-berjalan,
           di-cache backend (business_weekly_review). Angka JUJUR: score-delta
           null ditampilkan sebagai "-", bukan 0 palsu, kalau data pembanding
-          belum cukup. */}
+          belum cukup.
+          Review UX round 7 (GPT): 5 angka mentah berdampingan ("Target
+          Selesai: 0", dst) informatif tapi tidak bermakna -- user gaptek
+          harus menerka sendiri "lalu apa artinya buat saya?". Diganti baris
+          narasi pendek + ikon per metrik (murni template dari angka yang
+          SAMA, tanpa AI/data baru), supaya langsung terbaca sebagai cerita,
+          bukan tabel angka. */}
       {weeklyReview && (
         <WorkspaceCard>
           <h3 className="mb-1 text-sm font-bold text-neutral-100">{t.workspace.weeklyReviewTitle}</h3>
           <p className="mb-4 text-xs text-neutral-500">
             {fillTemplate(t.workspace.weeklyReviewRange, { start: weeklyReview.weekStart, end: weeklyReview.weekEnd })}
           </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
-              <p className="text-lg font-black text-white">{weeklyReview.targetsCompleted}</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                {t.workspace.weeklyReviewTargetsCompleted}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
-              <p className="text-lg font-black text-white">{weeklyReview.decisionsMade}</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                {t.workspace.weeklyReviewDecisionsMade}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
-              <p className={`text-lg font-black ${(weeklyReview.scoreDelta ?? 0) > 0 ? "text-green-400" : (weeklyReview.scoreDelta ?? 0) < 0 ? "text-red-400" : "text-white"}`}>
-                {weeklyReview.scoreDelta === null ? "-" : weeklyReview.scoreDelta > 0 ? `+${weeklyReview.scoreDelta}` : weeklyReview.scoreDelta}
-              </p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                {t.workspace.weeklyReviewScoreDelta}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
-              <p className="text-lg font-black text-white">{weeklyReview.newOpportunities}</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                {t.workspace.weeklyReviewNewOpportunities}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center">
-              <p className="text-lg font-black text-white">{weeklyReview.newRisks}</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                {t.workspace.weeklyReviewNewRisks}
-              </p>
-            </div>
-          </div>
+          <ul className="space-y-2 text-sm text-neutral-200">
+            <li>
+              {weeklyReview.targetsCompleted > 0
+                ? fillTemplate(t.workspace.weeklyReviewTargetsCompletedPositive, { count: weeklyReview.targetsCompleted })
+                : t.workspace.weeklyReviewTargetsCompletedZero}
+            </li>
+            <li>
+              {weeklyReview.decisionsMade > 0
+                ? fillTemplate(t.workspace.weeklyReviewDecisionsMadePositive, { count: weeklyReview.decisionsMade })
+                : t.workspace.weeklyReviewDecisionsMadeZero}
+            </li>
+            <li>
+              {weeklyReview.scoreDelta === null
+                ? t.workspace.weeklyReviewScoreNoData
+                : weeklyReview.scoreDelta > 0
+                  ? fillTemplate(t.workspace.weeklyReviewScoreUp, { points: weeklyReview.scoreDelta })
+                  : weeklyReview.scoreDelta < 0
+                    ? fillTemplate(t.workspace.weeklyReviewScoreDown, { points: Math.abs(weeklyReview.scoreDelta) })
+                    : t.workspace.weeklyReviewScoreFlat}
+            </li>
+            <li>
+              {weeklyReview.newOpportunities > 0
+                ? fillTemplate(t.workspace.weeklyReviewNewOpportunitiesPositive, { count: weeklyReview.newOpportunities })
+                : t.workspace.weeklyReviewNewOpportunitiesZero}
+            </li>
+            <li>
+              {weeklyReview.newRisks > 0
+                ? fillTemplate(t.workspace.weeklyReviewNewRisksPositive, { count: weeklyReview.newRisks })
+                : t.workspace.weeklyReviewNewRisksZero}
+            </li>
+          </ul>
         </WorkspaceCard>
       )}
 
@@ -1097,7 +1100,30 @@ function BusinessScorePanel({
 /** Warna highlight angka per dimensi — ambang sama dengan statusLabel skor
  * keseluruhan (>=70 baik, >=45 perlu perhatian, di bawah itu perlu perhatian
  * serius), supaya konsisten dipahami di satu halaman yang sama. */
-function dimensionScoreTone(value: number): { text: string; bg: string } {
+// Review UX round 7 (GPT — audit "Business Score"): sebelumnya badge warna
+// SELALU dihitung dari angka absolut saja, jadi dimensi yang skornya masih
+// rendah tapi baru saja MEMBAIK (mis. "Pelanggan" naik dari update terakhir)
+// tetap tampil merah -- membingungkan karena teks di bawahnya bilang "naik"
+// tapi warnanya bilang "buruk". Sekarang badge memprioritaskan ARAH nyata
+// (sinyal "naik"/"turun" dari Business Update) kalau tersedia; kalau
+// dimensinya tidak punya sinyal arah (mis. Marketing/Operasional/Brand yang
+// berbasis checklist selesai/belum, bukan tren naik-turun), tetap jatuh ke
+// ambang skor absolut seperti sebelumnya -- supaya tidak mengarang arah yang
+// sebenarnya tidak ada datanya ("sintesis boleh, mengarang tidak boleh").
+function dimensionScoreTone(value: number, signal?: DimensionSignal, dim?: string): { text: string; bg: string } {
+  if (signal?.type === "update" && signal.hasUpdate) {
+    if (dim === "sales" && signal.trend) {
+      if (signal.trend === "naik") return { text: "text-green-400", bg: "bg-green-500/10" };
+      if (signal.trend === "turun") return { text: "text-red-400", bg: "bg-red-500/10" };
+    }
+    if (dim === "finance" && signal.omsetTrend) {
+      if (signal.omsetTrend === "up") return { text: "text-green-400", bg: "bg-green-500/10" };
+      if (signal.omsetTrend === "down") return { text: "text-red-400", bg: "bg-red-500/10" };
+    }
+    if (dim === "customer" && signal.pelangganBaru != null) {
+      if (signal.pelangganBaru > 0) return { text: "text-green-400", bg: "bg-green-500/10" };
+    }
+  }
   if (value >= 70) return { text: "text-green-400", bg: "bg-green-500/10" };
   if (value >= 45) return { text: "text-amber-400", bg: "bg-amber-500/10" };
   return { text: "text-red-400", bg: "bg-red-500/10" };
@@ -1185,7 +1211,7 @@ function ScoreContent({
               // aslinya, supaya tidak kehilangan konteks kenapa skornya
               // begitu saat datanya memang sudah ada.
               const isNoUpdateYet = signal?.type === "update" && !signal.hasUpdate;
-              const tone = dimensionScoreTone(dimScore);
+              const tone = dimensionScoreTone(dimScore, signal, dim);
               return (
                 <div key={dim} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
                   <div className="flex items-center justify-between gap-3">
@@ -1412,7 +1438,12 @@ function ReportContent({
               memanggil web_search (mis. Final Report Platinum), yang bukan
               sumber blok ini. Satu baris untuk seluruh blok (bukan per
               bullet) supaya tidak berisik, sesuai concern GPT sendiri. */}
-          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-white/10 pt-3 text-[11px] text-neutral-500">
+          {/* Review UX round 7 (GPT): kontras 11px abu-abu gelap sebelumnya
+              dinilai terlalu halus sampai bisa terlewat -- dinaikkan satu
+              tingkat (neutral-500 -> neutral-300) tanpa mengubah ukuran/
+              posisi, supaya tetap sekadar penanda kaki halaman (bukan
+              headline) tapi lebih mudah disadari. */}
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-white/10 pt-3 text-[11px] font-medium text-neutral-300">
             <span>📋 {t.previewReport.trustBadgeBusinessData}</span>
             <span>📍 {t.previewReport.trustBadgeLocation}</span>
           </div>
@@ -3885,17 +3916,22 @@ function TodayPanel({
               services/workspace/actionPlan/*.ts. Ditaruh langsung setelah
               Mission Today (bukan tab terpisah) supaya jadi hal kedua yang
               dilihat pengguna begitu buka Workspace. */}
-          <div className="mt-6 rounded-3xl border border-neutral-200 bg-white p-6 sm:p-8">
+          {/* Review UX round 7 (GPT): card ini sebelumnya berlatar putih
+              (bg-white), satu-satunya elemen terang di tengah tema gelap
+              seluruh Workspace -- diseragamkan ke varian gelap yang sama
+              dengan card lain (border-white/10 bg-surface), tanpa mengubah
+              struktur/data sama sekali. */}
+          <div className="mt-6 rounded-3xl border border-white/10 bg-surface p-6 sm:p-8">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="text-lg font-bold text-neutral-900">🗓️ {t.workspace.actionPlanTitle}</h3>
+                <h3 className="text-lg font-bold text-white">🗓️ {t.workspace.actionPlanTitle}</h3>
                 <p className="mt-1 text-sm text-neutral-500">{t.workspace.actionPlanSubtitle}</p>
               </div>
               {actionPlanItems.length > 0 && (
                 <button
                   onClick={onRegenerateActionPlan}
                   disabled={actionPlanLoading}
-                  className="rounded-full border border-neutral-200 px-4 py-2 text-xs font-semibold text-neutral-600 transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-neutral-300 transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {actionPlanLoading ? t.workspace.actionPlanRegenerating : t.workspace.actionPlanRegenerateButton}
                 </button>
@@ -3904,13 +3940,13 @@ function TodayPanel({
 
             {actionPlanLoading && actionPlanItems.length === 0 ? (
               <div className="space-y-2">
-                <div className="h-4 w-2/3 animate-pulse rounded bg-neutral-100" />
-                <div className="h-4 w-1/2 animate-pulse rounded bg-neutral-100" />
-                <div className="h-4 w-3/5 animate-pulse rounded bg-neutral-100" />
+                <div className="h-4 w-2/3 animate-pulse rounded bg-white/10" />
+                <div className="h-4 w-1/2 animate-pulse rounded bg-white/10" />
+                <div className="h-4 w-3/5 animate-pulse rounded bg-white/10" />
                 <p className="pt-2 text-xs text-neutral-400">{t.workspace.actionPlanGenerating}</p>
               </div>
             ) : actionPlanError && actionPlanItems.length === 0 ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
                 {actionPlanError}{" "}
                 <button onClick={onRegenerateActionPlan} className="font-semibold underline">
                   {t.workspace.actionPlanRetryButton}
@@ -3931,23 +3967,23 @@ function TodayPanel({
                         </p>
                         <ul className="space-y-2">
                           {dayItems.map((item) => (
-                            <li key={item.id} className="flex items-start gap-3 rounded-xl border border-neutral-100 bg-neutral-50 p-3">
+                            <li key={item.id} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
                               <button
                                 onClick={() => onToggleActionPlanItem(item.id, !item.completed)}
                                 className={
                                   "mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-md border text-xs " +
-                                  (item.completed ? "border-primary bg-primary text-black" : "border-neutral-300 text-transparent")
+                                  (item.completed ? "border-primary bg-primary text-black" : "border-white/20 text-transparent")
                                 }
                                 aria-label={item.completed ? t.workspace.actionPlanMarkIncomplete : t.workspace.actionPlanMarkComplete}
                               >
                                 ✓
                               </button>
                               <div className="min-w-0">
-                                <p className={"text-sm font-semibold " + (item.completed ? "text-neutral-400 line-through" : "text-neutral-800")}>
+                                <p className={"text-sm font-semibold " + (item.completed ? "text-neutral-500 line-through" : "text-neutral-100")}>
                                   {item.title}
                                 </p>
                                 {item.description && (
-                                  <p className={"mt-0.5 text-xs " + (item.completed ? "text-neutral-300" : "text-neutral-500")}>
+                                  <p className={"mt-0.5 text-xs " + (item.completed ? "text-neutral-600" : "text-neutral-400")}>
                                     {item.description}
                                   </p>
                                 )}
@@ -4527,6 +4563,29 @@ function Workspace() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>("today");
   const [businesses, setBusinesses] = useState<BusinessProfileRow[]>([]);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
+
+  // Review UX round 7 (GPT — "tata kelola UI"): header (sapaan + status
+  // akses) berulang penuh di SETIAP tab, memaksa pengguna scroll ~400-500px
+  // melewati info yang sama tiap kali pindah/scroll. Prinsip GPT: "context
+  // stays, decoration shrinks" -- begitu pengguna scroll ke bawah, header
+  // menyusut jadi bar ringkas (nama bisnis + tahap + Update Bisnis), lalu
+  // mengembang lagi begitu scroll kembali ke atas. Murni state UI lokal,
+  // tidak menyentuh data/fetch apapun.
+  const [headerCompact, setHeaderCompact] = useState(false);
+  useEffect(() => {
+    const COLLAPSE_AT = 96;
+    const EXPAND_AT = 32;
+    function handleScroll() {
+      const y = window.scrollY;
+      setHeaderCompact((prev) => {
+        if (!prev && y > COLLAPSE_AT) return true;
+        if (prev && y < EXPAND_AT) return false;
+        return prev;
+      });
+    }
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
   // Audit Juli 2026 (ChatGPT Critical #1 + QA langsung: "user baru bisa
   // kewalahan" -- Workspace langsung menampilkan 7-9 tab sekaligus tanpa
   // urutan "mulai dari sini"). Quick Start murni berbasis tab mana yang
@@ -6185,7 +6244,23 @@ function Workspace() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-10">
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
+        {/* Review UX round 7: mode ringkas begitu discroll -- hanya nama
+            bisnis + badge tahap yang tetap terlihat, sisanya (sapaan penuh,
+            deskripsi pulse, target minggu/bulan) disembunyikan sementara.
+            Prinsip GPT "context stays, decoration shrinks". */}
+        {headerCompact && (
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-base font-black text-white">
+              {activeBusiness?.business_name || user.email || ""}
+            </p>
+            {todaySnapshot && (
+              <span className="inline-block flex-shrink-0 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                {stageDetailLabel(t, todaySnapshot.stageDetail)}
+              </span>
+            )}
+          </div>
+        )}
+        <div className={"min-w-0" + (headerCompact ? " hidden" : "")}>
           <p className="text-sm font-semibold text-neutral-400">
             {personalGreeting(t, {
               nama: ownerNama,
@@ -6447,7 +6522,7 @@ function Workspace() {
         </div>
       )}
 
-      <div className="mb-6">
+      <div className={"mb-6" + (headerCompact ? " hidden" : "")}>
         <AccessStatusCard membership={membership} loading={membershipLoading} t={t} lang={lang} />
         {checkingUpgrade && (
           <p className="mt-2 text-xs text-neutral-400">{t.workspace.upgradeChecking}</p>

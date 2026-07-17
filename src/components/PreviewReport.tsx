@@ -385,7 +385,10 @@ function PreviewReport({ data, preview, error, onRetry, onRestart, draftId }: Pr
             halaman ini disuplai api/generate-preview.ts yang TIDAK memanggil
             web_search sama sekali, jadi badge "informasi publik" akan
             menyesatkan kalau ditambahkan di sini. */}
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-neutral-200 pt-3 text-[11px] text-neutral-500">
+        {/* Review UX round 7 (GPT): kontras dinaikkan satu tingkat
+            (neutral-500 -> neutral-600) supaya lebih mudah disadari tanpa
+            jadi elemen headline -- sama alasannya dengan varian Workspace.tsx. */}
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-neutral-200 pt-3 text-[11px] font-medium text-neutral-600">
           <span>📋 {t.previewReport.trustBadgeBusinessData}</span>
           <span>📍 {t.previewReport.trustBadgeLocation}</span>
         </div>
