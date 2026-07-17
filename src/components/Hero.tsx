@@ -84,8 +84,18 @@ function Hero({ onStart, animate }: HeroProps) {
             </div>
           </div>
 
+          {/* Bugfix (QA Juli 2026, laporan user): glow lama (h-[26rem]
+              w-[34rem]) lebih LEBAR dari kolom kanan grid ini (~495px di
+              breakpoint md dengan grid-cols-[1.15fr_1fr]) -- karena parent
+              overflow-hidden, blob blur yang harusnya lembut jadi TERPOTONG
+              tegak lurus di tepi kolom, kelihatan seperti kotak, bukan cahaya
+              yang menyebar halus. Sekarang glow dibuat LEBIH KECIL dari lebar
+              kolom (jadi selalu muat + ada ruang untuk blur memudar sebelum
+              kena tepi) dan bentuknya lingkaran sempurna (w=h) supaya blur-nya
+              natural di semua sisi, "sebesar gambar mascot" sesuai permintaan
+              user -- bukan kartu besar yang menutupi seluruh kolom. */}
           <div className="relative flex items-center justify-center overflow-hidden">
-            <div className="absolute h-[26rem] w-[34rem] rounded-full bg-primary/10 blur-3xl"></div>
+            <div className="absolute inset-0 m-auto h-56 w-56 rounded-full bg-primary/20 blur-[70px] sm:h-64 sm:w-64 md:h-56 md:w-56 lg:h-64 lg:w-64"></div>
             <img
               src={mascot}
               alt="Beemo AI"
