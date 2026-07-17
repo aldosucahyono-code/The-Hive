@@ -238,11 +238,18 @@ function BusinessSwitcher({
       {businesses.length > 1 ? (
         <div className="flex h-10 flex-shrink-0 items-center gap-2 rounded-2xl border border-white/10 bg-surface px-3">
           <span className="text-base" aria-hidden="true">🏢</span>
-          <div className="leading-tight">
+          {/* Round 4 audit (mobile/responsive pass, 17 Juli 2026): nama
+              bisnis panjang (mis. "PT Sumber Rejeki Abadi Sejahtera") tidak
+              punya batas lebar sebelumnya -- di layar HP sempit elemen ini
+              bisa lebih lebar dari viewport, dan karena overflow-x:hidden
+              global, sisa teksnya terpotong diam-diam. max-w + truncate di
+              sini memastikan selalu terlihat rapi dengan "..." daripada
+              terpotong tanpa tanda, di semua ukuran layar. */}
+          <div className="min-w-0 max-w-[140px] leading-tight sm:max-w-[220px]">
             <select
               value={activeId}
               onChange={(e) => onSwitch(e.target.value)}
-              className="block rounded-md bg-transparent text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+              className="block w-full truncate rounded-md bg-transparent text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
             >
               {businesses.map((b) => (
                 <option key={b.id} value={b.id} className="bg-black">
@@ -250,15 +257,15 @@ function BusinessSwitcher({
                 </option>
               ))}
             </select>
-            {active?.industry && <span className="block text-[11px] text-neutral-500">{active.industry}</span>}
+            {active?.industry && <span className="block truncate text-[11px] text-neutral-500">{active.industry}</span>}
           </div>
         </div>
       ) : active ? (
         <div className="flex h-10 flex-shrink-0 items-center gap-2 rounded-2xl border border-white/10 bg-surface px-3">
           <span className="text-base" aria-hidden="true">🏢</span>
-          <div className="leading-tight">
-            <span className="block text-sm font-bold text-white">{active.business_name}</span>
-            {active.industry && <span className="block text-[11px] text-neutral-500">{active.industry}</span>}
+          <div className="min-w-0 max-w-[140px] leading-tight sm:max-w-[220px]">
+            <span className="block truncate text-sm font-bold text-white">{active.business_name}</span>
+            {active.industry && <span className="block truncate text-[11px] text-neutral-500">{active.industry}</span>}
           </div>
         </div>
       ) : null}

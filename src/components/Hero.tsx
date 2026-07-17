@@ -47,10 +47,19 @@ function Hero({ onStart, animate }: HeroProps) {
               {t.hero.eyebrow}
             </span>
 
+            {/* Round 4 audit (mobile/responsive pass, GPT + code audit, 17 Juli
+                2026): whitespace-nowrap dulu dipasang di SEMUA breakpoint --
+                di layar HP sempit (~375-390px) baris seperti "Reach Your
+                First Rp100 Million." (EN) lebih lebar dari area kontennya,
+                dan karena body punya overflow-x:hidden global, teksnya
+                TERPOTONG DIAM-DIAM tanpa scrollbar/tanda apa pun -- pengguna
+                gaptek tidak akan sadar ada teks yang hilang. Sekarang
+                whitespace-nowrap cuma aktif dari sm: ke atas; di mobile,
+                teks dibiarkan wrap alami ke baris kedua daripada terpotong. */}
             <h1 className={"text-3xl font-black leading-tight text-neutral-900 sm:text-4xl lg:text-[2.65rem] xl:text-5xl " + fade()}>
-              <span className="block whitespace-nowrap">{t.hero.titleLine1}</span>
-              <span className="block whitespace-nowrap">{t.hero.titleLine2}</span>
-              <span className="block whitespace-nowrap text-primary">{t.hero.titleLine3}</span>
+              <span className="block sm:whitespace-nowrap">{t.hero.titleLine1}</span>
+              <span className="block sm:whitespace-nowrap">{t.hero.titleLine2}</span>
+              <span className="block text-primary sm:whitespace-nowrap">{t.hero.titleLine3}</span>
             </h1>
 
             <p className={"mt-5 max-w-lg text-base leading-relaxed text-neutral-600 " + fade("100ms")}>
@@ -75,7 +84,7 @@ function Hero({ onStart, animate }: HeroProps) {
             </div>
           </div>
 
-          <div className="relative flex items-center justify-center">
+          <div className="relative flex items-center justify-center overflow-hidden">
             <div className="absolute h-[26rem] w-[34rem] rounded-full bg-primary/10 blur-3xl"></div>
             <img
               src={mascot}

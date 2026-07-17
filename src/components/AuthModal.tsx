@@ -205,11 +205,16 @@ export default function AuthModal({ onClose, defaultEmail, initialError, onSucce
       onClick={handleOverlayClick}
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
     >
-      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-8 shadow-xl">
+      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-6 shadow-xl sm:p-8">
+        {/* Round 4 audit (mobile pass, 17 Juli 2026): p-8 tetap sama di semua
+            ukuran layar sebelumnya (modal lain sudah p-6 sm:p-8) -- di HP
+            390px, area konten jadi lebih sempit dari modal lain. Disamakan
+            ke pola p-6 sm:p-8. Tombol tutup juga diperbesar area sentuhnya
+            (p-2.5), sama seperti modal lain. */}
         <button
           onClick={onClose}
           aria-label={t.authModal.closeLabel}
-          className="absolute right-4 top-4 text-neutral-400 hover:text-neutral-900"
+          className="absolute right-2.5 top-2.5 p-2.5 text-neutral-400 hover:text-neutral-900"
         >
           ✕
         </button>

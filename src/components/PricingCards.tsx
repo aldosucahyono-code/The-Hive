@@ -82,7 +82,14 @@ function PricingCards({
           <div className="px-6 pb-6 sm:px-8 sm:pb-8">
             <span className="inline-block rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-black">PRO</span>
 
-            <h3 className="mt-5 max-w-[65%] text-left text-lg font-extrabold leading-snug sm:max-w-[60%] sm:text-xl">
+            {/* Round 4 audit (mobile pass, 17 Juli 2026): max-w-[65%] di
+                text-lg bold dulu bikin judul 2-3 kata jadi 4-5 baris sempit
+                di kartu sempit (mis. dalam UpgradeModal di HP) -- mascot di
+                pojok kanan atas tetap fixed-size (h-28) di semua lebar
+                layar, jadi persentase yang sama artinya makin sempit di
+                layar kecil. Dilonggarkan + font sedikit lebih kecil di
+                mobile supaya wrap 2 baris yang wajar, bukan 4-5 baris. */}
+            <h3 className="mt-5 max-w-[78%] text-left text-base font-extrabold leading-snug sm:max-w-[60%] sm:text-xl">
               {t.pricing.proTitlePrefix} <span className="text-amber-400">{t.pricing.proTitleHighlight}</span>
             </h3>
             <p className={`mt-2.5 text-left text-sm ${descText}`}>{t.pricing.proDesc}</p>
@@ -154,7 +161,7 @@ function PricingCards({
               💎 PLATINUM
             </span>
 
-            <h3 className="mt-5 max-w-[65%] text-left text-lg font-extrabold leading-snug sm:max-w-[60%] sm:text-xl">
+            <h3 className="mt-5 max-w-[78%] text-left text-base font-extrabold leading-snug sm:max-w-[60%] sm:text-xl">
               {t.pricing.platinumTitlePrefix} <span className="text-purple-400">{t.pricing.platinumTitleHighlight}</span>
             </h3>
             <p className={`mt-2.5 text-left text-sm ${descText}`}>{t.pricing.platinumDesc}</p>

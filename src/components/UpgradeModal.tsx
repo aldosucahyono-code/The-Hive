@@ -92,8 +92,11 @@ function UpgradeModal({ businessProfileId, businessName, currentTier, onClose, o
   return (
     <div onClick={handleOverlayClick} className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 p-4">
       <div className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-black/95 p-6 backdrop-blur-md sm:p-8">
+        {/* Round 4 audit (mobile pass, 17 Juli 2026): area sentuh diperbesar
+            (p-2.5) supaya tidak cuma sebesar glyph "✕" -- lihat catatan
+            sama di BusinessUpdateModal.tsx. */}
         {!processingPlan && (
-          <button onClick={onClose} className="absolute right-4 top-4 text-neutral-400 hover:text-white">
+          <button onClick={onClose} className="absolute right-2.5 top-2.5 p-2.5 text-neutral-400 hover:text-white">
             ✕
           </button>
         )}

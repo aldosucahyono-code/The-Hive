@@ -236,8 +236,18 @@ function BusinessUpdateModal({ businessProfileId, businessType, onClose, onSaved
   return (
     <div onClick={handleOverlayClick} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
       <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/10 bg-black/95 p-6 backdrop-blur-md sm:p-8">
+        {/* Round 4 audit (mobile pass, 17 Juli 2026): tombol tutup ini
+            sebelumnya cuma sebesar glyph "✕" (~16-20px) -- di bawah target
+            sentuh minimum ~44px yang wajar untuk kontrol utama di layar
+            sentuh. p-2.5 memperbesar area sentuh; posisi digeser dari
+            right-4/top-4 ke right-2.5/top-2.5 supaya glyph-nya sendiri
+            tetap terlihat di tempat yang sama secara visual. */}
         {!submitting && (
-          <button onClick={onClose} aria-label={t.businessUpdateModal.closeLabel} className="absolute right-4 top-4 text-neutral-400 hover:text-white">
+          <button
+            onClick={onClose}
+            aria-label={t.businessUpdateModal.closeLabel}
+            className="absolute right-2.5 top-2.5 p-2.5 text-neutral-400 hover:text-white"
+          >
             ✕
           </button>
         )}

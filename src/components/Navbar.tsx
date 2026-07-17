@@ -126,7 +126,7 @@ function Navbar({ variant = "light", authError = false }: NavbarProps) {
               onClick={toggleLang}
               title={lang === "id" ? "Switch to English" : "Ganti ke Bahasa Indonesia"}
               className={
-                "flex items-center gap-1.5 rounded-full border px-2.5 py-2 text-xs font-bold sm:px-3 " +
+                "flex items-center gap-1.5 rounded-full border px-2.5 py-2.5 text-xs font-bold sm:px-3 " +
                 (isLight
                   ? "border-neutral-200 bg-neutral-50 text-neutral-700 hover:border-primary/40 hover:text-neutral-900"
                   : "border-white/15 bg-white/5 text-neutral-200 hover:border-primary/40 hover:text-white")
