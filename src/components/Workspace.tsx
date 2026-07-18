@@ -3541,6 +3541,29 @@ function TodayPanel({
     if (businessProfileId && topPriorityKeyForDone) {
       saveMissionActionState(businessProfileId, todayDateKey, topPriorityKeyForDone, status);
     }
+    // Mission Action Log (lanjutan audit, roadmap GPT Fase 3 "ukur
+    // efektivitas prioritas berdasarkan pola penggunaan"): localStorage di
+    // atas SUDAH cukup untuk kebutuhan UI (status bertahan sepanjang hari
+    // itu). Panggilan ini MURNI mencatat event ke backend supaya data
+    // pemakaian nyata mulai terkumpul untuk analisis nanti -- TIDAK
+    // mempengaruhi ranking/Rule Engine sama sekali (lihat services/
+    // workspace/missionActionLog.ts), jadi kegagalannya (mis. offline)
+    // sengaja dibiarkan diam-diam, tidak mengganggu tombol yang sudah
+    // bekerja lewat localStorage. Cuma dicatat saat status di-SET (bukan
+    // saat "undo"/dibatalkan) -- lihat catatan append-only di migrasi.
+    if (status && businessProfileId && topPriorityKeyForDone && session?.access_token) {
+      fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          action: "logMissionAction",
+          businessProfileId,
+          snapshotDate: todayDateKey,
+          priorityKey: topPriorityKeyForDone,
+          status,
+        }),
+      }).catch((err) => console.error("logMissionAction fetch error:", err));
+    }
   }
 
   function toggleMissionDone() {

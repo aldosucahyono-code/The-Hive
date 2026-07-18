@@ -35,6 +35,7 @@ import { getCompetitorAnalysis } from "../services/competitor/getCompetitorAnaly
 import { proposeDecision } from "../services/decision/proposeDecision.js";
 import { listDecisions } from "../services/decision/listDecisions.js";
 import { getChecklistProgress, toggleChecklistItem } from "../services/workspace/checklistProgress.js";
+import { logMissionAction } from "../services/workspace/missionActionLog.js";
 import { getBusinessOS } from "../services/businessOS/getBusinessOS.js";
 import { getWeeklyReview } from "../services/businessOS/weeklyReview.js";
 import { generateBaselineReportAction } from "../services/reports/generateFinalReport.js";
@@ -258,6 +259,9 @@ async function handleWorkspaceRequest(req: VercelRequest, res: VercelResponse) {
       break;
     case "toggleChecklistItem":
       result = await toggleChecklistItem(userId, payload);
+      break;
+    case "logMissionAction":
+      result = await logMissionAction(userId, payload);
       break;
     case "getBusinessOS":
       result = await getBusinessOS(userId, payload);
