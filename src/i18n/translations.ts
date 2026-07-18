@@ -1884,6 +1884,51 @@ const id = {
     // dari awal ini bukan checkout langsung.
     viewEarlyAccessButton: "Gabung Early Access",
   },
+
+  // The Hive Platinum Workspace — Fase 1 (diskusi desain Claude+GPT 18-19
+  // Jul 2026): badge kategori bisnis otomatis + kartu "paket kerja"
+  // eksekusi pertama (Perkuat Kehadiran di Google, kategori kuliner).
+  // Dirender di atas TodayPanel yang sudah ada — TIDAK mengganti 11 tab
+  // Workspace (dikonfirmasi user: "saya juga TIDAK setuju kalau 11 tab
+  // yang ada sekarang diganti").
+  workspaceHome: {
+    categoryLabels: {
+      kuliner: "Kuliner",
+      retail: "Retail",
+      jasa: "Jasa",
+      logistik: "Logistik",
+      manufaktur: "Manufaktur",
+      pertanian_perikanan: "Pertanian & Perikanan",
+      pertambangan_energi: "Pertambangan & Energi",
+      kesehatan: "Kesehatan",
+      pendidikan: "Pendidikan",
+      properti: "Properti",
+      teknologi: "Teknologi",
+      pariwisata: "Pariwisata",
+      lainnya: "Lainnya",
+    },
+    categoryLoading: "Mengenali kategori bisnis...",
+    changeCategoryPrompt: "Bukan kategori yang tepat?",
+    changeCategoryTitle: "Pilih kategori bisnis",
+    changeCategoryCancel: "Batal",
+    changeCategorySave: "Simpan",
+
+    googlePresenceTitle: "Perkuat kehadiran bisnis di Google",
+    googlePresenceDesc: "Profil bisnismu belum lengkap — ini yang paling banyak menentukan apakah pelanggan baru menemukanmu.",
+    googlePresenceItemDescription: "Deskripsi Google Business (750 karakter)",
+    googlePresenceItemPhotos: "10 foto yang perlu diambil + angle",
+    googlePresenceItemChecklist: "Checklist data yang perlu kamu isi",
+    openPackageButton: "Buka paket kerja",
+    generatingPackage: "Beemo sedang menyusun paket kerjamu...",
+    packageError: "Gagal menyusun paket kerja. Coba lagi.",
+    descriptionSectionTitle: "Deskripsi Google Business",
+    copyButton: "Salin",
+    copiedLabel: "Tersalin",
+    photosSectionTitle: "10 foto yang perlu diambil",
+    checklistSectionTitle: "Checklist data yang perlu kamu lengkapi",
+    collapseButton: "Tutup paket kerja",
+    characterCountSuffix: "karakter",
+  },
 };
 
 export type Translations = typeof id;
@@ -3547,6 +3592,45 @@ const en: Translations = {
     gotoWorkspaceButton: "Go to Workspace",
     closeButton: "Close",
     viewEarlyAccessButton: "Join Early Access",
+  },
+
+  workspaceHome: {
+    categoryLabels: {
+      kuliner: "Food & Beverage",
+      retail: "Retail",
+      jasa: "Services",
+      logistik: "Logistics",
+      manufaktur: "Manufacturing",
+      pertanian_perikanan: "Agriculture & Fishery",
+      pertambangan_energi: "Mining & Energy",
+      kesehatan: "Health",
+      pendidikan: "Education",
+      properti: "Property",
+      teknologi: "Technology",
+      pariwisata: "Tourism",
+      lainnya: "Other",
+    },
+    categoryLoading: "Detecting business category...",
+    changeCategoryPrompt: "Not the right category?",
+    changeCategoryTitle: "Choose business category",
+    changeCategoryCancel: "Cancel",
+    changeCategorySave: "Save",
+
+    googlePresenceTitle: "Strengthen your Google presence",
+    googlePresenceDesc: "Your business profile isn't complete yet — this is what determines whether new customers find you.",
+    googlePresenceItemDescription: "Google Business description (750 characters)",
+    googlePresenceItemPhotos: "10 photos to take + angles",
+    googlePresenceItemChecklist: "Checklist of data you need to fill in",
+    openPackageButton: "Open work package",
+    generatingPackage: "Beemo is putting your package together...",
+    packageError: "Failed to build this package. Please try again.",
+    descriptionSectionTitle: "Google Business description",
+    copyButton: "Copy",
+    copiedLabel: "Copied",
+    photosSectionTitle: "10 photos to take",
+    checklistSectionTitle: "Checklist to complete",
+    collapseButton: "Close work package",
+    characterCountSuffix: "characters",
   },
 };
 

@@ -7,8 +7,20 @@ import ChatBeemoPanel from "./ChatBeemoPanel";
 import BusinessUpdateModal from "./BusinessUpdateModal";
 import UpgradeModal from "./UpgradeModal";
 import WizardCapBlocked from "./WizardCapBlocked";
+import BusinessCategoryBadge from "./BusinessCategoryBadge";
+import GooglePresenceGoalCard from "./GooglePresenceGoalCard";
 import type { Translations } from "../i18n/translations";
 import beemoMascot from "../assets/mascot/beemo.png";
+import type { BusinessCategoryKey } from "../lib/businessCategories";
+
+// The Hive Platinum Workspace — Fase 1 (diskusi desain Claude+GPT 18-19 Jul
+// 2026): kategori bisnis mana saja yang sudah punya paket kerja "Perkuat
+// Kehadiran di Google" (lihat GooglePresenceGoalCard + generateGooglePresencePackage.ts
+// untuk alasan pembatasan ini). Tambah kategori lain di sini SETELAH
+// kontennya divalidasi masuk akal untuk kategori itu juga — bukan sekaligus
+// semua kategori, sesuai saran GPT "bangun modular, bukan semua kombinasi
+// kategori x tujuan sekaligus".
+const GOOGLE_PRESENCE_CATEGORIES = new Set<BusinessCategoryKey>(["kuliner"]);
 import {
   WorkspaceCard,
   SectionHeader,
@@ -4813,6 +4825,11 @@ function Workspace() {
   }, [user]);
   const { t, lang, setLang } = useLanguage();
   const [activeMenu, setActiveMenu] = useState<MenuKey>("today");
+  // The Hive Platinum Workspace — Fase 1: kategori bisnis aktif, dilaporkan
+  // oleh BusinessCategoryBadge (yang mandiri fetch/klasifikasi sendiri) —
+  // dipakai di sini murni untuk keputusan render (kartu paket kerja mana
+  // yang relevan), bukan sumber kebenaran (itu tetap business_profiles.business_category).
+  const [businessCategory, setBusinessCategory] = useState<BusinessCategoryKey | null>(null);
   const [businesses, setBusinesses] = useState<BusinessProfileRow[]>([]);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
 
@@ -6935,6 +6952,22 @@ function Workspace() {
             </div>
           ) : activeMenu === "today" ? (
             <>
+              {/* The Hive Platinum Workspace — Fase 1 (diskusi desain
+                  Claude+GPT 18-19 Jul 2026): badge kategori bisnis otomatis
+                  + kartu paket kerja pertama. Dirender di ATAS QuickStartCard/
+                  TodayPanel yang sudah ada, TIDAK menggantikannya — user
+                  eksplisit konfirmasi 11 tab yang ada TIDAK diganti. */}
+              {activeBusinessId && (
+                <div className="mb-4 flex justify-end">
+                  <BusinessCategoryBadge businessProfileId={activeBusinessId} onCategoryChange={setBusinessCategory} />
+                </div>
+              )}
+              {activeBusinessId && businessCategory && GOOGLE_PRESENCE_CATEGORIES.has(businessCategory) && (
+                <div className="mb-4">
+                  <GooglePresenceGoalCard businessProfileId={activeBusinessId} />
+                </div>
+              )}
+
               {!quickStartDismissed && QUICK_START_STEPS.some((s) => !visitedMenus.has(s.key)) && (
                 <QuickStartCard t={t} visited={visitedMenus} onStepClick={(key) => setActiveMenu(key)} onDismiss={dismissQuickStart} />
               )}

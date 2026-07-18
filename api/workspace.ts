@@ -51,6 +51,8 @@ import { generateActionPlan } from "../services/workspace/actionPlan/generateAct
 import { listActionPlan, toggleActionPlanItem } from "../services/workspace/actionPlan/actionPlan.js";
 import { getChatStarters } from "../services/workspace/chat/getChatStarters.js";
 import { submitEarlyAccess } from "../services/workspace/submitEarlyAccess.js";
+import { getBusinessCategory, setBusinessCategory } from "../services/business/classifyCategory.js";
+import { getGooglePresencePackage } from "../services/business/goalPackages/generateGooglePresencePackage.js";
 import { recordPresence, extractVercelGeo } from "../services/admin/recordPresence.js";
 import { adminRequestChallenge } from "../services/admin/auth/requestChallenge.js";
 import { adminVerifyEmailToken } from "../services/admin/auth/verifyEmailToken.js";
@@ -311,6 +313,15 @@ async function handleWorkspaceRequest(req: VercelRequest, res: VercelResponse) {
       break;
     case "submitEarlyAccess":
       result = await submitEarlyAccess(userId, payload);
+      break;
+    case "getBusinessCategory":
+      result = await getBusinessCategory(userId, payload);
+      break;
+    case "setBusinessCategory":
+      result = await setBusinessCategory(userId, payload);
+      break;
+    case "getGooglePresencePackage":
+      result = await getGooglePresencePackage(userId, payload);
       break;
     default:
       return res.status(400).json({ error: `action tidak dikenali: ${action}` });
