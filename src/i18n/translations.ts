@@ -77,7 +77,7 @@ const id = {
   stepOne: {
     stepLabel: "STEP 1 OF 5",
     namaLabel: "Nama Anda",
-    namaPlaceholder: "Contoh : Michael Aldo",
+    namaPlaceholder: "Contoh: Michael Aldo",
     namaHelper: "Hanya huruf, minimal 3 karakter, tanpa angka/simbol/huruf berulang.",
     namaWarningTitle: "Hanya huruf, minimal 3 karakter, tidak boleh huruf berulang/asal",
     emailLabel: "Email Anda",
@@ -249,8 +249,8 @@ const id = {
     // Workspace.tsx (ReportContent) soal kenapa cuma 2 dari 3 badge yang
     // direkomendasikan GPT yang dipakai di sini (jujur soal pipeline mana
     // yang benar-benar memakai web_search vs tidak).
-    trustBadgeBusinessData: "Berdasarkan data bisnis yang Anda isi",
-    trustBadgeLocation: "Mempertimbangkan lokasi bisnis Anda",
+    trustBadgeBusinessData: "Berdasarkan informasi yang kamu berikan",
+    trustBadgeLocation: "Mempertimbangkan lokasi bisnismu",
     swotTitle: "Kekuatan & Kelemahan Bisnismu",
     swotDesc: "Tersedia lengkap di laporan PRO/PLATINUM.",
     competitorTitle: "Analisa Kompetitor",
@@ -268,7 +268,7 @@ const id = {
     // Workspace pribadi user (lihat UpgradeModal.tsx). Copy diganti supaya
     // tetap menimbulkan rasa penasaran & jelas value Pro/Platinum ada, tapi
     // ajakannya konsisten "coba dulu di Workspace-mu", bukan "beli sekarang".
-    unlockEyebrow: "✨ Pro & Platinum Menantimu di Workspace",
+    unlockEyebrow: "✨ Ada Fitur Pro & Platinum di Workspace-mu",
     unlockTitle: "Lihat Dulu di Workspace Pribadimu",
     unlockSubtitle: "Upgrade ke Pro atau Platinum kapan saja — begitu kamu masuk Workspace gratis, cukup klik tombol Upgrade di sana.",
     recommendationTitle: "Saran Beemo untuk kasusmu",
@@ -281,13 +281,13 @@ const id = {
     platinumButton: "🔓 Unlock PLATINUM",
     preparingButton: "Menyiapkan...",
     footerNote: "🔒 Detail paket & harga lengkap ada di dalam Workspace-mu — tinggal klik Upgrade kapan saja kamu siap.",
-    unlockSectionButton: "Coba Gratis, Masuk ke Workspace",
+    unlockSectionButton: "Lanjutkan di Workspace",
     unlockSectionPreparing: "Menyiapkan Workspace-mu...",
     unlockCta: "Buka Laporan Lengkap",
     freeCtaDivider: "atau",
     freeCtaTitle: "Belum siap bayar? Coba dulu gratis.",
     freeCtaDesc: "Masuk ke Workspace pribadimu sekarang — lihat langsung bagaimana Beemo membantu bisnismu, upgrade kapan saja kalau sudah cocok.",
-    freeCtaButton: "Coba Gratis, Masuk ke Workspace",
+    freeCtaButton: "Masuk ke Workspace Gratis",
     freeCtaPreparing: "Menyiapkan Workspace-mu...",
     swotMock: [
       "Kekuatan utama dari sisi produk dan operasional bisnis Anda",
@@ -435,7 +435,7 @@ const id = {
     title: "Analisa Bisnis dalam 3 Langkah Mudah",
     steps: [
       { title: "Jawab Beberapa Pertanyaan", desc: "Ceritakan tentang bisnismu, tantangan, dan targetmu." },
-      { title: "Beemo AI Menganalisa", desc: "AI kami menganalisa kondisi bisnis, kompetitor, dan peluang pasar." },
+      { title: "Beemo AI Menganalisa", desc: "Beemo menganalisis kondisi bisnis, kompetitor, dan peluang pasar." },
       { title: "Dapatkan Laporan & Rekomendasi", desc: "Terima Business Intelligence Report lengkap dengan langkah tindakan yang konkret." },
     ],
   },
@@ -499,15 +499,15 @@ const id = {
     eyebrow: "FAQ",
     title: "Pertanyaan yang Sering Ditanyakan",
     items: [
-      { q: "Apa itu THE HIVE?", a: "THE HIVE adalah AI Business Consultant yang membantu Anda memahami kondisi bisnis, mengenali kompetitor, menemukan peluang pasar, dan menyusun strategi yang bisa langsung diterapkan. Semua analisis disajikan dalam bahasa yang mudah dipahami sehingga Anda dapat mengambil keputusan dengan lebih percaya diri." },
-      { q: "Siapa itu Beemo?", a: "Beemo adalah AI Business Consultant milik THE HIVE. Beemo menganalisis informasi yang Anda berikan, memadukannya dengan data dan riset pasar, lalu memberikan rekomendasi yang disesuaikan dengan kondisi bisnis Anda." },
-      { q: "Apakah data bisnis saya aman?", a: "Ya. Data Anda hanya digunakan untuk menghasilkan analisis dan rekomendasi bagi bisnis Anda. Kami tidak menjual atau membagikan data tersebut kepada pihak lain tanpa izin Anda." },
-      { q: "Apakah hasil analisanya menjamin bisnis saya pasti berhasil?", a: "Tidak ada strategi yang dapat menjamin keberhasilan 100%. Namun, THE HIVE membantu Anda membuat keputusan yang lebih tepat melalui analisis berbasis data dan rekomendasi yang relevan, sehingga peluang bisnis Anda untuk berkembang menjadi lebih besar." },
-      { q: "Berapa lama proses analisanya?", a: "Preview analisis dapat dilihat hanya dalam beberapa menit setelah Anda menyelesaikan pertanyaan. Laporan lengkap dan fitur lanjutan akan tersedia setelah Anda memilih paket yang sesuai." },
-      { q: "Bagaimana cara mulai?", a: "Klik tombol \"Coba Analisa Gratis\", jawab beberapa pertanyaan singkat tentang bisnis Anda, lalu Beemo akan langsung mulai menganalisis dan menampilkan hasilnya. Tidak diperlukan pengalaman bisnis atau pengetahuan teknis." },
-      { q: "Apakah THE HIVE cocok untuk bisnis saya?", a: "Ya. THE HIVE dirancang untuk UMKM, toko, jasa, kuliner, perusahaan, maupun bisnis yang baru akan dimulai. Selama Anda memiliki tujuan untuk mengembangkan bisnis, THE HIVE dapat membantu memberikan arahan yang lebih jelas." },
-      { q: "Apa yang saya dapatkan setelah analisis?", a: "Anda akan memperoleh gambaran kondisi bisnis, analisis kompetitor, peluang pasar, rekomendasi strategi, serta langkah-langkah yang dapat segera diterapkan untuk mengembangkan bisnis Anda." },
-      { q: "Apakah saya bisa mencoba secara gratis?", a: "Tentu. Anda dapat mencoba analisis awal secara gratis untuk melihat bagaimana THE HIVE bekerja sebelum memutuskan menggunakan fitur dan laporan yang lebih lengkap." },
+      { q: "Apa itu THE HIVE?", a: "THE HIVE adalah AI Business Consultant yang membantu kamu memahami kondisi bisnis, mengenali kompetitor, menemukan peluang pasar, dan menyusun strategi yang bisa langsung diterapkan. Semua analisis disajikan dalam bahasa yang mudah dipahami sehingga kamu dapat mengambil keputusan dengan lebih percaya diri." },
+      { q: "Siapa itu Beemo?", a: "Beemo adalah AI Business Consultant milik THE HIVE. Beemo menganalisis informasi yang kamu berikan, memadukannya dengan data dan riset pasar, lalu memberikan rekomendasi yang disesuaikan dengan kondisi bisnismu." },
+      { q: "Apakah data bisnis saya aman?", a: "Ya. Data kamu hanya digunakan untuk menghasilkan analisis dan rekomendasi bagi bisnismu. Kami tidak menjual atau membagikan data tersebut kepada pihak lain tanpa izinmu." },
+      { q: "Apakah hasil analisanya menjamin bisnis saya pasti berhasil?", a: "Tidak ada strategi yang dapat menjamin keberhasilan 100%. Namun, THE HIVE membantu kamu membuat keputusan yang lebih tepat melalui analisis berbasis data dan rekomendasi yang relevan, sehingga peluang bisnismu untuk berkembang menjadi lebih besar." },
+      { q: "Berapa lama proses analisanya?", a: "Preview analisis dapat dilihat hanya dalam beberapa menit setelah kamu menyelesaikan pertanyaan. Laporan lengkap dan fitur lanjutan akan tersedia setelah kamu memilih paket yang sesuai." },
+      { q: "Bagaimana cara mulai?", a: "Klik tombol \"Coba Analisa Gratis\", jawab beberapa pertanyaan singkat tentang bisnismu, lalu Beemo akan langsung mulai menganalisis dan menampilkan hasilnya. Tidak diperlukan pengalaman bisnis atau pengetahuan teknis." },
+      { q: "Apakah THE HIVE cocok untuk bisnis saya?", a: "Ya. THE HIVE dirancang untuk UMKM, toko, jasa, kuliner, perusahaan, maupun bisnis yang baru akan dimulai. Selama kamu punya tujuan untuk mengembangkan bisnis, THE HIVE dapat membantu memberikan arahan yang lebih jelas." },
+      { q: "Apa yang saya dapatkan setelah analisis?", a: "Kamu akan memperoleh gambaran kondisi bisnis, analisis kompetitor, peluang pasar, rekomendasi strategi, serta langkah-langkah yang dapat segera diterapkan untuk mengembangkan bisnismu." },
+      { q: "Apakah saya bisa mencoba secara gratis?", a: "Tentu. Kamu dapat mencoba analisis awal secara gratis untuk melihat bagaimana THE HIVE bekerja sebelum memutuskan menggunakan fitur dan laporan yang lebih lengkap." },
     ],
   },
 
@@ -586,8 +586,11 @@ const id = {
   },
 
   chatFlow: {
+    // Diringkas jadi paragraf-paragraf pendek (audit GPT, Juli 2026): versi
+    // lama 3 paragraf panjang sekaligus terasa berat dibaca di HP. User
+    // gaptek harus bisa scan pesan ini dalam 2-3 detik.
     greeting:
-      "👋 Halo! Saya Beemo AI dari THE HIVE. Siap membantu kamu memahami bisnis, menganalisis kompetitor, dan menemukan peluang terbaik.\n\nAku akan jadi konsultan bisnismu — semakin lengkap cerita yang kamu kasih nanti, semakin akurat analisaku. 😊\n\nSebelum mulai, boleh kenalan dulu? Siapa nama kamu?",
+      "Halo! 👋\n\nSaya Beemo AI dari THE HIVE.\n\nSaya akan bantu kamu memahami bisnis, menganalisis kompetitor, dan menemukan peluang terbaik.\n\nSemakin lengkap cerita yang kamu kasih, semakin akurat analisaku. 😊\n\nSebelum mulai, siapa nama kamu?",
     askEmail: "Senang kenalan denganmu, {nama}! 😊 Boleh minta emailmu? Pastikan diisi dengan benar ya — email ini yang nanti dipakai untuk mengaktifkan Workspace dan mengakses hasil analisismu.",
     askNoHp: "Sip! Boleh minta juga nomor HP/WhatsApp kamu? Ini nanti dipakai untuk mengirim notifikasi penting soal bisnismu.",
     emailRecognizedMessage: "Sepertinya kamu sudah pernah gabung dengan email ini! Mau langsung masuk ke Workspace yang sudah ada, atau lanjutkan analisis baru?",
@@ -2038,7 +2041,7 @@ const en: Translations = {
     competitorDesc: "Competitor identification is available in the paid report.",
     planTitle: "30-Day Plan",
     planDesc: "A step-by-step roadmap is available in the paid report.",
-    unlockEyebrow: "✨ Pro & Platinum Are Waiting in Your Workspace",
+    unlockEyebrow: "✨ Pro & Platinum Features Live in Your Workspace",
     recommendationTitle: "Beemo's suggestion for your case",
     recommendedBadge: "Beemo suggests this",
     autoSavedNote: "This business has been automatically saved to your account.",
@@ -2047,7 +2050,7 @@ const en: Translations = {
     autoSaveCappedButton: "Open Workspace",
     unlockTitle: "See It First in Your Own Workspace",
     unlockSubtitle: "Upgrade to Pro or Platinum anytime — once you're in your free Workspace, just tap the Upgrade button there.",
-    unlockSectionButton: "Try Free, Open Workspace",
+    unlockSectionButton: "Continue in Workspace",
     unlockSectionPreparing: "Setting up your Workspace...",
     proButton: "🔓 Unlock PRO",
     platinumButton: "🔓 Unlock PLATINUM",
@@ -2057,7 +2060,7 @@ const en: Translations = {
     freeCtaDivider: "or",
     freeCtaTitle: "Not ready to pay yet? Try it free first.",
     freeCtaDesc: "Get into your personal Workspace now — see for yourself how Beemo helps your business, upgrade anytime once you're convinced.",
-    freeCtaButton: "Try Free, Open Workspace",
+    freeCtaButton: "Open Free Workspace",
     freeCtaPreparing: "Setting up your Workspace...",
     swotMock: [
       "Key strengths in your product and operations",
@@ -2190,7 +2193,7 @@ const en: Translations = {
     title: "Business Analysis in 3 Easy Steps",
     steps: [
       { title: "Answer a Few Questions", desc: "Tell us about your business, challenges, and goals." },
-      { title: "Beemo AI Analyzes", desc: "Our AI analyzes your business condition, competitors, and market opportunities." },
+      { title: "Beemo AI Analyzes", desc: "Beemo analyzes your business condition, competitors, and market opportunities." },
       { title: "Get Your Report & Recommendations", desc: "Receive a complete Business Intelligence Report with concrete next steps." },
     ],
   },
@@ -2320,7 +2323,7 @@ const en: Translations = {
 
   chatFlow: {
     greeting:
-      "👋 Hi! I'm Beemo AI from THE HIVE. Ready to help you understand your business, analyze competitors, and find the best opportunities.\n\nI'll be your business consultant — the more complete the story you share, the more accurate my analysis will be. 😊\n\nBefore we start, let's get acquainted — what's your name?",
+      "Hi! 👋\n\nI'm Beemo AI from THE HIVE.\n\nI'll help you understand your business, analyze competitors, and find the best opportunities.\n\nThe more complete the story you share, the more accurate my analysis will be. 😊\n\nBefore we start, what's your name?",
     askEmail: "Nice to meet you, {nama}! 😊 Could I get your email? Please make sure it's correct — you'll use it to activate your Workspace and access your analysis results.",
     askNoHp: "Cool! Could I also get your phone/WhatsApp number? We'll use it to send important notifications about your business.",
     emailRecognizedMessage: "Looks like you've joined before with this email! Want to go straight to your existing Workspace, or continue with a new analysis?",
