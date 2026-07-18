@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -28,6 +28,21 @@ function GooglePresenceGoalCard({ businessProfileId }: { businessProfileId: stri
   const [content, setContent] = useState<PackageContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Audit pra-soft-launch (19 Jul 2026): tanpa ini, `content` yang sudah
+  // dimuat untuk satu bisnis bisa nyangkut kalau pengguna pindah ke bisnis
+  // lain yang kategorinya juga "kuliner" -- komponen ini tidak otomatis
+  // unmount/remount hanya karena businessProfileId berganti (kondisi render
+  // di Workspace.tsx tetap true untuk kedua bisnis). Pola sama dengan
+  // resetPerBusinessCaches() di Workspace.tsx, diterapkan di level komponen
+  // ini karena state-nya lokal (bukan di parent).
+  useEffect(() => {
+    setExpanded(false);
+    setLoading(false);
+    setContent(null);
+    setError(null);
+    setCopied(false);
+  }, [businessProfileId]);
 
   async function handleOpen() {
     if (content) {

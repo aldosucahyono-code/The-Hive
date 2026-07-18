@@ -191,6 +191,23 @@ function ChatBeemoPanel({
       window.clearTimeout(tFallback);
     };
   }, [tier]);
+
+  // Audit pra-soft-launch (19 Jul 2026): riwayat percakapan tidak pernah
+  // direset saat businessProfileId berganti (pindah bisnis) -- akibatnya
+  // pesan-pesan lama yang membahas bisnis A tetap tampil di layar dan ikut
+  // terkirim sebagai context ke /api/beemo bersama businessProfileId bisnis
+  // B, membuat Beemo menerima Business Memory bisnis B tapi riwayat chat
+  // yang membahas bisnis A -- konteks bercampur. Direset di sini, bukan di
+  // resetPerBusinessCaches() milik Workspace.tsx, karena state ini lokal.
+  useEffect(() => {
+    setMessages([]);
+    setInput("");
+    setSending(false);
+    setError(null);
+    setChatQuotaHit(false);
+    setGreetingStage(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessProfileId]);
   useEffect(() => {
     if (openingLine === null || greetingStage !== 2) return;
     const t3 = window.setTimeout(() => setGreetingStage(3), 700);

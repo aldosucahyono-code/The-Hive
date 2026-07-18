@@ -127,9 +127,13 @@ export default async function handler(req: any, res: any) {
       // diinsert sebagai failed, supaya tidak nyangkut selamanya di status
       // pending.
       await supabase.from('payments').update({ status: 'failed' }).eq('midtrans_order_id', orderId);
+      // Audit pra-soft-launch (19 Jul 2026): sebelumnya `detail: data`
+      // (body respons Midtrans mentah) ikut dikirim ke client -- endpoint
+      // lain di codebase ini konsisten TIDAK expose detail backend ke
+      // client, jadi dilog saja (baris di atas) untuk debugging, respons
+      // ke client tetap generik.
       return res.status(midtransResponse.status).json({
         error: 'Gagal membuat transaksi',
-        detail: data,
       });
     }
 

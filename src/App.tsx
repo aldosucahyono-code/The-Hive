@@ -16,6 +16,7 @@ import ContactPage from "./components/ContactPage";
 import { ADMIN_SECRET_PATH } from "./adminSecretPath";
 import TentangKami from "./components/TentangKami";
 import NurtureUnsubscribePage from "./components/NurtureUnsubscribePage";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Audit Juli 2026 (Performance, masukan ChatGPT "ringan di banyak device" +
 // prinsip PO "sekalipun orang gaptek/awam teknologi harus terbimbing" --
@@ -376,9 +377,17 @@ function App() {
     return (
       <div className="theme-dark">
         <Navbar variant="dark" authError={authError} />
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <Workspace />
-        </Suspense>
+        {/* Audit pra-soft-launch (19 Jul 2026): ditemukan crash nyata yang
+            membuat seluruh halaman kosong putih tanpa pesan/tombol apapun.
+            ErrorBoundary di sini TIDAK memperbaiki bug aslinya (itu masih
+            perlu dicari), tapi memastikan crash render apa pun di Workspace
+            (sekarang atau nanti) menampilkan pesan + tombol "Muat Ulang",
+            bukan layar putih buntu. */}
+        <ErrorBoundary>
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <Workspace />
+          </Suspense>
+        </ErrorBoundary>
         <Footer variant="dark" />
       </div>
     );
