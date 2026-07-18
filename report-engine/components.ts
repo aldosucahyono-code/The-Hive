@@ -3,8 +3,8 @@
  * — this is the direct equivalent of dashboard_page() / kpi_row() /
  * callout_box() in the validated Python prototype.
  */
-import { Kpi, Decision, SwotSpec } from "./types.js";
-import { DECISION_COLORS, GOLD, GREEN, RED, INK, GREY, MIST, LINE, HONEY_DEEP } from "./theme.js";
+import type { Kpi, Decision, SwotSpec } from "./types.js";
+import { DECISION_COLORS, GOLD, GREEN, RED, GREY, MIST, HONEY_DEEP } from "./theme.js";
 
 export const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

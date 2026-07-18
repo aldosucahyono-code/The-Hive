@@ -80,7 +80,7 @@ async function resolveGeoFallback(ip: string): Promise<{ city: string | null; co
     // panggilan server-ke-server (bukan dari browser pengguna), jadi bukan
     // isu mixed-content meski lewat HTTP di tier gratisnya.
     const res = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,city`);
-    const json = await res.json();
+    const json = (await res.json()) as { status?: string; city?: string; country?: string };
     if (json.status !== "success") {
       return cached ? { city: cached.city as string | null, country: cached.country as string | null } : null;
     }

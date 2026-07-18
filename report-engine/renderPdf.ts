@@ -1,9 +1,9 @@
 import { chromium as playwrightChromium } from "playwright-core";
 import { PDFDocument } from "pdf-lib";
-import { ReportData } from "./types.js";
+import type { ReportData } from "./types.js";
 import { renderContentHtml } from "./reportTemplate.js";
 import { renderCoverHtml } from "./coverTemplate.js";
-import { PLAT_GOLD, PRO_GREEN, PRO_GREEN_LIGHT, GREY } from "./theme.js";
+import { PLAT_GOLD, PRO_GREEN, PRO_GREEN_LIGHT } from "./theme.js";
 
 // Infra fix (item 4 dari audit Juli 2026): Chromium PENUH (paket "playwright")
 // terlalu besar untuk Vercel serverless function (limit 50MB per function,

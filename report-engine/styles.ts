@@ -1,4 +1,4 @@
-import { TierTheme, LINE, MIST, GREY, INK, FONT_STACK } from "./theme.js";
+import { type TierTheme, LINE, MIST, GREY, INK, FONT_STACK } from "./theme.js";
 
 /**
  * One stylesheet, parameterized by tier theme. Content pages are always
@@ -7,7 +7,7 @@ import { TierTheme, LINE, MIST, GREY, INK, FONT_STACK } from "./theme.js";
  * top-border, and callout accents between Pro (green) and Platinum
  * (gold).
  */
-export function baseStyles(theme: TierTheme): string {
+export function baseStyles(_theme: TierTheme): string {
   return `
   @page {
     size: A4;

@@ -1,4 +1,4 @@
-import { ReportData } from "./types.js";
+import type { ReportData } from "./types.js";
 import { PRO_GREEN, PRO_GREEN_LIGHT, NAVY, NAVY_LIGHT, NAVY_BAND, PLAT_GOLD, GREY, FONT_STACK } from "./theme.js";
 
 const esc = (s: string) =>
@@ -58,10 +58,6 @@ export function renderCoverHtml(data: ReportData, totalPages: number, readingTim
 
   const recBg = dark ? PLAT_GOLD : PRO_GREEN_LIGHT;
   const recInk = dark ? NAVY : "#0A0A0B";
-
-  const frame = dark
-    ? `border: 0.9pt solid ${PLAT_GOLD}; margin: 9mm;`
-    : "";
 
   const darkExtras = dark
     ? `

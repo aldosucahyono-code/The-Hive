@@ -1,4 +1,4 @@
-import { ReportData, DecisionMapRow } from "./types.js";
+import type { ReportData, DecisionMapRow } from "./types.js";
 import { baseStyles } from "./styles.js";
 import { THEME, DECISION_COLORS } from "./theme.js";
 import { renderIntelligencePage } from "./pageRenderer.js";

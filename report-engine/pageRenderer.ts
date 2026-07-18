@@ -1,4 +1,4 @@
-import { IntelligencePage } from "./types.js";
+import type { IntelligencePage } from "./types.js";
 import { kpiRow, calloutBox, decisionConfidenceRow, swotMatrix, pageIdentity, esc, sanitizeExtraHtml } from "./components.js";
 import { renderChart } from "./svgCharts.js";
 

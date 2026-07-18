@@ -5,8 +5,8 @@
  * renders identically wherever Chromium runs it. SVG also stays crisp
  * at any zoom or print DPI, which a rasterized PNG chart cannot.
  */
-import { ChartSpec, SwotSpec } from "./types.js";
-import { GOLD, GREEN, RED, INK, GREY, MIST, LINE } from "./theme.js";
+import type { ChartSpec } from "./types.js";
+import { GOLD, GREEN, RED, INK, GREY, LINE } from "./theme.js";
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
