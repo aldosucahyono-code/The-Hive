@@ -3860,11 +3860,28 @@ function TodayPanel({
               <h2 className="mt-4 text-2xl font-black leading-snug text-white sm:text-3xl md:text-4xl">
                 {priorityLines[0] || t.workspace.todayFocusKeepGoing}
               </h2>
-              {snapshot.pulseReasons.length > 0 && (
-                <p className="mt-3 max-w-xl text-base leading-relaxed text-neutral-400">
-                  {snapshot.pulseReasons.map((r) => reasonText(r)).join(" · ")}
-                </p>
-              )}
+              {/* Bugfix (audit GPT batch 2): kalau prioritas #1 sudah soal
+                  "isi Business Update" (fillBusinessUpdate), subtitle di
+                  bawah ini SERING mengulang fakta yang sama persis pakai
+                  kalimat lain ("sudah X hari belum diisi" 2x berturut-turut
+                  di kartu yang sama) -- membingungkan, kesannya sistem
+                  "gagap". Sembunyikan reason updateOverdue kalau prioritas
+                  utamanya memang fillBusinessUpdate; alasan lain (skor
+                  naik/turun dll) tetap tampil normal. */}
+              {(() => {
+                const topPriorityKey = snapshot.priorities[0]?.key;
+                const reasons =
+                  topPriorityKey === "fillBusinessUpdate"
+                    ? snapshot.pulseReasons.filter((r) => r.key !== "updateOverdue")
+                    : snapshot.pulseReasons;
+                return (
+                  reasons.length > 0 && (
+                    <p className="mt-3 max-w-xl text-base leading-relaxed text-neutral-400">
+                      {reasons.map((r) => reasonText(r)).join(" · ")}
+                    </p>
+                  )
+                );
+              })()}
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 <button
                   onClick={onOpenUpdateModal}

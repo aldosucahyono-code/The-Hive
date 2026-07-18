@@ -1070,11 +1070,15 @@ const id = {
     comingSoonDesc: "Menu ini sedang kami siapkan, segera hadir di Workspace kamu.",
     comingSoonBadge: "Coming Soon",
     comingSoonNextUpdate: "Akan tersedia pada update berikutnya.",
-    settingsSectionDesc: "Kelola akun, bisnis, dan preferensi Workspace Anda.",
+    settingsSectionDesc: "Kelola akun, bisnis, dan preferensi Workspace.",
     settingsProfileTitle: "Profil Bisnis",
     settingsProfileIndustryLabel: "Industri",
     settingsProfileIndustryEmpty: "Belum diisi",
-    settingsEditProfileButton: "Segera Hadir",
+    // Audit GPT batch 2: label "Segera Hadir" berdiri sendiri tanpa konteks
+    // (user tidak tahu ini tombol apa yang belum aktif). Diperjelas jadi
+    // "Edit Profil (Segera Hadir)" supaya jelas ini tombol edit yang belum
+    // tersedia, bukan status halaman.
+    settingsEditProfileButton: "Edit Profil (Segera Hadir)",
     settingsMembershipTitle: "Membership",
     settingsMembershipTierLabel: "Tier",
     settingsMembershipStatusLabel: "Status",
@@ -1223,7 +1227,10 @@ const id = {
     socialMediaMockDataBadge: "Data Contoh/Simulasi",
     socialMediaMockDataDesc: "Data di bawah ini adalah contoh simulasi, bukan data medsos nyata — fitur ini akan tersambung ke data asli begitu tersedia.",
     socialMediaEmptyTitle: "Belum Ada Data",
-    socialMediaEmptyDesc: "Data medsos kompetitor belum bisa dimuat untuk bisnismu saat ini.",
+    // Audit GPT batch 2: kalimat lama ("belum bisa dimuat") ambigu -- user
+    // tidak bisa bedakan ini error/bug atau memang datanya belum tersedia.
+    // Diperjelas jadi keterbatasan data, bukan kegagalan sistem.
+    socialMediaEmptyDesc: "Data media sosial belum tersedia untuk area bisnismu saat ini.",
     socialMediaFollowersLabel: "{count} follower",
     socialMediaEngagementLabel: "Engagement {pct}%",
     socialMediaLockedDesc: "Upgrade ke Pro/Platinum untuk lihat semua profil medsos kompetitor beserta analisa kekuatan, kelemahan, dan peluangnya.",
@@ -2754,7 +2761,7 @@ const en: Translations = {
     settingsProfileTitle: "Business Profile",
     settingsProfileIndustryLabel: "Industry",
     settingsProfileIndustryEmpty: "Not filled in yet",
-    settingsEditProfileButton: "Coming Soon",
+    settingsEditProfileButton: "Edit Profile (Coming Soon)",
     settingsMembershipTitle: "Membership",
     settingsMembershipTierLabel: "Tier",
     settingsMembershipStatusLabel: "Status",
@@ -2902,7 +2909,7 @@ const en: Translations = {
     socialMediaMockDataBadge: "Sample/Simulated Data",
     socialMediaMockDataDesc: "The data below is a simulated sample, not real social media data — this feature will connect to real data once it's available.",
     socialMediaEmptyTitle: "No Data Yet",
-    socialMediaEmptyDesc: "Competitor social media data can't be loaded for your business right now.",
+    socialMediaEmptyDesc: "Social media data isn't available yet for your business area.",
     socialMediaFollowersLabel: "{count} followers",
     socialMediaEngagementLabel: "Engagement {pct}%",
     socialMediaLockedDesc: "Upgrade to Pro/Platinum to see all competitor social profiles plus strength, weakness, and opportunity analysis.",
