@@ -99,28 +99,48 @@ function saveQuickStartState(businessProfileId: string, visited: Set<string>, di
 // GPT) -- cukup localStorage per bisnis+tanggal+prioritas, sama persis pola
 // QUICK_START di atas. Key ikut tanggal & priorityKey supaya otomatis
 // "lupa" besok atau begitu prioritas #1 berganti (bukan status permanen).
-const MISSION_DONE_STORAGE_PREFIX = "hive_missiondone_v1_";
+//
+// v2 (lanjutan audit, roadmap GPT Fase 2 poin 4 "aksi Selesai/Nanti"):
+// awalnya cuma boolean "selesai". Sekarang dua status yang beda makna --
+// "done" (sudah dikerjakan, tombol mulai ikut nonaktif) vs "later" (dilihat
+// tapi sengaja ditunda, tombol mulai TETAP aktif karena user mungkin masih
+// mau mengerjakannya sesi ini juga). Prefix naik ke v2 supaya data lama
+// (boolean) tidak salah dibaca sebagai status baru.
+const MISSION_ACTION_STORAGE_PREFIX = "hive_missionaction_v2_";
+type MissionActionStatus = "done" | "later";
 
-function loadMissionDoneState(businessProfileId: string, todayDate: string, priorityKey: string): boolean {
+function loadMissionActionState(
+  businessProfileId: string,
+  todayDate: string,
+  priorityKey: string
+): MissionActionStatus | null {
   try {
-    const raw = window.localStorage.getItem(MISSION_DONE_STORAGE_PREFIX + businessProfileId);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw) as { date?: string; priorityKey?: string } | null;
-    return parsed?.date === todayDate && parsed?.priorityKey === priorityKey;
+    const raw = window.localStorage.getItem(MISSION_ACTION_STORAGE_PREFIX + businessProfileId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { date?: string; priorityKey?: string; status?: MissionActionStatus } | null;
+    if (parsed?.date === todayDate && parsed?.priorityKey === priorityKey) {
+      return parsed.status === "done" || parsed.status === "later" ? parsed.status : null;
+    }
+    return null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-function saveMissionDoneState(businessProfileId: string, todayDate: string, priorityKey: string, done: boolean) {
+function saveMissionActionState(
+  businessProfileId: string,
+  todayDate: string,
+  priorityKey: string,
+  status: MissionActionStatus | null
+) {
   try {
-    if (!done) {
-      window.localStorage.removeItem(MISSION_DONE_STORAGE_PREFIX + businessProfileId);
+    if (!status) {
+      window.localStorage.removeItem(MISSION_ACTION_STORAGE_PREFIX + businessProfileId);
       return;
     }
     window.localStorage.setItem(
-      MISSION_DONE_STORAGE_PREFIX + businessProfileId,
-      JSON.stringify({ date: todayDate, priorityKey })
+      MISSION_ACTION_STORAGE_PREFIX + businessProfileId,
+      JSON.stringify({ date: todayDate, priorityKey, status })
     );
   } catch {
     // no-op -- localStorage tidak tersedia, degradasi jujur (tombol tetap berfungsi di sesi ini, cuma tidak bertahan setelah reload)
@@ -3488,34 +3508,51 @@ function TodayPanel({
   onToggleActionPlanItem: (itemId: string, completed: boolean) => void;
 }) {
   const { session } = useAuth();
-  const [missionDone, setMissionDone] = useState(false);
+  const [missionAction, setMissionAction] = useState<MissionActionStatus | null>(null);
+  const missionDone = missionAction === "done";
+  const missionLater = missionAction === "later";
   const [showMissionWhy, setShowMissionWhy] = useState(false);
+  // "Prioritas Lainnya" (lanjutan audit Claude + GPT): Rule Engine backend
+  // sudah menghitung sampai 5 prioritas (services/today/computeSnapshot.ts,
+  // "Mission Engine: maksimal 5 item") tapi SEBELUM ini cuma priorities[0]
+  // yang pernah dirender di mana pun -- item ke-2 s/d 5 dihitung lalu
+  // dibuang. index null = semua item tertutup (default, kartu tidak penuh).
+  const [expandedOtherPriority, setExpandedOtherPriority] = useState<number | null>(null);
   const todayDateKey = new Date().toISOString().slice(0, 10);
   const topPriorityKeyForDone = snapshot?.priorities[0]?.key || "";
 
-  // Muat status "Selesai" dari localStorage begitu bisnis/prioritas #1
-  // diketahui -- lihat catatan lengkap di loadMissionDoneState() di atas.
-  // Sengaja TIDAK dimuat kalau prioritas #1 sudah berbeda dari yang
-  // terakhir ditandai selesai (mis. user submit update baru, Rule Engine
-  // pindah ke prioritas lain) -- menandai "selesai" untuk sesuatu yang
-  // sudah tidak relevan lagi hanya akan membingungkan.
+  // Muat status "Selesai"/"Nanti" dari localStorage begitu bisnis/prioritas
+  // #1 diketahui -- lihat catatan lengkap di loadMissionActionState() di
+  // atas. Sengaja TIDAK dimuat kalau prioritas #1 sudah berbeda dari yang
+  // terakhir ditandai (mis. user submit update baru, Rule Engine pindah ke
+  // prioritas lain) -- menandai status untuk sesuatu yang sudah tidak
+  // relevan lagi hanya akan membingungkan.
   useEffect(() => {
     if (!businessProfileId || !topPriorityKeyForDone) {
-      setMissionDone(false);
+      setMissionAction(null);
       return;
     }
-    setMissionDone(loadMissionDoneState(businessProfileId, todayDateKey, topPriorityKeyForDone));
+    setMissionAction(loadMissionActionState(businessProfileId, todayDateKey, topPriorityKeyForDone));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessProfileId, todayDateKey, topPriorityKeyForDone]);
 
+  function setMissionActionAndPersist(status: MissionActionStatus | null) {
+    setMissionAction(status);
+    if (businessProfileId && topPriorityKeyForDone) {
+      saveMissionActionState(businessProfileId, todayDateKey, topPriorityKeyForDone, status);
+    }
+  }
+
   function toggleMissionDone() {
-    setMissionDone((prev) => {
-      const next = !prev;
-      if (businessProfileId && topPriorityKeyForDone) {
-        saveMissionDoneState(businessProfileId, todayDateKey, topPriorityKeyForDone, next);
-      }
-      return next;
-    });
+    setMissionActionAndPersist(missionDone ? null : "done");
+  }
+
+  // "Nanti" (roadmap GPT Fase 2 poin 4): user melihat prioritas ini tapi
+  // sengaja menunda -- BEDA dari "Selesai". Tombol "Mulai Kerjakan" TETAP
+  // aktif (bukan disabled seperti "Selesai") karena user mungkin saja masih
+  // mau mengerjakannya di sesi yang sama, cuma belum sekarang.
+  function toggleMissionLater() {
+    setMissionActionAndPersist(missionLater ? null : "later");
   }
   // Living Business Loop: checklist SEKARANG persisten di backend
   // (business_checklist_progress) — dimuat sekali per bisnis, dan setiap
@@ -4007,13 +4044,37 @@ function TodayPanel({
                 {!isPreparation && (
                   <button
                     onClick={toggleMissionDone}
-                    className="rounded-2xl border border-white/15 px-4 py-2 text-sm font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    className={
+                      "rounded-2xl border px-4 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black " +
+                      (missionDone
+                        ? "border-primary/50 bg-primary/10 text-primary"
+                        : "border-white/15 text-neutral-300 hover:border-primary/40 hover:text-white")
+                    }
                   >
                     ✅ {t.workspace.todayMissionDoneButton}
                   </button>
                 )}
+                {/* "Nanti" (roadmap GPT Fase 2 poin 4) -- dampingan "Selesai",
+                    BUKAN pengganti. Bedanya: "Nanti" tidak menonaktifkan
+                    tombol "Mulai Kerjakan" (lihat toggleMissionLater di
+                    atas), murni supaya user bisa mengakui "saya lihat, tapi
+                    saya tunda dulu" tanpa harus berpura-pura sudah selesai. */}
+                {!isPreparation && (
+                  <button
+                    onClick={toggleMissionLater}
+                    className={
+                      "rounded-2xl border px-4 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black " +
+                      (missionLater
+                        ? "border-white/30 bg-white/10 text-white"
+                        : "border-white/15 text-neutral-300 hover:border-white/30 hover:text-white")
+                    }
+                  >
+                    🕒 {t.workspace.todayMissionLaterButton}
+                  </button>
+                )}
               </div>
               {missionDone && <p className="mt-3 text-xs text-neutral-500">{t.workspace.todayMissionDoneNote}</p>}
+              {missionLater && <p className="mt-3 text-xs text-neutral-500">{t.workspace.todayMissionLaterNote}</p>}
             </div>
             {/* Beemo — Hero Character, bukan ikon kecil. Ukuran & posisi
                 disengaja besar & sedikit keluar ke kanan supaya jadi focal
@@ -4039,6 +4100,43 @@ function TodayPanel({
               </div>
             </div>
           </div>
+
+          {/* Prioritas Lainnya (lanjutan audit Claude + GPT, lihat catatan
+              expandedOtherPriority di atas) -- priorities[1..4], data yang
+              SUDAH dihitung Rule Engine backend, sebelumnya tidak pernah
+              ditampilkan sama sekali. Sengaja ringkas & di bawah Mission
+              Today (bukan menyaingi ukurannya) supaya Mission Today tetap
+              satu-satunya fokus utama, persis prinsip GPT: "Mission Today
+              bukan daftar tugas AI... jadikan ia daftar keputusan yang
+              dapat dijelaskan". Ini pelengkap, bukan pengganti. */}
+          {!isPreparation && snapshot.priorities.length > 1 && (
+            <div className="rounded-3xl border border-white/10 bg-surface p-6 sm:p-8">
+              <h3 className="text-lg font-bold text-white">📋 {t.workspace.todayOtherPrioritiesTitle}</h3>
+              <p className="mt-1 text-sm text-neutral-500">{t.workspace.todayOtherPrioritiesSubtitle}</p>
+              <ul className="mt-4 space-y-3">
+                {snapshot.priorities.slice(1, 5).map((item, idx) => {
+                  const why = whyText(item);
+                  const isExpanded = expandedOtherPriority === idx;
+                  return (
+                    <li key={`${item.key}-${idx}`} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-semibold leading-snug text-neutral-100">{priorityText(item)}</p>
+                        {why && (
+                          <button
+                            onClick={() => setExpandedOtherPriority(isExpanded ? null : idx)}
+                            className="flex-none text-xs font-semibold text-primary/80 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                          >
+                            {isExpanded ? t.workspace.todayMissionWhyHide : t.workspace.todayMissionWhyToggle}
+                          </button>
+                        )}
+                      </div>
+                      {isExpanded && why && <p className="mt-2 text-xs leading-relaxed text-neutral-400">{why}</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
 
           {/* Rencana Aksi Beemo (Phase 3, directive PO: "user tau apa saja
               yang harus dilakukan hari ini, besok, lusa dst... jadi kita
