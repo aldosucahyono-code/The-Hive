@@ -141,6 +141,28 @@ function GooglePresenceGoalCard({ businessProfileId }: { businessProfileId: stri
             </ul>
           </div>
 
+          {/* Blok penutup -- rekomendasi audit GPT (19 Jul 2026): tanpa ini,
+              paket kerja terasa berhenti di "materi" bukan "aksi nyata".
+              Menjembatani dari checklist ke langkah konkret di dunia nyata
+              + loop kembali ke Beemo, supaya alur terasa selesai (bukan
+              generator AI biasa). */}
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <p className="mb-1.5 text-xs font-bold text-primary">{t.workspaceHome.nextStepsTitle}</p>
+            <ul className="space-y-1">
+              {[
+                t.workspaceHome.nextStepsItem1,
+                t.workspaceHome.nextStepsItem2,
+                t.workspaceHome.nextStepsItem3,
+                t.workspaceHome.nextStepsItem4,
+              ].map((step, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-neutral-300">
+                  <span className="mt-0.5 font-bold text-primary">{i + 1}.</span>
+                  {step}
+                </li>
+              ))}
+            </ul>
+          </div>
+
           <button onClick={() => setExpanded(false)} className="text-xs font-semibold text-neutral-500 hover:text-neutral-300">
             {t.workspaceHome.collapseButton}
           </button>

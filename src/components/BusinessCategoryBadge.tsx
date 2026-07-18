@@ -88,6 +88,7 @@ function BusinessCategoryBadge({ businessProfileId, onCategoryChange }: Business
         <span aria-hidden="true">{BUSINESS_CATEGORY_ICON[category]}</span>
         {t.workspaceHome.categoryLabels[category]}
       </span>
+      <p className="mt-1 text-[11px] text-neutral-500">{t.workspaceHome.categoryAutoHint}</p>
 
       {editing ? (
         <div className="mt-2 flex flex-wrap justify-end gap-1.5 rounded-xl border border-white/10 bg-black/40 p-2">
