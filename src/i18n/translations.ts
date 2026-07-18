@@ -1843,6 +1843,47 @@ const id = {
     sentMessage: "Terima kasih! Pesan Anda sudah kami terima, tim kami akan membalas lewat email yang Anda isi.",
     errorMessage: "Gagal mengirim pesan. Coba lagi dalam beberapa saat.",
   },
+
+  // Beta Launch (Midtrans Production belum diverifikasi/aktif) — konten
+  // "THE HIVE Beta" yang tampil menggantikan checkout Midtrans saat
+  // PAYMENT_ENABLED=false, lihat src/lib/paymentFlag.ts. Copy hasil
+  // kolaborasi Claude+GPT (diskusi UI/UX 18 Jul 2026): framing "akses lebih
+  // awal", bukan "pembayaran belum tersedia" — dan sengaja tidak menyebut
+  // Midtrans sama sekali, itu urusan internal yang tidak relevan buat user.
+  betaAccess: {
+    badge: "🐝 THE HIVE Beta",
+    title: "THE HIVE Beta",
+    subtitleWizard: "Terima kasih sudah mencoba analisis pertamamu di THE HIVE.",
+    subtitleWorkspace: "Terima kasih sudah menggunakan THE HIVE.",
+    bodyWizard:
+      "Paket Pro dan Platinum sedang memasuki tahap akhir sebelum resmi dibuka. Workspace gratis kamu sudah siap dipakai mulai sekarang — kalau kamu ingin jadi pengguna pertama yang mendapat akses Premium, tinggalkan datamu di bawah ini.",
+    bodyWorkspace:
+      "Paket Premium sedang memasuki tahap akhir sebelum resmi dibuka. Kalau kamu ingin jadi pengguna pertama yang mendapat kabar saat sudah tersedia, tinggalkan datamu di bawah ini.",
+    explainerNote:
+      "Sebagai peserta Early Access, kamu akan jadi salah satu yang pertama kami hubungi saat paket Pro dan Platinum resmi dibuka. Workspace dan seluruh data bisnismu tetap aman — nanti kamu cukup login dan upgrade, tanpa perlu mengulang analisis dari awal.",
+    nameLabel: "Nama",
+    namePlaceholder: "Nama kamu",
+    emailLabel: "Email",
+    emailPlaceholder: "nama@email.com",
+    whatsappLabel: "Nomor WhatsApp (opsional)",
+    whatsappPlaceholder: "08xxxxxxxxxx",
+    packageLabel: "Saya tertarik pada",
+    packagePro: "Pro",
+    packagePlatinum: "Platinum",
+    submitButton: "Gabung Early Access",
+    submittingButton: "Mengirim...",
+    submitErrorGeneric: "Gagal mengirim data. Coba lagi sebentar lagi.",
+    submitErrorNetwork: "Gagal terhubung ke server. Periksa koneksi internetmu.",
+    successTitle: "Terima kasih! 🎉",
+    successBody:
+      "Data kamu sudah kami terima. Kami akan menghubungimu segera setelah paket Premium resmi tersedia. Sementara itu, kamu tetap bisa menggunakan seluruh fitur gratis di Workspace.",
+    gotoWorkspaceButton: "Buka Workspace",
+    closeButton: "Tutup",
+    // Dipakai sebagai label tombol CTA di PricingCards (menggantikan
+    // "Upgrade ke Pro/Platinum") saat mode beta aktif, supaya user tahu
+    // dari awal ini bukan checkout langsung.
+    viewEarlyAccessButton: "Gabung Early Access",
+  },
 };
 
 export type Translations = typeof id;
@@ -3474,6 +3515,38 @@ const en: Translations = {
     sentTitle: "Message Sent",
     sentMessage: "Thank you! We've received your message and will reply to the email you provided.",
     errorMessage: "Failed to send message. Please try again shortly.",
+  },
+
+  betaAccess: {
+    badge: "🐝 THE HIVE Beta",
+    title: "THE HIVE Beta",
+    subtitleWizard: "Thanks for trying your first analysis on THE HIVE.",
+    subtitleWorkspace: "Thanks for using THE HIVE.",
+    bodyWizard:
+      "Pro and Platinum plans are in their final stage before official launch. Your free Workspace is ready to use right now — if you'd like to be among the first to get Premium access, leave your details below.",
+    bodyWorkspace:
+      "The Premium plan is in its final stage before official launch. If you'd like to be among the first to know when it's available, leave your details below.",
+    explainerNote:
+      "As an Early Access participant, you'll be one of the first we reach out to once Pro and Platinum officially launch. Your Workspace and all your business data stay safe — you'll just need to log in and upgrade, no need to redo your analysis.",
+    nameLabel: "Name",
+    namePlaceholder: "Your name",
+    emailLabel: "Email",
+    emailPlaceholder: "name@email.com",
+    whatsappLabel: "WhatsApp number (optional)",
+    whatsappPlaceholder: "08xxxxxxxxxx",
+    packageLabel: "I'm interested in",
+    packagePro: "Pro",
+    packagePlatinum: "Platinum",
+    submitButton: "Join Early Access",
+    submittingButton: "Submitting...",
+    submitErrorGeneric: "Failed to submit. Please try again shortly.",
+    submitErrorNetwork: "Failed to connect to the server. Check your internet connection.",
+    successTitle: "Thank you! 🎉",
+    successBody:
+      "We've received your details. We'll reach out as soon as the Premium plan is officially available. In the meantime, you can keep using all the free features in your Workspace.",
+    gotoWorkspaceButton: "Go to Workspace",
+    closeButton: "Close",
+    viewEarlyAccessButton: "Join Early Access",
   },
 };
 

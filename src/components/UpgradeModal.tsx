@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 import PricingCards, { type PlanId } from "./PricingCards";
+import BetaEarlyAccessCard from "./BetaEarlyAccessCard";
+import { PAYMENT_ENABLED } from "../lib/paymentFlag";
 
 declare global {
   interface Window {
@@ -33,10 +35,19 @@ function UpgradeModal({ businessProfileId, businessName, currentTier, onClose, o
   const { session, user } = useAuth();
   const [processingPlan, setProcessingPlan] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Beta Launch (Midtrans Production belum aktif) — lihat
+  // src/lib/paymentFlag.ts. Kalau flag mati, klik paket tidak memanggil
+  // create-transaction sama sekali, cukup ganti isi modal ini jadi form
+  // Early Access untuk paket yang diklik.
+  const [earlyAccessPlan, setEarlyAccessPlan] = useState<PlanId | null>(null);
   const visiblePlans: PlanId[] =
     currentTier === "platinum" ? [] : currentTier === "pro" || platinumOnly ? ["platinum"] : ["pro", "platinum"];
 
   async function handleSelectPlan(plan: PlanId) {
+    if (!PAYMENT_ENABLED) {
+      setEarlyAccessPlan(plan);
+      return;
+    }
     if (!session?.access_token || !user?.email) return;
     setProcessingPlan(plan);
     setError(null);
@@ -108,7 +119,18 @@ function UpgradeModal({ businessProfileId, businessName, currentTier, onClose, o
 
         {error && <p className="mb-4 text-center text-sm text-red-400">{error}</p>}
 
-        {visiblePlans.length === 0 ? (
+        {earlyAccessPlan ? (
+          <BetaEarlyAccessCard
+            plan={earlyAccessPlan}
+            businessProfileId={businessProfileId}
+            defaultName={user?.email ? user.email.split("@")[0] : undefined}
+            defaultEmail={user?.email || undefined}
+            source="workspace_upgrade"
+            theme="dark"
+            onDone={onClose}
+            doneLabel={t.betaAccess.closeButton}
+          />
+        ) : visiblePlans.length === 0 ? (
           <p className="py-6 text-center text-sm text-neutral-400">{t.addBusinessModal.capBlockedDescPlatinum}</p>
         ) : (
           <PricingCards
@@ -116,8 +138,8 @@ function UpgradeModal({ businessProfileId, businessName, currentTier, onClose, o
             onSelect={handleSelectPlan}
             loadingPlan={processingPlan}
             ctaLabel={{
-              pro: t.previewReport.proButton,
-              platinum: t.previewReport.platinumButton,
+              pro: PAYMENT_ENABLED ? t.previewReport.proButton : t.betaAccess.viewEarlyAccessButton,
+              platinum: PAYMENT_ENABLED ? t.previewReport.platinumButton : t.betaAccess.viewEarlyAccessButton,
               preparing: t.workspace.upgradeProcessing,
             }}
           />

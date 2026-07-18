@@ -3,6 +3,8 @@ import { hardNavigate } from "../utils/navigate";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import AuthModal from "./AuthModal";
+import BetaEarlyAccessCard from "./BetaEarlyAccessCard";
+import { PAYMENT_ENABLED } from "../lib/paymentFlag";
 
 declare global {
   interface Window {
@@ -423,6 +425,28 @@ function PaymentPage({ plan }: { plan: PlanId }) {
               {t.paymentPage.authPromptButton}
             </button>
           </div>
+        ) : !PAYMENT_ENABLED ? (
+          // Beta Launch (Midtrans Production belum aktif) — lihat
+          // src/lib/paymentFlag.ts. Tunggu businessProfileId siap dulu
+          // (sama seperti tombol Bayar asli di bawah) sebelum menampilkan
+          // form Early Access, supaya submit-nya bisa ditautkan ke bisnis
+          // yang benar.
+          isPromoting || !businessProfileId ? (
+            <p className="mt-6 text-center text-sm text-neutral-500">{t.paymentPage.preparingBusinessDataLabel}</p>
+          ) : (
+            <div className="mt-6 border-t border-neutral-200 pt-6">
+              <BetaEarlyAccessCard
+                plan={plan}
+                businessProfileId={businessProfileId}
+                defaultName={order?.nama}
+                defaultEmail={order?.email}
+                source="wizard_preview"
+                theme="light"
+                onDone={() => hardNavigate("workspace")}
+                doneLabel={t.betaAccess.gotoWorkspaceButton}
+              />
+            </div>
+          )
         ) : (
           <button
             onClick={handleBayar}
