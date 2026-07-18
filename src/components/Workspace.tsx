@@ -89,6 +89,44 @@ function saveQuickStartState(businessProfileId: string, visited: Set<string>, di
   }
 }
 
+// Audit Juli 2026 (diskusi Claude + GPT soal "Mission Today sebagai pusat
+// pengalaman"): tombol "Selesai" di kartu Mission Today sebelumnya cuma
+// useState lokal -- hilang begitu halaman di-reload, padahal user SUDAH
+// menandainya. Ini persis kelemahan yang diangkat Claude ("prioritas basi,
+// tidak ada feedback loop"). Bukan bikin tabel/endpoint baru (skor & urutan
+// prioritas tetap murni dari Rule Engine backend, TIDAK diubah oleh tombol
+// ini -- prinsip "jangan menambah kompleksitas tanpa manfaat jelas" dari
+// GPT) -- cukup localStorage per bisnis+tanggal+prioritas, sama persis pola
+// QUICK_START di atas. Key ikut tanggal & priorityKey supaya otomatis
+// "lupa" besok atau begitu prioritas #1 berganti (bukan status permanen).
+const MISSION_DONE_STORAGE_PREFIX = "hive_missiondone_v1_";
+
+function loadMissionDoneState(businessProfileId: string, todayDate: string, priorityKey: string): boolean {
+  try {
+    const raw = window.localStorage.getItem(MISSION_DONE_STORAGE_PREFIX + businessProfileId);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { date?: string; priorityKey?: string } | null;
+    return parsed?.date === todayDate && parsed?.priorityKey === priorityKey;
+  } catch {
+    return false;
+  }
+}
+
+function saveMissionDoneState(businessProfileId: string, todayDate: string, priorityKey: string, done: boolean) {
+  try {
+    if (!done) {
+      window.localStorage.removeItem(MISSION_DONE_STORAGE_PREFIX + businessProfileId);
+      return;
+    }
+    window.localStorage.setItem(
+      MISSION_DONE_STORAGE_PREFIX + businessProfileId,
+      JSON.stringify({ date: todayDate, priorityKey })
+    );
+  } catch {
+    // no-op -- localStorage tidak tersedia, degradasi jujur (tombol tetap berfungsi di sesi ini, cuma tidak bertahan setelah reload)
+  }
+}
+
 /** Kartu "mulai dari sini" -- disorot di tab Today sampai keempat langkah
  * dikunjungi atau pengguna sendiri yang menyembunyikannya. Bukan wizard
  * modal terpisah (yang berisiko terasa seperti gerbang lagi setelah wizard
@@ -3451,6 +3489,34 @@ function TodayPanel({
 }) {
   const { session } = useAuth();
   const [missionDone, setMissionDone] = useState(false);
+  const [showMissionWhy, setShowMissionWhy] = useState(false);
+  const todayDateKey = new Date().toISOString().slice(0, 10);
+  const topPriorityKeyForDone = snapshot?.priorities[0]?.key || "";
+
+  // Muat status "Selesai" dari localStorage begitu bisnis/prioritas #1
+  // diketahui -- lihat catatan lengkap di loadMissionDoneState() di atas.
+  // Sengaja TIDAK dimuat kalau prioritas #1 sudah berbeda dari yang
+  // terakhir ditandai selesai (mis. user submit update baru, Rule Engine
+  // pindah ke prioritas lain) -- menandai "selesai" untuk sesuatu yang
+  // sudah tidak relevan lagi hanya akan membingungkan.
+  useEffect(() => {
+    if (!businessProfileId || !topPriorityKeyForDone) {
+      setMissionDone(false);
+      return;
+    }
+    setMissionDone(loadMissionDoneState(businessProfileId, todayDateKey, topPriorityKeyForDone));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessProfileId, todayDateKey, topPriorityKeyForDone]);
+
+  function toggleMissionDone() {
+    setMissionDone((prev) => {
+      const next = !prev;
+      if (businessProfileId && topPriorityKeyForDone) {
+        saveMissionDoneState(businessProfileId, todayDateKey, topPriorityKeyForDone, next);
+      }
+      return next;
+    });
+  }
   // Living Business Loop: checklist SEKARANG persisten di backend
   // (business_checklist_progress) — dimuat sekali per bisnis, dan setiap
   // toggle memicu Today Snapshot forceRecompute (Stage/Mission ikut
@@ -3648,6 +3714,33 @@ function TodayPanel({
       opportunityGeneric: t.workspace.opportunityGeneric,
     };
     return map[item.key] || null;
+  }
+
+  // Audit Juli 2026 (diskusi Claude + GPT): Claude mengkritik ranking
+  // prioritas tidak transparan ("AI menebak"); GPT setuju TAPI menyarankan
+  // transparansinya dalam bahasa manusia, BUKAN membuka bobot/formula/skor
+  // mentah ("terasa seperti dashboard developer, bukan pendamping bisnis").
+  // Backend (services/today/computeSnapshot.ts, lihat WHY_KEY) SUDAH
+  // menghitung alasan berbahasa manusia lengkap untuk tiap jenis prioritas
+  // sejak lama -- cuma belum pernah dirender di sini. whyText() murni
+  // membaca data yang sudah ada, tidak ada logic ranking baru yang ditambah.
+  function whyText(item: { key: string; params?: Record<string, string | number> } | null): string | null {
+    if (!item) return null;
+    const map: Record<string, string> = {
+      startFirstUpdate: t.workspace.whyStartFirstUpdate,
+      fillBusinessUpdate: t.workspace.whyFillBusinessUpdate,
+      inactivityWarning: t.workspace.whyInactivityWarning,
+      neverUpdatedYet: t.workspace.whyNeverUpdatedYet,
+      focusWeakDimension: t.workspace.whyFocusWeakDimension,
+      achievementNudge: t.workspace.whyAchievementNudge,
+      keepGoing: t.workspace.whyKeepGoing,
+      decisionFollowUp: t.workspace.whyDecisionFollowUp,
+      celebrateAchievement: t.workspace.whyCelebrateAchievement,
+      targetStalled: t.workspace.whyTargetStalled,
+      newCompetitorDetected: t.workspace.whyNewCompetitorDetected,
+    };
+    const template = map[item.key];
+    return template ? fillTemplate(template, item.params || {}) : null;
   }
 
   const isPreparation = snapshot.stageGroup === "preparation";
@@ -3882,6 +3975,27 @@ function TodayPanel({
                   )
                 );
               })()}
+              {/* "Kenapa ini prioritas?" (diskusi Claude + GPT, lihat catatan
+                  whyText() di atas) -- disclosure, bukan teks yang selalu
+                  tampil, supaya kartu tidak terasa penuh untuk user yang
+                  tidak butuh detail. Cuma muncul kalau ada teks alasan untuk
+                  prioritas #1 dan bukan fase persiapan (fase persiapan sudah
+                  jelas dari checklist onboarding-nya sendiri). */}
+              {!isPreparation && whyText(snapshot.priorities[0] || null) && (
+                <div className="mt-3">
+                  <button
+                    onClick={() => setShowMissionWhy((v) => !v)}
+                    className="text-sm font-semibold text-primary/80 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  >
+                    {showMissionWhy ? `▲ ${t.workspace.todayMissionWhyHide}` : `▼ ${t.workspace.todayMissionWhyToggle}`}
+                  </button>
+                  {showMissionWhy && (
+                    <p className="mt-2 max-w-xl text-sm leading-relaxed text-neutral-400">
+                      {whyText(snapshot.priorities[0] || null)}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 <button
                   onClick={onOpenUpdateModal}
@@ -3892,7 +4006,7 @@ function TodayPanel({
                 </button>
                 {!isPreparation && (
                   <button
-                    onClick={() => setMissionDone((v) => !v)}
+                    onClick={toggleMissionDone}
                     className="rounded-2xl border border-white/15 px-4 py-2 text-sm font-semibold text-neutral-300 transition-colors duration-200 hover:border-primary/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   >
                     ✅ {t.workspace.todayMissionDoneButton}
