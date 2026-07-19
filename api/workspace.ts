@@ -72,6 +72,7 @@ import { adminUpdateBusiness } from "../services/admin/updateBusiness.js";
 import { adminSetBusinessArchived } from "../services/admin/archiveBusiness.js";
 import { adminDeleteBusinessPermanently } from "../services/admin/deleteBusiness.js";
 import { adminSetSubscriptionTier } from "../services/admin/setSubscriptionTier.js";
+import { adminClassifyBusinessCategory, adminClassifyAllUncategorized } from "../services/admin/classifyBusinessCategory.js";
 import { nurtureUnsubscribe } from "../services/nurture/unsubscribe.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -96,6 +97,8 @@ const ADMIN_FLOW_ACTIONS = new Set([
   "adminSetBusinessArchived",
   "adminDeleteBusinessPermanently",
   "adminSetSubscriptionTier",
+  "adminClassifyBusinessCategory",
+  "adminClassifyAllUncategorized",
 ]);
 
 // Aksi PUBLIK -- tidak butuh sesi admin ATAUPUN login Supabase. Sengaja
@@ -205,6 +208,12 @@ async function handleWorkspaceRequest(req: VercelRequest, res: VercelResponse) {
         break;
       case "adminSetSubscriptionTier":
         adminResult = await adminSetSubscriptionTier(adminToken, payload, ip, userAgent);
+        break;
+      case "adminClassifyBusinessCategory":
+        adminResult = await adminClassifyBusinessCategory(adminToken, payload, ip, userAgent);
+        break;
+      case "adminClassifyAllUncategorized":
+        adminResult = await adminClassifyAllUncategorized(adminToken, payload, ip, userAgent);
         break;
     }
 

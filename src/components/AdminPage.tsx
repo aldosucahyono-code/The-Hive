@@ -112,7 +112,7 @@ type Business = {
   created_at: string;
   subscriptions: { tier: string; status: string; started_at: string; expires_at: string | null }[];
   payments: { tier: string; status: string; created_at: string }[];
-  analyses: { id: string; raw_input: Record<string, unknown>; ai_output: string | null; is_baseline: boolean; created_at: string }[];
+  analyses: { id: string; raw_input: Record<string, unknown>; ai_output: unknown; is_baseline: boolean; created_at: string }[];
   updates: { id: string; content: string | null; pencapaian: string | null; tantangan: string | null; category: string | null; created_at: string }[];
   notes: BusinessNote[];
   leadReferrals: LeadReferral[];
@@ -286,6 +286,44 @@ function wizardText(raw: Record<string, unknown> | null | undefined, key: string
   return typeof v === "string" && v.trim() ? v : "-";
 }
 
+// Bugfix pra-soft-launch (19 Jul 2026), ditemukan lewat React error #31
+// ("Objects are not valid as a React child") yang bikin SELURUH halaman
+// admin crash setiap kali admin klik pelanggan yang punya minimal satu
+// analisa: `analyses.ai_output` di database TIDAK PERNAH berupa teks biasa
+// (lihat services/business/saveAnalysis.ts -- yang disimpan adalah objek
+// hasil parse JSON dari Claude, {summary, businessHealthScore, strengths,
+// improvements, opportunity, ...}, sama seperti yang dibaca
+// getBusinessMemory.ts). Kode sebelumnya salah asumsi ai_output selalu
+// string dan merender objeknya mentah-mentah lewat {a.ai_output} -- React
+// tidak bisa merender objek langsung sebagai children, jadi crash total
+// (bukan cuma satu kartu, seluruh AdminPage ikut unmount karena tidak ada
+// error boundary di titik itu). Helper ini menyusun objek itu jadi teks
+// yang bisa dibaca, dengan fallback aman untuk bentuk data yang tidak
+// terduga (mis. baris lama/rusak).
+function formatAiOutput(output: unknown): string {
+  if (!output) return "(belum ada output tersimpan)";
+  if (typeof output === "string") return output;
+  if (typeof output === "object") {
+    const o = output as Record<string, unknown>;
+    const parts: string[] = [];
+    if (typeof o.summary === "string" && o.summary.trim()) parts.push(o.summary.trim());
+    if (typeof o.businessHealthScore === "number") parts.push(`Skor Kesehatan Bisnis: ${o.businessHealthScore}`);
+    if (typeof o.strengths === "string" && o.strengths.trim()) parts.push(`Kekuatan: ${o.strengths.trim()}`);
+    if (typeof o.improvements === "string" && o.improvements.trim()) parts.push(`Area Perbaikan: ${o.improvements.trim()}`);
+    if (typeof o.opportunity === "string" && o.opportunity.trim()) parts.push(`Peluang: ${o.opportunity.trim()}`);
+    if (parts.length > 0) return parts.join("\n\n");
+    // Bentuk objek tidak dikenali sama sekali -- tetap tampilkan sesuatu
+    // yang bisa dibaca (JSON) daripada merender objeknya langsung (yang
+    // menyebabkan crash ini) atau diam-diam menyembunyikan datanya.
+    try {
+      return JSON.stringify(output, null, 2);
+    } catch {
+      return "(format output tidak dikenali)";
+    }
+  }
+  return String(output);
+}
+
 function tierBadgeClass(tier: string): string {
   if (tier === "platinum") return "bg-neutral-900 text-white";
   if (tier === "pro") return "bg-primary text-black";
@@ -394,6 +432,9 @@ function AdminPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [tierBusyId, setTierBusyId] = useState<string | null>(null);
   const [customerRoleBusy, setCustomerRoleBusy] = useState(false);
+  const [classifyBusyId, setClassifyBusyId] = useState<string | null>(null);
+  const [bulkClassifyBusy, setBulkClassifyBusy] = useState(false);
+  const [bulkClassifyResult, setBulkClassifyResult] = useState<string | null>(null);
 
   // Langkah 2 (klik link di email): kalau URL punya ?verify=token, verifikasi
   // otomatis lalu lanjut ke langkah PIN -- sekali saja saat mount.
@@ -652,6 +693,11 @@ function AdminPage() {
     return options;
   }, [customers]);
 
+  const uncategorizedCount = useMemo(
+    () => customers.filter((c) => !c.latestCategory && c.businessCount > 0).length,
+    [customers]
+  );
+
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {
       if (stageFilter !== "all" && c.latestBusinessStage !== stageFilter) return false;
@@ -887,6 +933,46 @@ function AdminPage() {
     }
   }
 
+  // Audit pra-soft-launch (19 Jul 2026): "semua bisnis pasti ada
+  // kategorinya... gunakan ai untuk memetakan" -- klasifikasi per bisnis
+  // (tombol di kartu bisnis) dan klasifikasi massal (tombol di atas daftar
+  // Pelanggan) untuk bisnis yang belum pernah diklasifikasi karena
+  // pemiliknya belum sempat buka Workspace Home sendiri.
+  async function classifyBusiness(businessId: string, force: boolean) {
+    setClassifyBusyId(businessId);
+    setAccessError(null);
+    try {
+      const json = await callAdmin("adminClassifyBusinessCategory", { businessProfileId: businessId, force });
+      setDetail((prev) => {
+        if (!prev) return prev;
+        return { ...prev, businesses: prev.businesses.map((b) => (b.id === businessId ? { ...b, business_category: json.category } : b)) };
+      });
+      if (selectedId) await loadCustomers();
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal menjalankan klasifikasi AI.");
+    } finally {
+      setClassifyBusyId(null);
+    }
+  }
+
+  async function classifyAllUncategorized() {
+    setBulkClassifyBusy(true);
+    setBulkClassifyResult(null);
+    setAccessError(null);
+    try {
+      const json = await callAdmin("adminClassifyAllUncategorized");
+      await loadCustomers();
+      if (selectedId) await openCustomer(selectedId);
+      const failedNote = json.failed > 0 ? `, ${json.failed} gagal` : "";
+      const remainingNote = json.remaining > 0 ? ` Sisa ${json.remaining} lagi -- klik tombol ini lagi untuk lanjut.` : " Semua sudah dikategorikan.";
+      setBulkClassifyResult(`${json.classified} bisnis berhasil diklasifikasi${failedNote}.${remainingNote}`);
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal menjalankan klasifikasi massal.");
+    } finally {
+      setBulkClassifyBusy(false);
+    }
+  }
+
   async function setCustomerRole(email: string, role: "admin" | "user") {
     setCustomerRoleBusy(true);
     setAccessError(null);
@@ -1102,6 +1188,19 @@ function AdminPage() {
                 <span className="self-center text-xs text-neutral-400">{filteredCustomers.length} dari {customers.length} pelanggan</span>
               )}
             </div>
+
+            {session.role === "super_admin" && uncategorizedCount > 0 && (
+              <div className="mb-3 rounded-xl border border-dashed border-neutral-300 p-2.5">
+                <button
+                  onClick={classifyAllUncategorized}
+                  disabled={bulkClassifyBusy}
+                  className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                >
+                  {bulkClassifyBusy ? "Mengklasifikasi..." : `Klasifikasikan Semua yang Belum Dikategorikan (${uncategorizedCount})`}
+                </button>
+                {bulkClassifyResult && <p className="mt-1.5 text-xs text-neutral-500">{bulkClassifyResult}</p>}
+              </div>
+            )}
             <div className="overflow-hidden rounded-2xl border border-neutral-200">
               <table className="w-full text-left text-sm">
                 <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
@@ -1342,6 +1441,13 @@ function AdminPage() {
                         >
                           {businessBusyId === b.id ? "..." : b.is_archived ? "Pulihkan" : "Arsipkan"}
                         </button>
+                        <button
+                          onClick={() => classifyBusiness(b.id, !!b.business_category)}
+                          disabled={classifyBusyId === b.id}
+                          className="rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-600 disabled:opacity-50"
+                        >
+                          {classifyBusyId === b.id ? "Mengklasifikasi..." : b.business_category ? "Klasifikasi Ulang (AI)" : "Klasifikasikan (AI)"}
+                        </button>
                         {deleteConfirmId !== b.id ? (
                           <button
                             onClick={() => {
@@ -1450,7 +1556,7 @@ function AdminPage() {
                             </div>
                             <div className="rounded-lg bg-amber-50 p-3">
                               <p className="mb-1 text-[10px] font-bold uppercase text-amber-700">Rekomendasi Beemo (AI)</p>
-                              <p className="whitespace-pre-wrap text-xs text-neutral-700">{a.ai_output || "(belum ada output tersimpan)"}</p>
+                              <p className="whitespace-pre-wrap text-xs text-neutral-700">{formatAiOutput(a.ai_output)}</p>
                             </div>
                           </div>
                           <details className="mt-2 text-xs text-neutral-500">

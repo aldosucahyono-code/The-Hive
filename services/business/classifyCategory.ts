@@ -79,32 +79,35 @@ Balas HANYA JSON valid, tanpa markdown, format persis:
 {"category": "salah_satu_key_di_atas"}`;
 }
 
-/** Get-or-classify: kalau business_category sudah ada, kembalikan langsung
- * (tidak panggil AI lagi). Kalau masih null, klasifikasi sekali lalu
- * simpan. */
-export async function getBusinessCategory(userId: string, payload: Record<string, unknown>): Promise<ServiceResult> {
-  const businessProfileId = payload.businessProfileId;
-  if (!businessProfileId || typeof businessProfileId !== "string") {
-    return { status: 400, body: { error: "businessProfileId wajib diisi" } };
-  }
-
-  const business = await checkOwnership(businessProfileId, userId);
-  if (!business) {
-    return { status: 403, body: { error: "Business profile tidak valid untuk akun ini." } };
-  }
-
-  if (isValidBusinessCategory(business.business_category)) {
-    return { status: 200, body: { category: business.business_category, source: "cached" } };
+/** Inti klasifikasi: panggil Claude sekali, simpan hasilnya ke
+ * business_profiles, kembalikan category+source. TIDAK melakukan
+ * pengecekan otorisasi apapun (itu tanggung jawab pemanggil) -- dipakai
+ * bersama oleh getBusinessCategory (pelanggan, dicek checkOwnership) dan
+ * services/admin/classifyBusinessCategory.ts (admin, dicek requireAdminSession)
+ * supaya logika klasifikasinya SATU tempat, bukan dua salinan yang bisa
+ * beda perilaku.
+ *
+ * forceReclassify=true melewati cache (dipakai admin utuk klasifikasi
+ * ulang manual kalau hasil AI sebelumnya dianggap salah) -- pemanggilan
+ * biasa (Workspace Home pelanggan) selalu forceReclassify=false.
+ */
+export async function classifyAndSaveBusinessCategory(
+  businessProfileId: string,
+  currentCategory: string | null,
+  forceReclassify = false
+): Promise<{ category: BusinessCategoryKey; source: "cached" | "classified" | "unsaved" }> {
+  if (!forceReclassify && isValidBusinessCategory(currentCategory)) {
+    return { category: currentCategory, source: "cached" };
   }
 
   const memory = await getBusinessMemory(businessProfileId);
   if (!memory) {
-    return { status: 500, body: { error: "Gagal memuat konteks bisnis." } };
+    throw new Error("Gagal memuat konteks bisnis.");
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return { status: 500, body: { error: "ANTHROPIC_API_KEY belum diset di Vercel." } };
+    throw new Error("ANTHROPIC_API_KEY belum diset di Vercel.");
   }
 
   let category: BusinessCategoryKey = "lainnya";
@@ -154,10 +157,32 @@ export async function getBusinessCategory(userId: string, payload: Record<string
 
   if (updateError) {
     console.error("classifyCategory: gagal menyimpan business_category:", updateError);
-    return { status: 200, body: { category, source: "unsaved" } };
+    return { category, source: "unsaved" };
   }
 
-  return { status: 200, body: { category, source: "classified" } };
+  return { category, source: "classified" };
+}
+
+/** Get-or-classify: kalau business_category sudah ada, kembalikan langsung
+ * (tidak panggil AI lagi). Kalau masih null, klasifikasi sekali lalu
+ * simpan. */
+export async function getBusinessCategory(userId: string, payload: Record<string, unknown>): Promise<ServiceResult> {
+  const businessProfileId = payload.businessProfileId;
+  if (!businessProfileId || typeof businessProfileId !== "string") {
+    return { status: 400, body: { error: "businessProfileId wajib diisi" } };
+  }
+
+  const business = await checkOwnership(businessProfileId, userId);
+  if (!business) {
+    return { status: 403, body: { error: "Business profile tidak valid untuk akun ini." } };
+  }
+
+  try {
+    const result = await classifyAndSaveBusinessCategory(businessProfileId, business.business_category, false);
+    return { status: 200, body: result };
+  } catch (err) {
+    return { status: 500, body: { error: err instanceof Error ? err.message : "Gagal mengklasifikasi bisnis." } };
+  }
 }
 
 /** Override manual — dipakai tombol "Ubah kategori" di UI kalau hasil AI
