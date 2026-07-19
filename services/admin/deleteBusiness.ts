@@ -26,8 +26,26 @@
 // NULL]) TIDAK perlu dibersihkan manual -- otomatis ikut terhapus/ternull-
 // kan begitu baris business_profiles-nya hilang.
 //
-// Urutan penghapusan di bawah TIDAK PENTING (semua tabel di sini adalah
-// tabel "daun" yang tidak saling mereferensi satu sama lain, hanya ke
+// AUDIT LANJUTAN (20 Jul 2026, permintaan "audit halaman admin secara
+// detail... database harus berjalan mulus"): dibandingkan dengan hard-delete
+// versi PELANGGAN yang lebih lama (services/business/delete.ts), daftar di
+// sini sebelumnya KETINGGALAN business_health & progress_snapshots -- dua
+// tabel INTI lain yang sama-sama dibuat sebelum migrations/ ada (Business
+// Engine, dipakai HAMPIR SEMUA bisnis yang pernah buka Workspace). Tanpa ini,
+// hard-delete admin akan gagal (fail-safe, tapi tetap gagal) untuk bisnis
+// yang sudah punya histori Business Health/Progress -- praktis mayoritas
+// pelanggan aktif.
+//
+// business_metrics SENGAJA TIDAK masuk daftar ini -- FK-nya ke
+// progress_snapshots(id) lewat kolom snapshot_id, BUKAN business_profile_id
+// langsung (lihat services/business/recalculateProgress.ts). Dibersihkan
+// terpisah lewat deleteBusinessMetrics() di bawah, PERSIS SEBELUM
+// progress_snapshots dihapus di loop utama -- urutan ini penting supaya
+// tidak memblokir penghapusan progress_snapshots kalau FK snapshot_id
+// ternyata tidak cascade.
+//
+// Urutan penghapusan CORE_CHILD_TABLES di bawah TIDAK PENTING (semua tabel
+// "daun" yang tidak saling mereferensi satu sama lain, hanya ke
 // business_profiles) -- dilakukan berurutan (bukan Promise.all) supaya
 // kalau salah satu gagal, jelas tabel mana yang bermasalah dari pesan error.
 //
@@ -57,8 +75,30 @@ const NON_CASCADE_CHILD_TABLES = [
 
 // Tabel INTI (dibuat sebelum migrations/ ada, DDL-nya tidak ada di repo) --
 // dibersihkan manual sebagai jaga-jaga, cascade-nya tidak bisa dipastikan
-// dari kode.
-const CORE_CHILD_TABLES = ["subscriptions", "payments", "analyses", "business_updates"];
+// dari kode. business_metrics SENGAJA tidak di sini -- lihat catatan di atas.
+const CORE_CHILD_TABLES = ["subscriptions", "payments", "analyses", "business_updates", "business_health", "progress_snapshots"];
+
+/** Hapus baris business_metrics milik bisnis ini lewat progress_snapshots
+ * (business_metrics.snapshot_id -> progress_snapshots.id), karena tabel ini
+ * TIDAK punya kolom business_profile_id langsung. Dipanggil SEBELUM
+ * progress_snapshots dihapus di CORE_CHILD_TABLES supaya tidak ada baris
+ * business_metrics yatim yang memblokir penghapusan progress_snapshots
+ * (kalau FK snapshot_id ternyata bukan on delete cascade). */
+async function deleteBusinessMetrics(businessProfileId: string): Promise<{ error: string | null }> {
+  const { data: snapshots, error: findError } = await supabase
+    .from("progress_snapshots")
+    .select("id")
+    .eq("business_profile_id", businessProfileId);
+
+  if (findError) {
+    return { error: findError.message };
+  }
+  const snapshotIds = (snapshots || []).map((s) => s.id as string);
+  if (snapshotIds.length === 0) return { error: null };
+
+  const { error: deleteError } = await supabase.from("business_metrics").delete().in("snapshot_id", snapshotIds);
+  return { error: deleteError ? deleteError.message : null };
+}
 
 export async function adminDeleteBusinessPermanently(
   adminToken: string | undefined,
@@ -92,6 +132,28 @@ export async function adminDeleteBusinessPermanently(
   if (!confirmBusinessName || confirmBusinessName !== existing.business_name) {
     return { status: 400, body: { error: "Ketik ulang nama bisnis persis untuk konfirmasi penghapusan." } };
   }
+
+  // business_metrics dulu (lihat catatan deleteBusinessMetrics di atas) --
+  // HARUS sebelum progress_snapshots dihapus di loop CORE_CHILD_TABLES di
+  // bawah, karena business_metrics mereferensikan progress_snapshots(id).
+  const metricsResult = await deleteBusinessMetrics(businessProfileId);
+  if (metricsResult.error) {
+    console.error("adminDeleteBusinessPermanently: gagal membersihkan business_metrics:", metricsResult.error);
+    return {
+      status: 500,
+      body: { error: "Gagal menghapus data terkait (business_metrics). Bisnis belum dihapus, tidak ada data yang hilang. Coba lagi." },
+    };
+  }
+
+  // wizard_drafts.business_profile_id diisi promoteDraft.ts setelah draft
+  // "naik level" jadi bisnis ini (lihat services/business/promoteDraft.ts).
+  // Tabel ini juga dibuat sebelum migrations/ ada -- constraint FK-nya (kalau
+  // ada) tidak bisa dipastikan dari kode. Best-effort saja (lepas referensi,
+  // BUKAN hapus baris drafnya -- draft tetap berguna sebagai riwayat) --
+  // kalau ternyata tidak ada constraint apapun, ini no-op aman; kalau
+  // ternyata ADA dan diabaikan, kegagalan akan tetap tertangkap di langkah
+  // DELETE business_profiles paling akhir di bawah (fail-safe).
+  await supabase.from("wizard_drafts").update({ business_profile_id: null }).eq("business_profile_id", businessProfileId);
 
   for (const table of [...NON_CASCADE_CHILD_TABLES, ...CORE_CHILD_TABLES]) {
     const { error } = await supabase.from(table).delete().eq("business_profile_id", businessProfileId);
