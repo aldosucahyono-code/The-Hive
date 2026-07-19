@@ -648,10 +648,21 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   // apa adanya SETELAH itu, supaya tetap ada jalan keluar kalau penilaian
   // AI memang meleset berulang, tapi tidak langsung membuka celah di
   // percobaan kedua.
+  //
+  // AUDIT Juli 2026 (lanjutan) -- laporan pelanggan nyata: field lokasi
+  // sempat menyimpan "Arto Moro namanya" (nama bisnis, bukan lokasi) karena
+  // pelanggan kehabisan jatah 2x percobaan lalu percobaan ke-3 diterima
+  // tanpa dicek. Lokasi punya konsekuensi lebih besar dari field freeText
+  // lain (dipakai untuk pemetaan kompetitor & referensi pelanggan), jadi
+  // field ini diberi jatah percobaan LEBIH BANYAK (MAX_SEMANTIC_ATTEMPTS_LOKASI)
+  // sebelum menyerah -- tanpa membuatnya wajib berulang kali untuk pelanggan
+  // yang memang sudah menjawab benar sejak awal (cek semantik cuma jalan
+  // kalau jawaban dinilai TIDAK nyambung, bukan setiap kali submit).
   const [semanticChecking, setSemanticChecking] = useState(false);
   const [semanticRetryField, setSemanticRetryField] = useState<keyof WizardData | null>(null);
   const semanticAttemptCountsRef = useRef<Partial<Record<keyof WizardData, number>>>({});
   const MAX_SEMANTIC_ATTEMPTS = 2;
+  const MAX_SEMANTIC_ATTEMPTS_LOKASI = 4;
   const scrollRef = useRef<HTMLDivElement>(null);
   const currencyInputRef = useRef<HTMLInputElement>(null);
   // Revisi UX Juli 2026 (review PO Phase 1, poin 4: "jangan hardcode estimasi
@@ -935,12 +946,16 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     // alamat dijawab untuk pertanyaan posisi/peran) diminta ditulis ulang,
     // bukan langsung lolos ke pertanyaan berikutnya. Divalidasi hingga
     // MAX_SEMANTIC_ATTEMPTS kali per field (lihat catatan audit di
-    // deklarasi state di atas) — bukan cuma sekali.
+    // deklarasi state di atas) — bukan cuma sekali. Field lokasi memakai
+    // jatah lebih tinggi (MAX_SEMANTIC_ATTEMPTS_LOKASI) karena konsekuensi
+    // salah lebih besar (pemetaan kompetitor & referensi pelanggan).
+    const isLokasiField = activeQuestion.field === "lokasi";
+    const maxAttemptsForField = isLokasiField ? MAX_SEMANTIC_ATTEMPTS_LOKASI : MAX_SEMANTIC_ATTEMPTS;
     const attemptsSoFar = semanticAttemptCountsRef.current[activeQuestion.field] || 0;
-    if (!editingField && SEMANTIC_CHECK_FIELDS.has(activeQuestion.field) && attemptsSoFar < MAX_SEMANTIC_ATTEMPTS) {
+    if (!editingField && SEMANTIC_CHECK_FIELDS.has(activeQuestion.field) && attemptsSoFar < maxAttemptsForField) {
       setSemanticChecking(true);
       const questionText = activeQuestion.prompt(data);
-      const fieldKind = activeQuestion.field === "lokasi" ? "lokasi" : "freeText";
+      const fieldKind = isLokasiField ? "lokasi" : "freeText";
       const isMatch = await checkSemanticMatch(questionText, value, fieldKind, lang);
       setSemanticChecking(false);
       if (!isMatch) {

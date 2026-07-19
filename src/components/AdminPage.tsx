@@ -113,7 +113,19 @@ type Business = {
   subscriptions: { tier: string; status: string; started_at: string; expires_at: string | null }[];
   payments: { tier: string; status: string; created_at: string }[];
   analyses: { id: string; raw_input: Record<string, unknown>; ai_output: unknown; is_baseline: boolean; created_at: string }[];
-  updates: { id: string; content: string | null; pencapaian: string | null; tantangan: string | null; category: string | null; created_at: string }[];
+  updates: {
+    id: string;
+    content: string | null;
+    pencapaian: string | null;
+    tantangan: string | null;
+    kondisi_penjualan: string | null;
+    omset_value: number | null;
+    pelanggan_baru: number | null;
+    target_depan: string | null;
+    category: string | null;
+    severity: string | null;
+    created_at: string;
+  }[];
   notes: BusinessNote[];
   leadReferrals: LeadReferral[];
 };
@@ -285,6 +297,35 @@ function wizardText(raw: Record<string, unknown> | null | undefined, key: string
   const v = raw?.[key];
   return typeof v === "string" && v.trim() ? v : "-";
 }
+
+// Audit pra-soft-launch (19 Jul 2026): "harus detail, termasuk isi chat
+// wizard... karena takutnya users komplain minta refund" -- sebelumnya cuma
+// 5 dari ~18 field wizard yang ditampilkan (profesi/produkJasa/lokasi/
+// tantangan/target), sisanya cuma bisa dilihat lewat JSON mentah yang
+// diciutkan (kurang praktis untuk kasus sengketa). Daftar ini mencakup
+// SEMUA field isian wizard yang relevan (lihat WizardData di
+// ChatWizard.tsx) -- nama/email/jenisAnalisis/honeypot sengaja dilewati
+// (nama+email sudah tampil di profil, jenisAnalisis internal, honeypot
+// jebakan bot bukan data pengguna).
+const WIZARD_FIELD_LABELS: { key: string; label: string }[] = [
+  { key: "namaBisnis", label: "Nama Bisnis" },
+  { key: "profesi", label: "Profesi/Peran" },
+  { key: "noHp", label: "Nomor HP" },
+  { key: "jenisBisnis", label: "Jenis Bisnis" },
+  { key: "produkJasa", label: "Produk/Jasa Utama" },
+  { key: "lokasi", label: "Lokasi" },
+  { key: "sejakKapan", label: "Sejak Kapan Berjalan" },
+  { key: "rencanaLaunching", label: "Rencana Launching" },
+  { key: "omsetBulanan", label: "Omset Bulanan" },
+  { key: "targetPelanggan", label: "Target Pelanggan" },
+  { key: "bucketQuestion1", label: "Pertanyaan Tambahan 1" },
+  { key: "bucketAnswer1", label: "Jawaban Tambahan 1" },
+  { key: "bucketQuestion2", label: "Pertanyaan Tambahan 2" },
+  { key: "bucketAnswer2", label: "Jawaban Tambahan 2" },
+  { key: "tantangan", label: "Tantangan Terbesar" },
+  { key: "target", label: "Target 6-12 Bulan" },
+  { key: "ceritaVisi", label: "Cerita & Visi" },
+];
 
 // Bugfix pra-soft-launch (19 Jul 2026), ditemukan lewat React error #31
 // ("Objects are not valid as a React child") yang bikin SELURUH halaman
@@ -1537,22 +1578,12 @@ function AdminPage() {
                           </p>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div className="rounded-lg bg-neutral-50 p-3">
-                              <p className="mb-1 text-[10px] font-bold uppercase text-neutral-400">Kondisi &amp; Pertanyaan Pelanggan</p>
-                              <p className="text-xs text-neutral-700">
-                                <span className="font-semibold">Profesi:</span> {wizardText(a.raw_input, "profesi")}
-                              </p>
-                              <p className="text-xs text-neutral-700">
-                                <span className="font-semibold">Produk/Jasa:</span> {wizardText(a.raw_input, "produkJasa")}
-                              </p>
-                              <p className="text-xs text-neutral-700">
-                                <span className="font-semibold">Lokasi:</span> {wizardText(a.raw_input, "lokasi")}
-                              </p>
-                              <p className="mt-2 text-xs text-neutral-700">
-                                <span className="font-semibold">Tantangan:</span> {wizardText(a.raw_input, "tantangan")}
-                              </p>
-                              <p className="mt-1 text-xs text-neutral-700">
-                                <span className="font-semibold">Harapan/Target:</span> {wizardText(a.raw_input, "target")}
-                              </p>
+                              <p className="mb-1.5 text-[10px] font-bold uppercase text-neutral-400">Isi Chat Wizard Lengkap</p>
+                              {WIZARD_FIELD_LABELS.map(({ key, label }) => (
+                                <p key={key} className="mb-1 text-xs text-neutral-700 last:mb-0">
+                                  <span className="font-semibold">{label}:</span> {wizardText(a.raw_input, key)}
+                                </p>
+                              ))}
                             </div>
                             <div className="rounded-lg bg-amber-50 p-3">
                               <p className="mb-1 text-[10px] font-bold uppercase text-amber-700">Rekomendasi Beemo (AI)</p>
@@ -1570,12 +1601,64 @@ function AdminPage() {
                     </div>
 
                     <div>
-                      <h4 className="mb-1 text-xs font-bold uppercase text-neutral-400">Aktivitas Workspace</h4>
+                      <h4 className="mb-1 text-xs font-bold uppercase text-neutral-400">
+                        Aktivitas Workspace {b.updates.length > 0 && `(${b.updates.length})`}
+                      </h4>
                       {b.updates.length === 0 && <p className="text-xs text-neutral-400">Belum ada update.</p>}
+                      {/* Bugfix pra-soft-launch (19 Jul 2026): "harus detail...
+                          karena takutnya users komplain minta refund" --
+                          sebelumnya cuma menampilkan SATU field pertama yang
+                          tidak kosong (content ATAU pencapaian ATAU
+                          tantangan), field lain di baris yang sama (kondisi
+                          penjualan, omset, pelanggan baru, target ke depan,
+                          severity) diam-diam hilang dari tampilan padahal
+                          sudah diambil dari database -- sekarang semua field
+                          yang terisi ditampilkan. */}
                       {b.updates.map((u) => (
-                        <p key={u.id} className="text-xs text-neutral-600">
-                          {formatDate(u.created_at)} &middot; {u.category || "update"}: {u.content || u.pencapaian || u.tantangan || "-"}
-                        </p>
+                        <div key={u.id} className="mb-2 rounded-lg bg-neutral-50 p-2.5 text-xs text-neutral-600 last:mb-0">
+                          <p className="mb-1 text-[10px] font-semibold text-neutral-400">
+                            {formatDate(u.created_at)} &middot; {u.category || "update"}
+                            {u.severity && ` · severity: ${u.severity}`}
+                          </p>
+                          {u.content && <p className="mb-0.5">{u.content}</p>}
+                          {u.pencapaian && (
+                            <p className="mb-0.5">
+                              <span className="font-semibold">Pencapaian:</span> {u.pencapaian}
+                            </p>
+                          )}
+                          {u.tantangan && (
+                            <p className="mb-0.5">
+                              <span className="font-semibold">Tantangan:</span> {u.tantangan}
+                            </p>
+                          )}
+                          {u.kondisi_penjualan && (
+                            <p className="mb-0.5">
+                              <span className="font-semibold">Kondisi Penjualan:</span> {u.kondisi_penjualan}
+                            </p>
+                          )}
+                          {u.omset_value !== null && (
+                            <p className="mb-0.5">
+                              <span className="font-semibold">Omset:</span> {formatIdr(u.omset_value)}
+                            </p>
+                          )}
+                          {u.pelanggan_baru !== null && (
+                            <p className="mb-0.5">
+                              <span className="font-semibold">Pelanggan Baru:</span> {u.pelanggan_baru}
+                            </p>
+                          )}
+                          {u.target_depan && (
+                            <p>
+                              <span className="font-semibold">Target ke Depan:</span> {u.target_depan}
+                            </p>
+                          )}
+                          {!u.content &&
+                            !u.pencapaian &&
+                            !u.tantangan &&
+                            !u.kondisi_penjualan &&
+                            u.omset_value === null &&
+                            u.pelanggan_baru === null &&
+                            !u.target_depan && <p className="text-neutral-400">(tidak ada detail tersimpan)</p>}
+                        </div>
                       ))}
                     </div>
 
