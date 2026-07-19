@@ -29,9 +29,34 @@
 // dari perangkat apapun (HP termasuk -- semua grid pakai breakpoint responsif).
 
 import { useCallback, useEffect, useMemo, useState, type ClipboardEvent } from "react";
+import { BUSINESS_CATEGORY_KEYS, type BusinessCategoryKey } from "../lib/businessCategories";
 
 type Role = "admin" | "super_admin";
 type Tab = "dashboard" | "customers" | "payments" | "messages" | "audit" | "admins" | "costs";
+
+// Audit pra-soft-launch (19 Jul 2026): "tolong kelompokan jenis usaha, mana
+// yang F&B, mana yang jasa, retail dll" -- label ID untuk taksonomi 13
+// kategori (services/business/businessCategories.ts). Duplikat dari
+// src/i18n/translations.ts (workspaceHome.categoryLabels, bagian id) --
+// AdminPage tidak pakai sistem i18n/LanguageContext (halaman ini selalu
+// Bahasa Indonesia), jadi label disalin langsung di sini alih-alih menarik
+// seluruh sistem terjemahan untuk satu halaman.
+const CATEGORY_LABELS: Record<BusinessCategoryKey, string> = {
+  kuliner: "Kuliner (F&B)",
+  retail: "Retail",
+  jasa: "Jasa",
+  logistik: "Logistik",
+  manufaktur: "Manufaktur",
+  pertanian_perikanan: "Pertanian & Perikanan",
+  pertambangan_energi: "Pertambangan & Energi",
+  kesehatan: "Kesehatan",
+  pendidikan: "Pendidikan",
+  properti: "Properti",
+  teknologi: "Teknologi",
+  pariwisata: "Pariwisata",
+  lainnya: "Lainnya",
+};
+const UNCATEGORIZED = "__uncategorized__";
 
 type Customer = {
   id: string;
@@ -41,6 +66,7 @@ type Customer = {
   businessCount: number;
   latestBusinessName: string | null;
   latestIndustry: string | null;
+  latestCategory: string | null;
   latestBusinessStage: string | null;
   latestBusinessType: string | null;
   highestTier: string;
@@ -78,6 +104,7 @@ type Business = {
   id: string;
   business_name: string;
   industry: string | null;
+  business_category: string | null;
   business_stage: string;
   business_type: string;
   phone_number: string | null;
@@ -321,7 +348,7 @@ function AdminPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [stageFilter, setStageFilter] = useState<"all" | "idea" | "running">("all");
-  const [industryFilter, setIndustryFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
@@ -349,6 +376,24 @@ function AdminPage() {
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [noteImages, setNoteImages] = useState<Record<string, string | null>>({});
   const [noteBusyId, setNoteBusyId] = useState<string | null>(null);
+
+  // Audit pra-soft-launch (19 Jul 2026): "saya bisa menghapus/edit usaha/
+  // jenis users dari pelanggan" -- state untuk edit inline data bisnis,
+  // arsipkan/pulihkan, hapus permanen (dengan konfirmasi ketik nama), ubah
+  // tier langganan manual, dan ubah role akun langsung dari tab Pelanggan.
+  const [editingBusinessId, setEditingBusinessId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    businessName: string;
+    industry: string;
+    businessCategory: string;
+    businessStage: string;
+    phoneNumber: string;
+  } | null>(null);
+  const [businessBusyId, setBusinessBusyId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [tierBusyId, setTierBusyId] = useState<string | null>(null);
+  const [customerRoleBusy, setCustomerRoleBusy] = useState(false);
 
   // Langkah 2 (klik link di email): kalau URL punya ?verify=token, verifikasi
   // otomatis lalu lanjut ke langkah PIN -- sekali saja saat mount.
@@ -582,24 +627,44 @@ function AdminPage() {
   }, [session?.adminToken, tab, loadDashboard, loadCustomers, loadMessages, loadAuditLog, loadAdmins, loadCostDashboard]);
 
   // Audit Juli 2026 ("bisa dikelompokan dari masing2 jenis usaha... usaha
-  // baru/eksisting, rumah makan, coffee shop dll"): filter dilakukan di
-  // client (daftar pelanggan sudah dimuat penuh, maks 500 baris) supaya
-  // ganti filter terasa instan tanpa panggilan API baru.
-  const industryOptions = useMemo(() => {
-    const set = new Set<string>();
+  // baru/eksisting, rumah makan, coffee shop dll"), diperbarui audit
+  // pra-soft-launch ("tolong kelompokan jenis usaha, mana yang F&B, mana
+  // yang jasa, retail dll"): filter sebelumnya per baris `industry` teks
+  // bebas (satu opsi dropdown per kalimat unik, tidak bisa dikelompokkan).
+  // Sekarang dikelompokkan per business_category (taksonomi 13-kategori,
+  // sama dengan Platinum Workspace) -- hanya menampilkan kategori yang
+  // benar-benar dipakai pelanggan, plus satu opsi "Belum dikategorikan"
+  // untuk bisnis yang dibuat sebelum klasifikasi AI ini ada / belum sempat
+  // diklasifikasi. Filter tetap di client (daftar sudah dimuat penuh, maks
+  // 500 baris) supaya ganti filter terasa instan.
+  const categoryOptions = useMemo(() => {
+    const present = new Set<string>();
+    let hasUncategorized = false;
     for (const c of customers) {
-      if (c.latestIndustry) set.add(c.latestIndustry);
+      if (c.latestCategory) present.add(c.latestCategory);
+      else if (c.businessCount > 0) hasUncategorized = true;
     }
-    return Array.from(set).sort();
+    const options: { value: string; label: string }[] = BUSINESS_CATEGORY_KEYS.filter((k) => present.has(k)).map((k) => ({
+      value: k,
+      label: CATEGORY_LABELS[k],
+    }));
+    if (hasUncategorized) options.push({ value: UNCATEGORIZED, label: "Belum dikategorikan" });
+    return options;
   }, [customers]);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {
       if (stageFilter !== "all" && c.latestBusinessStage !== stageFilter) return false;
-      if (industryFilter !== "all" && c.latestIndustry !== industryFilter) return false;
+      if (categoryFilter !== "all") {
+        if (categoryFilter === UNCATEGORIZED) {
+          if (c.latestCategory || c.businessCount === 0) return false;
+        } else if (c.latestCategory !== categoryFilter) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [customers, stageFilter, industryFilter]);
+  }, [customers, stageFilter, categoryFilter]);
 
   async function openCustomer(id: string) {
     setSelectedId(id);
@@ -699,6 +764,140 @@ function AdminPage() {
       setAccessError(err instanceof Error ? err.message : "Gagal menyimpan catatan.");
     } finally {
       setNoteBusyId(null);
+    }
+  }
+
+  function startEditBusiness(b: Business) {
+    setEditingBusinessId(b.id);
+    setEditDraft({
+      businessName: b.business_name,
+      industry: b.industry || "",
+      businessCategory: b.business_category || "",
+      businessStage: b.business_stage,
+      phoneNumber: b.phone_number || "",
+    });
+  }
+
+  async function saveEditBusiness(businessId: string) {
+    if (!editDraft) return;
+    setBusinessBusyId(businessId);
+    setAccessError(null);
+    try {
+      const json = await callAdmin("adminUpdateBusiness", {
+        businessProfileId: businessId,
+        businessName: editDraft.businessName,
+        industry: editDraft.industry,
+        businessCategory: editDraft.businessCategory || null,
+        businessStage: editDraft.businessStage,
+        phoneNumber: editDraft.phoneNumber,
+      });
+      setDetail((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          businesses: prev.businesses.map((b) =>
+            b.id === businessId
+              ? {
+                  ...b,
+                  business_name: json.business.business_name,
+                  industry: json.business.industry,
+                  business_category: json.business.business_category,
+                  business_stage: json.business.business_stage,
+                  phone_number: json.business.phone_number,
+                }
+              : b
+          ),
+        };
+      });
+      // Daftar pelanggan di kiri juga menampilkan nama/kategori bisnis
+      // terbaru -- refresh biar tidak nyangkut versi lama sampai reload.
+      // Cuma relevan kalau bisnis yang diedit ini bisnis TERBARU pelanggan
+      // itu (listCustomers.ts hanya menyimpan info bisnis terbaru per
+      // pelanggan) -- kalau bukan, biarkan saja, tidak ada yang perlu
+      // diperbarui di daftar kiri.
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c.id === selectedId
+            ? {
+                ...c,
+                latestBusinessName: json.business.business_name,
+                latestCategory: json.business.business_category,
+                latestIndustry: json.business.industry,
+              }
+            : c
+        )
+      );
+      setEditingBusinessId(null);
+      setEditDraft(null);
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal menyimpan perubahan bisnis.");
+    } finally {
+      setBusinessBusyId(null);
+    }
+  }
+
+  async function toggleArchiveBusiness(b: Business) {
+    setBusinessBusyId(b.id);
+    setAccessError(null);
+    try {
+      const nextArchived = !b.is_archived;
+      await callAdmin("adminSetBusinessArchived", { businessProfileId: b.id, archived: nextArchived });
+      setDetail((prev) => {
+        if (!prev) return prev;
+        return { ...prev, businesses: prev.businesses.map((x) => (x.id === b.id ? { ...x, is_archived: nextArchived } : x)) };
+      });
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal mengubah status arsip.");
+    } finally {
+      setBusinessBusyId(null);
+    }
+  }
+
+  async function confirmDeleteBusiness(businessId: string) {
+    setBusinessBusyId(businessId);
+    setAccessError(null);
+    try {
+      await callAdmin("adminDeleteBusinessPermanently", { businessProfileId: businessId, confirmBusinessName: deleteConfirmText });
+      setDetail((prev) => (prev ? { ...prev, businesses: prev.businesses.filter((b) => b.id !== businessId) } : prev));
+      setCustomers((prev) => prev.map((c) => (c.id === selectedId ? { ...c, businessCount: Math.max(0, c.businessCount - 1) } : c)));
+      setDeleteConfirmId(null);
+      setDeleteConfirmText("");
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal menghapus bisnis.");
+    } finally {
+      setBusinessBusyId(null);
+    }
+  }
+
+  async function setBusinessTier(businessId: string, tier: string) {
+    setTierBusyId(businessId);
+    setAccessError(null);
+    try {
+      await callAdmin("adminSetSubscriptionTier", { businessProfileId: businessId, tier });
+      // Refresh detail penuh -- lebih sederhana & pasti akurat daripada
+      // menghitung ulang status expired/active baris subscriptions secara
+      // manual di client (logika itu sudah ada di getActiveMembership.ts,
+      // jangan diduplikasi di sini).
+      if (selectedId) await openCustomer(selectedId);
+      await loadCustomers();
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal mengubah tier langganan.");
+    } finally {
+      setTierBusyId(null);
+    }
+  }
+
+  async function setCustomerRole(email: string, role: "admin" | "user") {
+    setCustomerRoleBusy(true);
+    setAccessError(null);
+    try {
+      await callAdmin("adminSetRole", { email, role });
+      setDetail((prev) => (prev ? { ...prev, profile: { ...prev.profile, role } } : prev));
+      setCustomers((prev) => prev.map((c) => (c.email === email ? { ...c, role } : c)));
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : "Gagal mengubah role akun.");
+    } finally {
+      setCustomerRoleBusy(false);
     }
   }
 
@@ -888,18 +1087,18 @@ function AdminPage() {
                 <option value="running">Usaha Berjalan</option>
               </select>
               <select
-                value={industryFilter}
-                onChange={(e) => setIndustryFilter(e.target.value)}
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
                 className="rounded-lg border border-neutral-200 px-2 py-1.5 text-xs"
               >
-                <option value="all">Semua jenis usaha</option>
-                {industryOptions.map((ind) => (
-                  <option key={ind} value={ind}>
-                    {ind}
+                <option value="all">Semua kategori usaha</option>
+                {categoryOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
-              {(stageFilter !== "all" || industryFilter !== "all") && (
+              {(stageFilter !== "all" || categoryFilter !== "all") && (
                 <span className="self-center text-xs text-neutral-400">{filteredCustomers.length} dari {customers.length} pelanggan</span>
               )}
             </div>
@@ -945,6 +1144,11 @@ function AdminPage() {
                         <div className="mt-1 text-xs text-neutral-400">
                           {c.businessCount} bisnis{c.latestBusinessName ? ` · ${c.latestBusinessName}` : ""}
                         </div>
+                        {c.latestCategory && (
+                          <div className="mt-0.5 text-xs font-semibold text-neutral-600">
+                            {CATEGORY_LABELS[c.latestCategory as BusinessCategoryKey] || c.latestCategory}
+                          </div>
+                        )}
                         {c.latestIndustry && <div className="mt-0.5 text-xs text-neutral-400">{c.latestIndustry}</div>}
                       </td>
                       <td className="px-4 py-3 text-xs text-neutral-500">
@@ -984,6 +1188,27 @@ function AdminPage() {
                   <p className="mt-1 text-xs text-neutral-500">
                     {detail.profile.lastLocation || "Lokasi tidak diketahui"} &middot; {detail.profile.lastDevice}
                   </p>
+                  {/* Audit pra-soft-launch (19 Jul 2026): ubah role langsung
+                      dari tab Pelanggan (sebelumnya cuma bisa lewat tab
+                      "Kelola Admin"). Dibatasi admin/user (bukan
+                      super_admin) -- pola sama seperti adminSetRole.ts:
+                      level akses tertinggi tidak boleh diberikan/dicabut
+                      hanya dengan satu klik. */}
+                  {session.role === "super_admin" &&
+                    (detail.profile.role === "admin" || detail.profile.role === "user") && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="text-xs text-neutral-400">Role:</span>
+                        <select
+                          value={detail.profile.role}
+                          disabled={customerRoleBusy}
+                          onChange={(e) => setCustomerRole(detail.profile.email, e.target.value as "admin" | "user")}
+                          className="rounded-lg border border-neutral-200 px-2 py-1 text-xs"
+                        >
+                          <option value="user">user</option>
+                          <option value="admin">admin (lihat saja)</option>
+                        </select>
+                      </div>
+                    )}
                 </div>
 
                 <div className="rounded-2xl border border-neutral-200 p-5">
@@ -1006,9 +1231,160 @@ function AdminPage() {
                       </h3>
                       <span className="text-xs text-neutral-400">{formatDate(b.created_at)}</span>
                     </div>
-                    <p className="mb-3 text-xs text-neutral-500">
-                      {b.industry || "-"} &middot; {b.business_stage} &middot; {b.business_type} &middot; {b.phone_number || "tanpa nomor HP"}
-                    </p>
+
+                    {editingBusinessId !== b.id && (
+                      <p className="mb-3 text-xs text-neutral-500">
+                        {b.business_category ? (
+                          <span className="mr-1 rounded-full bg-neutral-100 px-2 py-0.5 font-semibold text-neutral-700">
+                            {CATEGORY_LABELS[b.business_category as BusinessCategoryKey] || b.business_category}
+                          </span>
+                        ) : (
+                          <span className="mr-1 rounded-full bg-neutral-100 px-2 py-0.5 text-neutral-400">Belum dikategorikan</span>
+                        )}
+                        {b.industry || "-"} &middot; {b.business_stage} &middot; {b.business_type} &middot; {b.phone_number || "tanpa nomor HP"}
+                      </p>
+                    )}
+
+                    {/* Audit pra-soft-launch (19 Jul 2026): "saya bisa
+                        menghapus/edit usaha/jenis users dari pelanggan" --
+                        edit inline, arsipkan/pulihkan (reversible), dan
+                        hapus permanen (TIDAK reversible, butuh ketik ulang
+                        nama bisnis). Semua super_admin saja, sama seperti
+                        catatan admin. */}
+                    {session.role === "super_admin" && editingBusinessId === b.id && editDraft && (
+                      <div className="mb-3 space-y-2 rounded-xl border border-dashed border-neutral-300 p-3">
+                        <div>
+                          <label className="mb-1 block text-[10px] font-bold uppercase text-neutral-400">Nama Bisnis</label>
+                          <input
+                            value={editDraft.businessName}
+                            onChange={(e) => setEditDraft({ ...editDraft, businessName: e.target.value })}
+                            className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-xs outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <div>
+                            <label className="mb-1 block text-[10px] font-bold uppercase text-neutral-400">Kategori Usaha</label>
+                            <select
+                              value={editDraft.businessCategory}
+                              onChange={(e) => setEditDraft({ ...editDraft, businessCategory: e.target.value })}
+                              className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-xs"
+                            >
+                              <option value="">Belum dikategorikan</option>
+                              {BUSINESS_CATEGORY_KEYS.map((k) => (
+                                <option key={k} value={k}>
+                                  {CATEGORY_LABELS[k]}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[10px] font-bold uppercase text-neutral-400">Tahap Usaha</label>
+                            <select
+                              value={editDraft.businessStage}
+                              onChange={(e) => setEditDraft({ ...editDraft, businessStage: e.target.value })}
+                              className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-xs"
+                            >
+                              <option value="idea">idea (usaha baru)</option>
+                              <option value="starting">starting</option>
+                              <option value="running">running (usaha berjalan)</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[10px] font-bold uppercase text-neutral-400">Bidang Usaha (teks bebas)</label>
+                          <input
+                            value={editDraft.industry}
+                            onChange={(e) => setEditDraft({ ...editDraft, industry: e.target.value })}
+                            className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-xs outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[10px] font-bold uppercase text-neutral-400">Nomor HP</label>
+                          <input
+                            value={editDraft.phoneNumber}
+                            onChange={(e) => setEditDraft({ ...editDraft, phoneNumber: e.target.value })}
+                            className="w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-xs outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => saveEditBusiness(b.id)}
+                            disabled={businessBusyId === b.id}
+                            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-black disabled:opacity-50"
+                          >
+                            {businessBusyId === b.id ? "Menyimpan..." : "Simpan"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingBusinessId(null);
+                              setEditDraft(null);
+                            }}
+                            className="rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-600"
+                          >
+                            Batal
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {session.role === "super_admin" && editingBusinessId !== b.id && (
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        <button
+                          onClick={() => startEditBusiness(b)}
+                          className="rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-600"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => toggleArchiveBusiness(b)}
+                          disabled={businessBusyId === b.id}
+                          className="rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-600 disabled:opacity-50"
+                        >
+                          {businessBusyId === b.id ? "..." : b.is_archived ? "Pulihkan" : "Arsipkan"}
+                        </button>
+                        {deleteConfirmId !== b.id ? (
+                          <button
+                            onClick={() => {
+                              setDeleteConfirmId(b.id);
+                              setDeleteConfirmText("");
+                            }}
+                            className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700"
+                          >
+                            Hapus Permanen
+                          </button>
+                        ) : (
+                          <div className="w-full rounded-lg border border-red-200 bg-red-50 p-2.5">
+                            <p className="mb-1.5 text-xs font-semibold text-red-700">
+                              Tidak bisa dibatalkan. Ketik persis "{b.business_name}" untuk konfirmasi:
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <input
+                                value={deleteConfirmText}
+                                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                placeholder={b.business_name}
+                                className="min-w-0 flex-1 rounded-lg border border-red-300 bg-white px-2 py-1.5 text-xs outline-none"
+                              />
+                              <button
+                                onClick={() => confirmDeleteBusiness(b.id)}
+                                disabled={businessBusyId === b.id || deleteConfirmText !== b.business_name}
+                                className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+                              >
+                                {businessBusyId === b.id ? "Menghapus..." : "Hapus Permanen"}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setDeleteConfirmId(null);
+                                  setDeleteConfirmText("");
+                                }}
+                                className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="mb-3">
                       <h4 className="mb-1 text-xs font-bold uppercase text-neutral-400">Langganan</h4>
@@ -1018,6 +1394,21 @@ function AdminPage() {
                           {s.tier} &middot; {s.status} &middot; berlaku sampai {formatDate(s.expires_at)}
                         </p>
                       ))}
+                      {session.role === "super_admin" && (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] uppercase text-neutral-400">Ubah tier manual:</span>
+                          {["free", "pro", "platinum"].map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => setBusinessTier(b.id, t)}
+                              disabled={tierBusyId === b.id}
+                              className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-semibold text-neutral-600 disabled:opacity-50"
+                            >
+                              {tierBusyId === b.id ? "..." : t}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mb-3">

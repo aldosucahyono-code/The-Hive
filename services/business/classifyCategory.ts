@@ -36,18 +36,44 @@ async function checkOwnership(businessProfileId: string, userId: string): Promis
   return { id: data.id, business_category: data.business_category };
 }
 
-function classifyPrompt(businessName: string, industry: string | null, goals: string | null, challenges: string | null): string {
-  return `Kamu mengklasifikasi bisnis ke SATU kategori dari daftar tetap berikut, berdasarkan konteks yang diberikan.
+// Audit pra-soft-launch (19 Jul 2026): "saya ingin ada fungsi ai yang
+// benar benar bisa memilah jenis usaha terutama dari produk yang dijual,
+// misal: Bakso, Jus, Rawon, dll itu masuk ke kategori F&B". Sebelumnya
+// prompt ini TIDAK menyertakan produk/jasa yang dijual sama sekali
+// (`industry` cuma bidang usaha bebas seperti "UMKM"/"usaha rumahan" yang
+// sering tidak cukup jelas) -- productOrService sekarang ditarik dari
+// Business Memory (lihat services/memory/getBusinessMemory.ts) dan
+// ditandai eksplisit sebagai sinyal PALING KUAT, dengan contoh konkret
+// yang sama seperti yang diminta, supaya model tidak salah menimbang
+// bidang usaha yang samar dibanding produk yang jelas.
+function classifyPrompt(
+  businessName: string,
+  industry: string | null,
+  productOrService: string | null,
+  goals: string | null,
+  challenges: string | null
+): string {
+  return `Kamu mengklasifikasi bisnis UMKM Indonesia ke SATU kategori dari daftar tetap berikut, berdasarkan konteks yang diberikan.
 
 Daftar kategori (pakai persis salah satu key ini): ${BUSINESS_CATEGORY_KEYS.join(", ")}
 
 Konteks bisnis:
 - Nama: ${businessName}
-- Bidang usaha (isian bebas dari pemilik): ${industry || "(tidak diisi)"}
+- Produk/jasa yang dijual (SINYAL PALING KUAT -- utamakan ini kalau ada): ${productOrService || "(tidak diisi)"}
+- Bidang usaha (isian bebas dari pemilik, bisa samar seperti "UMKM"/"usaha rumahan"): ${industry || "(tidak diisi)"}
 - Target/harapan: ${goals || "(tidak diisi)"}
 - Tantangan: ${challenges || "(tidak diisi)"}
 
-Kalau konteks benar-benar tidak cukup untuk menentukan kategori spesifik, pilih "lainnya" — JANGAN menebak asal.
+Cara menimbang: kalau produk/jasa yang dijual jelas menunjukkan kategori
+(contoh: "Bakso, Jus, Rawon" atau "Nasi goreng, es teh" -> kuliner/F&B;
+"servis AC, cuci sepatu" -> jasa; "pakaian, sembako, ATK" -> retail),
+pakai itu SEKALIPUN bidang usaha yang diisi pemilik terdengar generik atau
+kosong. Bidang usaha & nama bisnis hanya jadi sinyal pendukung/tambahan,
+bukan sumber utama, kalau produk/jasa sudah cukup jelas.
+
+Kalau konteks benar-benar tidak cukup sama sekali (tidak ada produk/jasa
+maupun bidang usaha yang bisa ditafsirkan), pilih "lainnya" — JANGAN
+menebak asal.
 
 Balas HANYA JSON valid, tanpa markdown, format persis:
 {"category": "salah_satu_key_di_atas"}`;
@@ -90,7 +116,13 @@ export async function getBusinessCategory(userId: string, payload: Record<string
       messages: [
         {
           role: "user",
-          content: classifyPrompt(memory.profile.businessName, memory.profile.industry, memory.goals, memory.mainChallenges),
+          content: classifyPrompt(
+            memory.profile.businessName,
+            memory.profile.industry,
+            memory.profile.productOrService,
+            memory.goals,
+            memory.mainChallenges
+          ),
         },
       ],
     });

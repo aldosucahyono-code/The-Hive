@@ -46,7 +46,7 @@ export async function adminListCustomers(adminToken: string | undefined, _payloa
         .limit(500),
       supabase
         .from("business_profiles")
-        .select("id, user_id, business_name, business_stage, business_type, industry, active, created_at")
+        .select("id, user_id, business_name, business_stage, business_type, industry, business_category, active, created_at")
         .order("created_at", { ascending: false }),
       supabase.from("subscriptions").select("business_profile_id, tier, expires_at").eq("status", "active"),
       supabase.from("contact_messages").select("email"),
@@ -100,6 +100,15 @@ export async function adminListCustomers(adminToken: string | undefined, _payloa
       businessCount: own.length,
       latestBusinessName: latest?.business_name ?? null,
       latestIndustry: latest?.industry ?? null,
+      // Audit pra-soft-launch (19 Jul 2026): "kelompokan jenis usaha, mana
+      // yang F&B, mana yang jasa, retail dll" -- filter sebelumnya cuma
+      // pakai `industry` (teks bebas dari Chat Wizard, tidak konsisten:
+      // "Rumah makan bakso", "Katering makanan sehat...", dst, satu baris
+      // per bisnis). business_category adalah taksonomi 13-kategori hasil
+      // klasifikasi AI (lihat services/business/businessCategories.ts) --
+      // dipakai AdminPage untuk mengelompokkan pelanggan, industry tetap
+      // ditampilkan sebagai detail teks bebas di bawah kategori.
+      latestCategory: latest?.business_category ?? null,
       latestBusinessStage: latest?.business_stage ?? null,
       latestBusinessType: latest?.business_type ?? null,
       highestTier,

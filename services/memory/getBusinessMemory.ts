@@ -63,6 +63,15 @@ export type BusinessMemoryContext = {
     // "sampaikan ke Owner-mu begini..." bukan seolah dia sendiri yang
     // memutuskan. Lihat roleAwareAdviceLine() di services/beemo/chat.ts.
     userRole: string | null;
+    // Produk/jasa yang dijual (field "produkJasa" dari Chat Wizard, mis.
+    // "Bakso, Jus, Rawon" atau "Jasa servis AC") -- pola pengambilan sama
+    // seperti location/userRole di atas. Audit pra-soft-launch (19 Jul
+    // 2026): sebelumnya TIDAK ikut di Business Memory sama sekali, padahal
+    // ini sinyal terkuat untuk klasifikasi kategori bisnis (lihat pemakaian
+    // di services/business/classifyCategory.ts) -- nama bisnis atau field
+    // industri bebas ("UMKM", "usaha rumahan") sering tidak cukup jelas,
+    // tapi produk yang dijual hampir selalu langsung menunjukkan kategori.
+    productOrService: string | null;
   };
   goals: string | null;
   mainChallenges: string | null;
@@ -192,6 +201,11 @@ export async function getBusinessMemory(businessProfileId: string): Promise<Busi
   // location tepat di atas. Lihat komentar lengkap di BusinessMemoryContext.
   const rowWithProfesi = analysisRows.find((a) => (a.raw_input as Record<string, unknown> | null)?.profesi);
   const userRole = ((rowWithProfesi?.raw_input as Record<string, unknown> | undefined)?.profesi as string) || null;
+  // productOrService ("produkJasa" di Chat Wizard) -- pola pengambilan sama
+  // seperti location/userRole tepat di atas. Lihat komentar lengkap di
+  // BusinessMemoryContext.
+  const rowWithProduk = analysisRows.find((a) => (a.raw_input as Record<string, unknown> | null)?.produkJasa);
+  const productOrService = ((rowWithProduk?.raw_input as Record<string, unknown> | undefined)?.produkJasa as string) || null;
   // Harapan/kekhawatiran dari Business Discovery (raw_input.target/tantangan)
   // — dipakai sebagai FALLBACK. Sumber utama tetap Business Update terbaru
   // (lihat blok business_updates di bawah), karena harapan/kekhawatiran bisa
@@ -386,6 +400,7 @@ export async function getBusinessMemory(businessProfileId: string): Promise<Busi
       businessType,
       location,
       userRole,
+      productOrService,
     },
     goals,
     mainChallenges,

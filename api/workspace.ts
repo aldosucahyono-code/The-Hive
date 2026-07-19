@@ -68,6 +68,10 @@ import { adminListAuditLog } from "../services/admin/listAuditLog.js";
 import { adminListAdmins, adminSetRole } from "../services/admin/manageAdmins.js";
 import { adminAddBusinessNote } from "../services/admin/addBusinessNote.js";
 import { adminGetCostDashboard } from "../services/admin/getCostDashboard.js";
+import { adminUpdateBusiness } from "../services/admin/updateBusiness.js";
+import { adminSetBusinessArchived } from "../services/admin/archiveBusiness.js";
+import { adminDeleteBusinessPermanently } from "../services/admin/deleteBusiness.js";
+import { adminSetSubscriptionTier } from "../services/admin/setSubscriptionTier.js";
 import { nurtureUnsubscribe } from "../services/nurture/unsubscribe.js";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -88,6 +92,10 @@ const ADMIN_FLOW_ACTIONS = new Set([
   "adminSetRole",
   "adminAddBusinessNote",
   "adminGetCostDashboard",
+  "adminUpdateBusiness",
+  "adminSetBusinessArchived",
+  "adminDeleteBusinessPermanently",
+  "adminSetSubscriptionTier",
 ]);
 
 // Aksi PUBLIK -- tidak butuh sesi admin ATAUPUN login Supabase. Sengaja
@@ -185,6 +193,18 @@ async function handleWorkspaceRequest(req: VercelRequest, res: VercelResponse) {
         break;
       case "adminGetCostDashboard":
         adminResult = await adminGetCostDashboard(adminToken, payload);
+        break;
+      case "adminUpdateBusiness":
+        adminResult = await adminUpdateBusiness(adminToken, payload, ip, userAgent);
+        break;
+      case "adminSetBusinessArchived":
+        adminResult = await adminSetBusinessArchived(adminToken, payload, ip, userAgent);
+        break;
+      case "adminDeleteBusinessPermanently":
+        adminResult = await adminDeleteBusinessPermanently(adminToken, payload, ip, userAgent);
+        break;
+      case "adminSetSubscriptionTier":
+        adminResult = await adminSetSubscriptionTier(adminToken, payload, ip, userAgent);
         break;
     }
 

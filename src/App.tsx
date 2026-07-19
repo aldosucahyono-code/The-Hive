@@ -337,9 +337,18 @@ function App() {
     return (
       <>
         <Navbar authError={authError} />
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <AdminPage />
-        </Suspense>
+        {/* Audit Juli 2026 ("halaman admin belum berfungsi sebagaimana
+            baiknya... ketika salah satu diklik loading tiba2 blank"):
+            AdminPage sebelumnya TIDAK punya ErrorBoundary sama sekali --
+            kalau render detail pelanggan gagal (mis. data pelanggan besar/
+            tak terduga), seluruh halaman jadi putih kosong tanpa pesan.
+            Sama seperti Workspace, ini pagar pengaman generik, bukan
+            pengganti dari memperbaiki penyebab render error itu sendiri. */}
+        <ErrorBoundary>
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <AdminPage />
+          </Suspense>
+        </ErrorBoundary>
         <Footer />
       </>
     );
@@ -349,9 +358,11 @@ function App() {
     return (
       <>
         <Navbar authError={authError} />
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <ReferralPage />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <ReferralPage />
+          </Suspense>
+        </ErrorBoundary>
         <Footer />
       </>
     );
@@ -414,9 +425,11 @@ function App() {
     return (
       <>
         <Navbar authError={authError} />
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <PaymentPage plan={rawHash === "bayar-pro" ? "pro" : "platinum"} />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <PaymentPage plan={rawHash === "bayar-pro" ? "pro" : "platinum"} />
+          </Suspense>
+        </ErrorBoundary>
         <Footer />
       </>
     );

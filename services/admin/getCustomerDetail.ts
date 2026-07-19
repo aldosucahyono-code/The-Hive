@@ -63,7 +63,7 @@ export async function adminGetCustomerDetail(adminToken: string | undefined, pay
 
   const { data: businesses, error: businessesError } = await supabase
     .from("business_profiles")
-    .select("id, business_name, industry, business_stage, business_type, phone_number, active, created_at")
+    .select("id, business_name, industry, business_category, business_stage, business_type, phone_number, active, created_at")
     .eq("user_id", customerId)
     .order("created_at", { ascending: false });
 
