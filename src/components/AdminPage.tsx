@@ -176,6 +176,7 @@ type DashboardSummary = {
   tierCounts: Record<string, number>;
   mrrIdr: number;
   signupTrend: { date: string; count: number }[];
+  wizardCompletionTrend: { date: string; count: number }[];
   wizardFunnel: { totalDrafts: number; promoted: number; conversionRate: number };
   payments: { pendingCount: number; pendingAmountIdr: number; failedCount: number; failedAmountIdr: number };
   newContactMessages: number;
@@ -1167,7 +1168,37 @@ function AdminPage() {
                   </div>
                 </div>
 
+                {/* Audit Juli 2026 ("hari ke-3 iklan jalan, belum ada yang
+                    masuk chat wizard, apakah wajar dihentikan?") -- beda dari
+                    Pendaftaran di sebelah kiri (itu akun JADI, butuh login).
+                    Ini wizard yang SELESAI diisi (wizard_drafts), sinyal
+                    paling awal & paling dekat ke "orang benar-benar pakai
+                    chat wizard" -- bisa dibandingkan hari-per-hari dengan
+                    angka klik/tayangan halaman dari Meta/Google Ads Manager
+                    untuk menilai iklan mana yang benar-benar bekerja. */}
                 <div className="rounded-2xl border border-neutral-200 p-5">
+                  <h4 className="mb-3 text-xs font-bold uppercase text-neutral-400">Wizard Selesai Diisi (14 Hari Terakhir)</h4>
+                  <div className="flex h-24 items-end gap-1">
+                    {dashboard.wizardCompletionTrend.map((d) => {
+                      const max = Math.max(1, ...dashboard.wizardCompletionTrend.map((x) => x.count));
+                      const heightPct = Math.max(4, Math.round((d.count / max) * 100));
+                      return (
+                        <div key={d.date} className="flex flex-1 flex-col items-center gap-1" title={`${formatShortDate(d.date)}: ${d.count}`}>
+                          <div className="w-full rounded-t bg-orange-400" style={{ height: `${heightPct}%` }} />
+                          <span className="text-[9px] text-neutral-400">{formatShortDate(d.date).slice(0, 2)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-[11px] text-neutral-400">
+                    Dihitung begitu wizard SELESAI dijawab (belum tentu login) — sinyal ini lebih dekat ke performa iklan daripada
+                    "Pendaftaran", yang baru terhitung setelah orang login.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-neutral-200 p-5 lg:col-start-2">
                   <h4 className="mb-3 text-xs font-bold uppercase text-neutral-400">Antrian Pembayaran</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center justify-between">

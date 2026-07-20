@@ -43,6 +43,7 @@ export async function adminGetDashboardSummary(adminToken: string | undefined, _
     { data: activeSubs, error: activeSubsError },
     { count: totalWizardDrafts, error: draftsCountError },
     { count: promotedDrafts, error: promotedCountError },
+    { data: recentDrafts, error: recentDraftsError },
     { data: pendingPayments, error: pendingPaymentsError },
     { data: failedPayments, error: failedPaymentsError },
     { count: newContactMessages, error: contactCountError },
@@ -53,6 +54,16 @@ export async function adminGetDashboardSummary(adminToken: string | undefined, _
     supabase.from("subscriptions").select("tier, expires_at").eq("status", "active"),
     supabase.from("wizard_drafts").select("id", { count: "exact", head: true }),
     supabase.from("wizard_drafts").select("id", { count: "exact", head: true }).eq("status", "promoted"),
+    // Audit Juli 2026 ("sudah hari ke-3 iklan jalan, belum ada yang masuk
+    // chat wizard, apakah wajar dihentikan?"): signupTrend di bawah cuma
+    // menghitung AKUN jadi (profiles) -- terlalu jauh di ujung funnel untuk
+    // menilai iklan, karena butuh login dulu. wizard_drafts baru tersimpan
+    // begitu wizard SELESAI dijawab (belum tentu sampai login), jadi sinyal
+    // ini jauh lebih dekat ke "orang benar-benar pakai chat wizard" dan bisa
+    // dibandingkan hari-per-hari dengan angka klik/tayangan halaman dari
+    // Meta/Google Ads Manager untuk menilai iklan mana yang benar-benar
+    // membawa orang sampai selesai wizard, bukan cuma mampir lalu pergi.
+    supabase.from("wizard_drafts").select("created_at").gte("created_at", trendSince),
     supabase.from("payments").select("id, amount, tier, created_at").eq("status", "pending").order("created_at", { ascending: false }).limit(50),
     supabase.from("payments").select("id, amount, tier, created_at").eq("status", "failed").order("created_at", { ascending: false }).limit(50),
     supabase.from("contact_messages").select("id", { count: "exact", head: true }).eq("status", "new"),
@@ -65,6 +76,7 @@ export async function adminGetDashboardSummary(adminToken: string | undefined, _
     activeSubsError ||
     draftsCountError ||
     promotedCountError ||
+    recentDraftsError ||
     pendingPaymentsError ||
     failedPaymentsError ||
     contactCountError ||
@@ -101,6 +113,22 @@ export async function adminGetDashboardSummary(adminToken: string | undefined, _
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, count]) => ({ date, count }));
 
+  // Tren wizard SELESAI diisi per hari (lihat catatan di query recentDrafts
+  // di atas) -- pola sama persis dengan signupTrend, tabel Map terpisah
+  // supaya tidak tercampur dengan hitungan akun.
+  const draftTrendByDay = new Map<string, number>();
+  for (let i = 0; i < SIGNUP_TREND_DAYS; i++) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    draftTrendByDay.set(d.toISOString().slice(0, 10), 0);
+  }
+  for (const draft of recentDrafts || []) {
+    const day = (draft.created_at as string).slice(0, 10);
+    if (draftTrendByDay.has(day)) draftTrendByDay.set(day, (draftTrendByDay.get(day) || 0) + 1);
+  }
+  const wizardCompletionTrend = Array.from(draftTrendByDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, count]) => ({ date, count }));
+
   const onlineNow = (onlineProfiles || []).filter(
     (p) => p.last_seen_at && Date.now() - new Date(p.last_seen_at as string).getTime() < ONLINE_THRESHOLD_MS
   ).length;
@@ -116,6 +144,7 @@ export async function adminGetDashboardSummary(adminToken: string | undefined, _
       tierCounts,
       mrrIdr,
       signupTrend,
+      wizardCompletionTrend,
       wizardFunnel: {
         totalDrafts: totalWizardDrafts || 0,
         promoted: promotedDrafts || 0,
