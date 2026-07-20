@@ -694,6 +694,12 @@ const id = {
     invalidEmailNudge: "Sepertinya format emailnya belum tepat, boleh dicek kembali?",
     invalidPhoneNudge: "Sepertinya format nomor HP-nya belum tepat (contoh: 08123456789), boleh dicek kembali?",
     semanticNudgeLocation: "Saya belum yakin itu alamat yang jelas — tolong sebutkan kecamatan/kota dan provinsinya, misalnya \"Sukun, Kota Malang, Jawa Timur\".",
+    // Audit Juli 2026 (laporan pengguna nyata: "dekat Pindad, Malang" lolos
+    // padahal cuma landmark+kota) — dipakai saat AI cukup yakin menebak
+    // kecamatan+kota+provinsi lengkap dari landmark/area yang disebut
+    // pengguna, supaya bisa ditanyakan balik untuk KONFIRMASI (bukan
+    // langsung diterima begitu saja).
+    semanticNudgeLocationSuggestion: "Kamu tulis \"{jawaban}\" — apakah maksudnya di {saran}? Kalau benar, tulis ulang lengkap begitu (kecamatan, kota/kabupaten, provinsi). Kalau bukan, tolong sebutkan kecamatan dan provinsi yang benar.",
     semanticNudgeGeneric: "Sepertinya jawabanmu belum sesuai dengan pertanyaan di atas. Bisa dijelaskan lebih rinci sesuai pertanyaannya?",
     invalidDateFutureNudge: "Tanggal tersebut sudah lewat — boleh pilih tanggal ke depan?",
     invalidDatePastNudge: "Tanggal tersebut ada di masa depan — boleh pilih tanggal yang sudah terjadi?",
@@ -2493,6 +2499,7 @@ const en: Translations = {
     invalidEmailNudge: "That email format doesn't look quite right, could you check it again?",
     invalidPhoneNudge: "That phone number format doesn't look quite right (e.g. 08123456789), could you check it again?",
     semanticNudgeLocation: "I'm not sure that's a clear address — please include the district/city and province, e.g. \"Sukun, Malang City, East Java\".",
+    semanticNudgeLocationSuggestion: "You wrote \"{jawaban}\" — did you mean {saran}? If that's right, write it out fully like that (district, city/regency, province). If not, please tell me the correct district and province.",
     semanticNudgeGeneric: "That answer doesn't seem to match the question above. Could you explain it in more detail?",
     invalidDateFutureNudge: "That date has already passed — could you choose a date in the future?",
     invalidDatePastNudge: "That date is in the future — could you choose a date that has already happened?",

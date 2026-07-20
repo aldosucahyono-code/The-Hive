@@ -71,64 +71,117 @@ menilai apakah jawaban pengguna RELEVAN dengan topik pertanyaan yang
 diberikan — BUKAN menilai kualitas, kelengkapan, atau kebenaran isi jawaban.
 
 ATURAN:
-1. Kalau fieldKind = "lokasi": jawaban harus berupa alamat/lokasi GEOGRAFIS
-   nyata (nama tempat/wilayah administratif di Indonesia: desa/kelurahan,
-   kecamatan, kota/kabupaten, atau provinsi) — BUKAN nama bisnis, nama
-   orang, atau keterangan lain yang bukan tempat. Kalau jawaban cuma
-   mengulang/menjelaskan nama bisnis atau nama seseorang tanpa menyebut
-   wilayah administratif nyata (contoh: "Toko Berkah namanya", "punya Pak
-   Budi", "di rumah saya saja") — TIDAK valid, SEKALIPUN kata-katanya
-   terdengar seperti nama tempat (nama bisnis sering memang berbunyi
-   seperti nama tempat/orang). Kalau jawaban menyebut kota/kabupaten/
-   wilayah DAN provinsi, keduanya harus benar-benar selaras secara
-   geografi nyata di Indonesia (contoh: "Surabaya, Jawa Timur" valid;
-   "Surabaya, Jawa Barat" TIDAK valid karena Surabaya berada di Jawa
-   Timur, bukan Jawa Barat; "Papua, Jawa Timur" TIDAK valid karena Papua
-   adalah provinsi/pulau sendiri, sama sekali bukan bagian dari Jawa
-   Timur — ini kesalahan yang WAJIB ditangkap, bukan cuma kesalahan
-   provinsi tetangga). Kalau hanya kota/kabupaten/provinsi saja (tanpa
-   kombinasi dua tingkat wilayah) dan nama itu memang tempat nyata di
-   Indonesia, tetap valid.
+1. Kalau fieldKind = "lokasi": lokasi ini dipakai untuk memetakan KOMPETITOR
+   dan REFERENSI PELANGGAN, jadi harus cukup lengkap untuk dipetakan secara
+   akurat, minimal mencakup TIGA tingkat wilayah berikut, SEMUANYA harus ada:
+   (a) kecamatan, ATAU kelurahan/desa/nama kampung/area yang cukup spesifik
+       untuk dipetakan ke satu kecamatan tertentu (BUKAN sekadar nama jalan
+       atau nama landmark/tempat terkenal tanpa nama wilayah administratif
+       di sekitarnya — mis. "dekat Pindad" atau "deket Pasar Baru" SAJA
+       tidak cukup walau tempat itu nyata dan Anda tahu di kota mana
+       lokasinya, karena tidak menyebut kecamatan/kelurahannya),
+   (b) kota atau kabupaten,
+   (c) provinsi.
+   Kalau SALAH SATU dari tiga itu tidak disebutkan sama sekali — TIDAK
+   valid, walaupun bagian yang memang disebutkan itu sendiri benar secara
+   geografi (contoh: "Malang" saja TIDAK valid — cuma kota, tidak ada
+   kecamatan & provinsi; "dekat Pindad, Malang" TIDAK valid — ada
+   landmark+kota tapi tidak ada kecamatan & provinsi; "Sukun, Kota Malang,
+   Jawa Timur" VALID — kecamatan+kota+provinsi lengkap).
+   Kalau jawaban cuma mengulang/menjelaskan nama bisnis atau nama seseorang
+   tanpa menyebut wilayah administratif nyata sama sekali (contoh: "Toko
+   Berkah namanya", "punya Pak Budi", "di rumah saya saja") — TIDAK valid,
+   SEKALIPUN kata-katanya terdengar seperti nama tempat (nama bisnis sering
+   memang berbunyi seperti nama tempat/orang).
+   Kalau jawaban menyebut kota/kabupaten DAN provinsi, keduanya harus
+   benar-benar selaras secara geografi nyata di Indonesia (contoh:
+   "Surabaya, Jawa Timur" cocok; "Surabaya, Jawa Barat" TIDAK cocok karena
+   Surabaya berada di Jawa Timur, bukan Jawa Barat; "Papua, Jawa Timur"
+   TIDAK cocok karena Papua adalah provinsi/pulau sendiri, sama sekali
+   bukan bagian dari Jawa Timur — ini kesalahan yang WAJIB ditangkap, bukan
+   cuma kesalahan provinsi tetangga).
 2. Untuk fieldKind = "freeText": jawaban invalid HANYA kalau jelas-jelas
    TIDAK NYAMBUNG dengan topik pertanyaan (contoh: pertanyaan soal posisi/
    peran di bisnis dijawab dengan alamat rumah; pertanyaan soal tantangan
-   bisnis dijawab dengan resep masakan yang tidak ada hubungannya).
-3. JANGAN terlalu ketat — jawaban singkat tapi tetap on-topic (mis. "belum
-   ada" untuk pertanyaan status izin usaha) tetap VALID. Kalau ragu-ragu,
-   anggap VALID (manfaatkan keraguan untuk pengguna, bukan untuk menolak).
-4. Balas HANYA dengan JSON, tanpa markdown, tanpa teks lain, format persis:
-{"valid": true} atau {"valid": false}`;
+   bisnis dijawab dengan resep masakan yang tidak ada hubungannya). ATURAN
+   INI (freeText) TETAP longgar seperti sebelumnya — kelengkapan HANYA
+   wajib untuk fieldKind "lokasi" (lihat aturan 1), bukan field lain.
+3. JANGAN terlalu ketat di LUAR aturan kelengkapan lokasi di atas — jawaban
+   singkat tapi tetap on-topic (mis. "belum ada" untuk pertanyaan status
+   izin usaha) tetap VALID. Kalau ragu-ragu soal RELEVANSI (bukan soal
+   kelengkapan tiga tingkat wilayah untuk lokasi, yang wajib tegas), anggap
+   VALID.
+4. KHUSUS fieldKind = "lokasi" dan valid = false: kalau jawaban menyebut
+   SATU landmark/area/kota yang Anda benar-benar kenali dan bisa PERCAYA
+   DIRI memetakannya ke kecamatan+kota/kabupaten+provinsi yang spesifik
+   (contoh: "Pindad" adalah nama pabrik PT Pindad yang terkenal berada di
+   Kecamatan Turen, Kabupaten Malang, Jawa Timur) — isi field "suggestion"
+   dengan tebakan lengkap itu dalam format "Kecamatan, Kota/Kabupaten,
+   Provinsi", supaya bisa ditanyakan balik ke pengguna untuk KONFIRMASI
+   (bukan langsung dianggap benar tanpa dikonfirmasi — Anda bisa saja
+   salah). Kalau Anda TIDAK yakin/tidak kenal tempatnya sama sekali, atau
+   valid = true, atau fieldKind bukan "lokasi" — set "suggestion": null.
+   JANGAN mengarang tebakan kalau tidak yakin.
+5. Balas HANYA dengan JSON, tanpa markdown, tanpa teks lain, format persis:
+{"valid": true, "suggestion": null} atau {"valid": false, "suggestion": "Kecamatan X, Kota Y, Provinsi Z"} atau {"valid": false, "suggestion": null}`;
 
 const VALIDATE_SYSTEM_EN = `You are an answer validator for THE HIVE's business wizard. Your ONLY job is
 to judge whether the user's answer is RELEVANT to the topic of the question
 given — NOT to judge the quality, completeness, or truthfulness of the answer.
 
 RULES:
-1. If fieldKind = "lokasi": the answer must be a real GEOGRAPHIC location
-   (an actual Indonesian administrative place name: village/sub-district,
-   district, city/regency, or province) — NOT a business name, a person's
-   name, or other non-place text. If the answer just repeats or explains a
-   business/person's name without naming any real administrative area
-   (e.g. "it's called Toko Berkah", "that's Mr. Budi's place", "just my
-   house") — it is NOT valid, even if the words happen to sound like a
-   place or person name (business names often sound like place/person
-   names). If the answer names BOTH a city/regency/region and a province,
-   they must be genuinely geographically consistent in Indonesia (e.g.
-   "Surabaya, East Java" is valid; "Surabaya, West Java" is NOT valid
-   because Surabaya is in East Java, not West Java; "Papua, East Java" is
-   NOT valid because Papua is its own province/island, nowhere near East
-   Java — this MUST be caught, not just neighboring-province mistakes). If
-   only a single level (just a city, or just a province) is given and it's
-   a real place in Indonesia, it's still valid.
+1. If fieldKind = "lokasi": this location is used to map COMPETITORS and
+   CUSTOMER REFERRALS, so it must be complete enough to pinpoint accurately
+   — it must include ALL THREE of these administrative levels:
+   (a) a district (kecamatan), OR a sub-district/village/neighborhood name
+       specific enough to be mapped to one particular district (NOT just a
+       street name or a well-known landmark with no administrative area
+       named around it — e.g. "near the Pindad factory" or "near the old
+       market" ALONE is NOT enough, even if that's a real, well-known place
+       and you know which city it's in, because no district/sub-district is
+       named),
+   (b) a city or regency,
+   (c) a province.
+   If ANY ONE of these three is missing entirely — it is NOT valid, even if
+   the parts that ARE given are themselves geographically correct (e.g.
+   "Malang" alone is NOT valid — just a city, no district or province;
+   "near Pindad, Malang" is NOT valid — landmark+city but no district or
+   province; "Sukun, Malang City, East Java" IS valid — district+city+
+   province all present).
+   If the answer just repeats or explains a business/person's name without
+   naming any real administrative area at all (e.g. "it's called Toko
+   Berkah", "that's Mr. Budi's place", "just my house") — it is NOT valid,
+   even if the words happen to sound like a place or person name (business
+   names often sound like place/person names).
+   If the answer names a city/regency AND a province, they must be
+   genuinely geographically consistent in Indonesia (e.g. "Surabaya, East
+   Java" is consistent; "Surabaya, West Java" is NOT consistent because
+   Surabaya is in East Java, not West Java; "Papua, East Java" is NOT
+   consistent because Papua is its own province/island, nowhere near East
+   Java — this MUST be caught, not just neighboring-province mistakes).
 2. For fieldKind = "freeText": the answer is invalid ONLY if it's clearly
    UNRELATED to the question's topic (e.g. a question about the person's
    role in the business answered with a home address; a question about the
-   business's biggest challenge answered with an unrelated recipe).
-3. Do NOT be overly strict — a short but on-topic answer (e.g. "not yet" for
-   a question about business permit status) is still VALID. When in doubt,
-   default to VALID (give the user the benefit of the doubt, don't reject).
-4. Reply with ONLY JSON, no markdown, no other text, in exactly this format:
-{"valid": true} or {"valid": false}`;
+   business's biggest challenge answered with an unrelated recipe). This
+   rule stays as lenient as before — completeness is ONLY required for
+   fieldKind "lokasi" (rule 1), not other fields.
+3. Do NOT be overly strict beyond the location-completeness rule above — a
+   short but on-topic answer (e.g. "not yet" for a question about business
+   permit status) is still VALID. When in doubt about RELEVANCE (not about
+   the three-level location completeness, which must be enforced strictly),
+   default to VALID.
+4. SPECIFICALLY for fieldKind = "lokasi" and valid = false: if the answer
+   names ONE landmark/area/city that you genuinely recognize and can
+   CONFIDENTLY map to a specific district+city/regency+province (e.g.
+   "Pindad" is the well-known PT Pindad factory located in Turen District,
+   Malang Regency, East Java) — fill the "suggestion" field with that full
+   guess in the format "District, City/Regency, Province", so it can be
+   confirmed back with the user (NOT assumed correct outright — you could
+   be wrong). If you are NOT confident/don't recognize the place at all, or
+   valid = true, or fieldKind isn't "lokasi" — set "suggestion": null. Do
+   NOT make up a guess if you're not sure.
+5. Reply with ONLY JSON, no markdown, no other text, in exactly this format:
+{"valid": true, "suggestion": null} or {"valid": false, "suggestion": "District X, City Y, Province Z"} or {"valid": false, "suggestion": null}`;
 
 async function handleValidateAnswer(
   payload: ValidateAnswerPayload,
@@ -157,7 +210,10 @@ async function handleValidateAnswer(
     const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 20,
+      // Dinaikkan dari 20 -- respons sekarang bisa memuat field "suggestion"
+      // (tebakan kecamatan/kota/provinsi lengkap, lihat aturan 4/5 di
+      // VALIDATE_SYSTEM_ID/EN di atas), bukan cuma {"valid": true/false}.
+      max_tokens: 120,
       system: activeLang === "en" ? VALIDATE_SYSTEM_EN : VALIDATE_SYSTEM_ID,
       messages: [
         {
@@ -182,14 +238,22 @@ async function handleValidateAnswer(
       .join("");
     const cleaned = raw.replace(/```json|```/g, "").trim();
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned) as { valid?: boolean };
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned) as { valid?: boolean; suggestion?: string | null };
 
-    return res.status(200).json({ valid: parsed.valid !== false });
+    // suggestion cuma dipakai kalau valid=false DAN memang string berisi --
+    // jaga-jaga terhadap parsing yang aneh (mis. suggestion:"" atau bukan
+    // string sama sekali) supaya frontend tidak menampilkan saran kosong.
+    const suggestion =
+      parsed.valid === false && typeof parsed.suggestion === "string" && parsed.suggestion.trim().length > 0
+        ? parsed.suggestion.trim()
+        : null;
+
+    return res.status(200).json({ valid: parsed.valid !== false, suggestion });
   } catch (err) {
     console.error("generate-wizard-questions validateAnswer error:", err);
     // Fail-open — gangguan AI/parsing tidak boleh menghalangi pengunjung
     // menyelesaikan wizard (sama seperti prinsip check-email.ts).
-    return res.status(200).json({ valid: true });
+    return res.status(200).json({ valid: true, suggestion: null });
   }
 }
 

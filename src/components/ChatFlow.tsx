@@ -37,18 +37,29 @@ const SEMANTIC_CHECK_FIELDS = new Set<keyof WizardData>([
   "bucketAnswer2",
 ]);
 
+type SemanticCheckResult = { valid: boolean; suggestion: string | null };
+
 /** Minta Beemo AI menilai apakah jawaban benar-benar relevan dengan
  * pertanyaan yang ditampilkan (bukan cek kualitas/kelengkapan — cuma
- * relevansi topik). Reuse endpoint generate-wizard-questions (mode baru)
- * supaya tidak nambah jumlah Vercel Serverless Function. Fail-open: kalau
- * API error/timeout/parsing gagal, anggap valid — jangan sampai gangguan
- * jaringan sesaat menghalangi pengunjung menyelesaikan wizard. */
+ * relevansi topik, KECUALI untuk fieldKind "lokasi" yang sekarang juga wajib
+ * lengkap kecamatan+kota+provinsi, lihat VALIDATE_SYSTEM_ID/EN di backend).
+ * Reuse endpoint generate-wizard-questions (mode baru) supaya tidak nambah
+ * jumlah Vercel Serverless Function. Fail-open: kalau API error/timeout/
+ * parsing gagal, anggap valid — jangan sampai gangguan jaringan sesaat
+ * menghalangi pengunjung menyelesaikan wizard.
+ *
+ * Audit Juli 2026 (laporan pengguna nyata: "dekat Pindad, Malang" lolos
+ * padahal belum ada kecamatan) — sekarang juga mengembalikan "suggestion":
+ * kalau AI mengenali landmark/area yang disebut dan cukup yakin bisa
+ * memetakannya ke kecamatan+kota+provinsi tertentu, dipakai untuk
+ * MENGKONFIRMASI balik ke pengguna (bukan langsung dipakai sebagai jawaban
+ * final tanpa persetujuan mereka -- AI bisa saja salah tebak). */
 async function checkSemanticMatch(
   questionText: string,
   answer: string,
   fieldKind: "lokasi" | "freeText",
   lang: "id" | "en"
-): Promise<boolean> {
+): Promise<SemanticCheckResult> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 8000);
   try {
@@ -58,12 +69,12 @@ async function checkSemanticMatch(
       body: JSON.stringify({ mode: "validateAnswer", questionText, answer, fieldKind, lang }),
       signal: controller.signal,
     });
-    if (!res.ok) return true;
+    if (!res.ok) return { valid: true, suggestion: null };
     const json = await res.json();
-    return json.valid !== false;
+    return { valid: json.valid !== false, suggestion: typeof json.suggestion === "string" ? json.suggestion : null };
   } catch (err) {
     console.error("checkSemanticMatch error:", err);
-    return true;
+    return { valid: true, suggestion: null };
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -226,6 +237,19 @@ const PRODUK_JASA_EXAMPLE_MAP: Array<{ keywords: string[]; id: [string, string];
     en: ["Private math tutoring class", "Online course materials"],
     reactionId: "Bisnis pendidikan biasanya soal reputasi dan hasil nyata buat muridnya.",
     reactionEn: "Education businesses usually run on reputation and real results for students.",
+  },
+  {
+    // Distributor/grosir/sembako/snack kemasan — kategori baru (audit Juli
+    // 2026: laporan pengguna nyata "Distributor Snack" masih disodori
+    // contoh nasi goreng/kopi di bubble pertanyaan produkJasa, karena
+    // fallback statis ini kepakai saat fetch AI contoh dinamis melewati
+    // timeout 8 detik dan belum ada kategori yang cocok untuk kata kunci
+    // "distributor"/"snack"/"grosir").
+    keywords: ["distributor", "grosir", "supplier", "sembako", "kelontong", "wholesale", "reseller", "dropship", "agen", "snack", "cemilan", "keripik"],
+    id: ["Keripik singkong kemasan", "Snack kiloan aneka rasa"],
+    en: ["Packaged cassava chips", "Bulk mixed-flavor snacks"],
+    reactionId: "Bisnis distribusi/grosir biasanya soal jaringan penjualan dan harga bersaing.",
+    reactionEn: "Distribution/wholesale businesses usually run on their sales network and competitive pricing.",
   },
 ];
 const DEFAULT_PRODUK_JASA_EXAMPLE: { id: [string, string]; en: [string, string] } = {
@@ -660,6 +684,21 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
   // kalau jawaban dinilai TIDAK nyambung, bukan setiap kali submit).
   const [semanticChecking, setSemanticChecking] = useState(false);
   const [semanticRetryField, setSemanticRetryField] = useState<keyof WizardData | null>(null);
+  // Audit Juli 2026 (laporan pengguna nyata: "dekat Pindad, Malang" lolos
+  // padahal cuma landmark+kota, tidak ada kecamatan/provinsi) -- kalau AI
+  // cukup yakin mengenali landmark/area yang disebut pengguna dan bisa
+  // menebak kecamatan+kota+provinsi lengkapnya, tebakan itu ditaruh di sini
+  // untuk DIKONFIRMASI balik ke pengguna lewat pesan nudge (lihat
+  // getCurrentBotText di bawah) -- bukan langsung dipakai sebagai jawaban
+  // final tanpa persetujuan mereka, karena AI bisa saja salah tebak.
+  const [semanticSuggestion, setSemanticSuggestion] = useState<string | null>(null);
+  const lastSemanticAnswerRef = useRef<string>("");
+  // State (BUKAN ref) khusus supaya typingKey di bawah boleh membacanya
+  // langsung saat render (ESLint react-hooks/refs melarang membaca .current
+  // ref selama render) -- dinaikkan setiap percobaan lokasi gagal, dipakai
+  // supaya typingKey berubah antar percobaan pada field yang SAMA (lihat
+  // catatan di typingKey).
+  const [semanticAttemptNonce, setSemanticAttemptNonce] = useState(0);
   const semanticAttemptCountsRef = useRef<Partial<Record<keyof WizardData, number>>>({});
   const MAX_SEMANTIC_ATTEMPTS = 2;
   const MAX_SEMANTIC_ATTEMPTS_LOKASI = 4;
@@ -692,6 +731,18 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
     // nama asli mereka. Ditemukan saat uji coba end-to-end wizard.
     if (allAnswered) return fill(t.chatFlow.summaryIntro, data);
     if (activeQuestion && semanticRetryField === activeQuestion.field) {
+      // Kalau AI cukup yakin mengenali landmark/area yang disebut pengguna
+      // (semanticSuggestion terisi), tanya balik untuk KONFIRMASI dengan
+      // tebakan spesifik itu -- jauh lebih actionable daripada nudge generik
+      // "tolong lebih detail" (laporan pengguna nyata: "dekat Pindad,
+      // Malang" -- daripada cuma diminta "lebih detail", langsung
+      // ditanyakan "apakah maksudnya di Kecamatan Turen, Kabupaten Malang,
+      // Jawa Timur?").
+      if (activeQuestion.field === "lokasi" && semanticSuggestion) {
+        return t.chatFlow.semanticNudgeLocationSuggestion
+          .replace("{jawaban}", lastSemanticAnswerRef.current)
+          .replace("{saran}", semanticSuggestion);
+      }
       return activeQuestion.field === "lokasi"
         ? t.chatFlow.semanticNudgeLocation
         : t.chatFlow.semanticNudgeGeneric;
@@ -759,7 +810,13 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       : allAnswered
         ? "summary"
         : activeQuestion && semanticRetryField === activeQuestion.field
-          ? `semantic-retry-${semanticRetryField}`
+          ? // Audit Juli 2026: sertakan semanticAttemptNonce (bukan cuma nama
+            // field) -- sejak semanticNudgeLocationSuggestion bisa beda teks
+            // antar percobaan pada field YANG SAMA (tergantung apakah AI
+            // punya "suggestion" di percobaan itu atau tidak), key harus ikut
+            // berubah supaya efek freeze di bawah membekukan teks BARU, bukan
+            // tetap memegang teks dari percobaan sebelumnya pada field ini.
+            `semantic-retry-${semanticRetryField}-${semanticAttemptNonce}`
           : waitingForProdukJasa
             ? "produkJasa-waiting"
             : `q-${answeredCount}`;
@@ -956,18 +1013,32 @@ function ChatFlow({ data, updateField, startTime, onSuccess }: ChatFlowProps) {
       setSemanticChecking(true);
       const questionText = activeQuestion.prompt(data);
       const fieldKind = isLokasiField ? "lokasi" : "freeText";
-      const isMatch = await checkSemanticMatch(questionText, value, fieldKind, lang);
+      const { valid: isMatch, suggestion } = await checkSemanticMatch(questionText, value, fieldKind, lang);
       setSemanticChecking(false);
       if (!isMatch) {
         // Percobaan gagal — minta ditulis ulang, JANGAN advance ke
         // pertanyaan berikutnya. Jawaban lama tidak disimpan.
+        //
+        // Audit Juli 2026 (laporan pengguna nyata: "dekat Pindad, Malang"
+        // lolos padahal cuma landmark+kota) — kalau AI cukup yakin bisa
+        // menebak kecamatan+kota+provinsi dari landmark/area yang disebut
+        // (suggestion terisi), simpan jawaban MENTAH pengguna dulu di
+        // lastSemanticAnswerRef supaya bisa ditampilkan dalam pesan
+        // konfirmasi ("kamu tulis '...', apakah maksudnya ...?") — BUKAN
+        // langsung dipakai sebagai jawaban final tanpa persetujuan mereka.
         semanticAttemptCountsRef.current[activeQuestion.field] = attemptsSoFar + 1;
+        lastSemanticAnswerRef.current = value;
+        setSemanticSuggestion(suggestion);
+        setSemanticAttemptNonce((n) => n + 1);
         setSemanticRetryField(activeQuestion.field);
         setInputValue("");
         return;
       }
     }
-    if (semanticRetryField === activeQuestion.field) setSemanticRetryField(null);
+    if (semanticRetryField === activeQuestion.field) {
+      setSemanticRetryField(null);
+      setSemanticSuggestion(null);
+    }
 
     updateField(activeQuestion.field, value);
     // Simpan teks pertanyaan yang benar-benar ditampilkan (AI-generated atau
