@@ -108,13 +108,100 @@ export async function sendNurtureBatch(): Promise<{ sent: number; skipped: numbe
     }
   }
 
-  const candidates: Candidate[] = Array.from(personaByEmail.entries()).map(([email, persona]) => ({
+  let candidates: Candidate[] = Array.from(personaByEmail.entries()).map(([email, persona]) => ({
     email,
     persona,
     anchorAt: anchorByEmail.get(email)!,
   }));
 
   if (candidates.length === 0) return { sent: 0, skipped: 0, errors: 0, candidates: 0 };
+
+  // Audit Juli 2026 (laporan pengguna nyata: akun dengan beberapa bisnis
+  // test menerima email "Business Wisdom" yang membahas bisnis "Katering
+  // Sehat Harian" padahal bisnis yang sedang dibuka di Workspace-nya
+  // "Pasir Paliran" -- Pertambangan & Energi, sama sekali tidak nyambung):
+  // ROOT CAUSE -- persona di atas dibangun dari wizard_drafts (data mentah,
+  // pre-akun) yang PALING BARU untuk email itu, TIDAK PERNAH dicocokkan ke
+  // bisnis yang benar-benar masih ada/aktif di business_profiles. Untuk
+  // akun yang sudah login DAN sudah punya bisnis (kasus paling umum &
+  // paling penting untuk benar), timpa namaBisnis/jenisBisnis dengan data
+  // LIVE dari business_profiles (bisnis AKTIF yang paling baru dibuat --
+  // proxy paling wajar untuk "bisnis yang sedang mereka fokuskan sekarang"),
+  // bukan wizard_drafts yang bisa jadi bisnis lama/berbeda/sudah dihapus.
+  //
+  // Sekaligus memenuhi permintaan kedua: "kalau usaha diworkspace users
+  // dihapus, email otomatis stop" -- kalau email ini SUDAH PUNYA AKUN tapi
+  // NOL bisnis aktif (semua dihapus/diarsipkan), email nurture untuk
+  // ronde ini DILEWATI SAMA SEKALI (bukan di-unsubscribe permanen -- kalau
+  // mereka nanti tambah bisnis baru lagi, nurture otomatis jalan lagi tanpa
+  // perlu langganan ulang).
+  //
+  // Pengunjung yang BELUM PERNAH login (tidak ada baris profiles) TETAP
+  // dikirimi seperti sebelumnya, pakai persona dari wizard_drafts -- ini
+  // justru kasus yang DIMAKSUDKAN sistem ini (mendorong mereka login &
+  // lanjut), belum ada business_profiles untuk dicocokkan sama sekali.
+  const { data: candidateProfiles, error: candidateProfilesError } = await supabase
+    .from("profiles")
+    .select("id, email")
+    .in(
+      "email",
+      candidates.map((c) => c.email)
+    );
+  if (candidateProfilesError) {
+    console.error("sendNurtureBatch: gagal memuat profiles untuk pencocokan bisnis aktif:", candidateProfilesError);
+    // Fail-open ke perilaku lama (persona wizard_drafts apa adanya) --
+    // gangguan di langkah pencocokan ini tidak boleh menghentikan nurture
+    // sepenuhnya, cuma berarti mismatch lama tetap ada untuk batch ini.
+  } else {
+    const userIdByEmail = new Map((candidateProfiles || []).map((p) => [(p.email || "").trim().toLowerCase(), p.id as string]));
+    const accountedUserIds = Array.from(userIdByEmail.values());
+
+    const { data: activeBusinesses, error: activeBusinessesError } = accountedUserIds.length
+      ? await supabase
+          .from("business_profiles")
+          .select("user_id, business_name, industry, business_stage")
+          .in("user_id", accountedUserIds)
+          .eq("active", true)
+          .order("created_at", { ascending: false })
+      : { data: [], error: null };
+
+    if (activeBusinessesError) {
+      console.error("sendNurtureBatch: gagal memuat business_profiles aktif:", activeBusinessesError);
+    } else {
+      // Diurutkan created_at DESC di query -- kemunculan PERTAMA per
+      // user_id saat iterasi berarti bisnis aktif TERBARU mereka.
+      const latestActiveBusinessByUserId = new Map<string, { business_name: string; industry: string | null; business_stage: string | null }>();
+      for (const b of activeBusinesses || []) {
+        if (!latestActiveBusinessByUserId.has(b.user_id as string)) {
+          latestActiveBusinessByUserId.set(b.user_id as string, {
+            business_name: b.business_name as string,
+            industry: b.industry as string | null,
+            business_stage: b.business_stage as string | null,
+          });
+        }
+      }
+
+      candidates = candidates
+        .map((c) => {
+          const userId = userIdByEmail.get(c.email);
+          if (!userId) return c; // belum pernah login -- tidak diubah, lihat catatan di atas
+
+          const latestBusiness = latestActiveBusinessByUserId.get(userId);
+          if (!latestBusiness) return null; // punya akun tapi NOL bisnis aktif -- lewati ronde ini
+
+          return {
+            ...c,
+            persona: {
+              ...c.persona,
+              namaBisnis: latestBusiness.business_name || c.persona.namaBisnis,
+              jenisBisnis: latestBusiness.industry || c.persona.jenisBisnis,
+              jenisAnalisis: latestBusiness.business_stage === "idea" ? "baru" : c.persona.jenisAnalisis,
+            },
+          };
+        })
+        .filter((c): c is Candidate => c !== null);
+    }
+  }
 
   const emails = candidates.map((c) => c.email);
   const { data: sendRows, error: sendRowsError } = await supabase
